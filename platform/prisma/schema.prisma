@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  PAST_DUE
+}
+
+model Tenant {
+  id         String       @id @default(uuid())
+  slug       String       @unique
+  name       String
+  plan       String       @default("free")
+  status     TenantStatus @default(ACTIVE)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  deletedAt  DateTime?
+  users      User[]
+  smtpConfig SmtpConfig?
+
+  @@map("tenants")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  tenantId        String?   // null = platform-level user (global admin)
+  tenant          Tenant?   @relation(fields: [tenantId], references: [id])
+  email           String
+  passwordHash    String
+  name            String?
+  isPlatformAdmin Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  roles           UserRole[]
+  refreshTokens   RefreshToken[]
+
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+model App {
+  id               String   @id @default(uuid())
+  clientId         String   @unique
+  clientSecretHash String
+  name             String   @unique
+  callbackUrls     String[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  roles            Role[]
+
+  @@map("apps")
+}
+
+model Role {
+  id          String     @id @default(uuid())
+  appId       String
+  app         App        @relation(fields: [appId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  users       UserRole[]
+
+  @@unique([appId, name])
+  @@map("roles")
+}
+
+model UserRole {
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  appClientId String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model SmtpConfig {
+  id          String  @id @default(uuid())
+  tenantId    String? @unique // null = platform default config
+  tenant      Tenant? @relation(fields: [tenantId], references: [id])
+  host        String
+  port        Int
+  secure      Boolean @default(false)
+  username    String?
+  passwordEnc String? // AES-256-GCM encrypted with SECRET_KEY
+  fromAddress String
+
+  @@map("smtp_configs")
+}
+
+model AuditEvent {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  userId      String?
+  appClientId String?
+  action      String
+  detail      Json?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_events")
+}

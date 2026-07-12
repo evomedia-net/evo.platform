@@ -1,0 +1,49 @@
+import { IsBoolean, IsEmail, IsInt, IsOptional, IsString } from 'class-validator';
+
+export class SendEmailDto {
+  /** Omit to use the platform default SMTP config. */
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
+  @IsEmail()
+  to!: string;
+
+  @IsString()
+  subject!: string;
+
+  @IsOptional()
+  @IsString()
+  text?: string;
+
+  @IsOptional()
+  @IsString()
+  html?: string;
+}
+
+export class UpsertSmtpDto {
+  /** Omit for the platform default config (NULL-tenant row). */
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
+  @IsString()
+  host!: string;
+
+  @IsInt()
+  port!: number;
+
+  @IsBoolean()
+  secure!: boolean;
+
+  @IsOptional()
+  @IsString()
+  username?: string;
+
+  @IsOptional()
+  @IsString()
+  password?: string;
+
+  @IsString()
+  fromAddress!: string;
+}
