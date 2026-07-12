@@ -1,0 +1,40 @@
+# Template Contract
+
+Every starter template — regardless of stack — must ship the following, kept mirrored across
+stacks the same way the two SDKs are.
+
+| Concern | Requirement |
+|---|---|
+| Tenancy | `tenant_id` on every domain table; queries auto-scoped (Prisma middleware / SQLAlchemy event listener) |
+| Auth | JWT verification against platform JWKS in platform mode; local auth table in standalone mode |
+| Mode switch | `PLATFORM_URL` set → platform mode; unset → standalone (single implicit tenant, local auth) |
+| RBAC | Role + section-access checks, seeded default roles |
+| Audit log | App-level audit table; auth events pushed to platform when in platform mode |
+| Soft delete | `deleted_at` convention with a restore path — re-creating a deleted entity restores it, records intact |
+| Email | `platform.sendEmail()` in platform mode; local SMTP config fallback in standalone |
+| Settings | Per-tenant settings table + admin UI stub |
+| Seed data | Fictional demo data only — templates must never ship real names, IDs, or addresses |
+| Deployment | Docker Compose out of the box; deploy script excludes dev/junk files from the artifact |
+| Tests | Smoke-test suite that passes on a fresh clone (`npm test` / `pytest`) |
+| Docs | README covering the standalone quickstart and the platform-integration steps |
+
+## Offline
+
+Offline means different things per stack, and both count:
+
+- **`templates/next`** — offline-first in the browser: an IndexedDB (Dexie) mirror of hot
+  tables, mutations queued locally with a `needs_sync` flag and `updated_at` timestamp, a
+  sync worker that pushes the queue on reconnect, last-write-wins resolution, and a visible
+  sync-status indicator. Out of scope for v1: merge strategies beyond last-write-wins.
+- **`templates/nicegui`** — server-rendered, so browser offline-first does not apply. Its
+  offline story is standalone mode: the entire app plus its database runs on a single
+  machine with no internet access.
+
+## Scaffolding (`cli/`)
+
+`evo new <app-name> --stack next|nicegui`
+
+1. Copies the chosen template (degit-style for Node, copier for Python).
+2. Renames project identifiers: package name, database name, Docker service names.
+3. Generates secrets into `.env` (never committed).
+4. Prints the go-live checklist, including platform registration when applicable.
