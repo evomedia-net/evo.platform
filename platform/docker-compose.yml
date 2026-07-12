@@ -16,5 +16,13 @@ services:
       timeout: 3s
       retries: 10
 
+  # Built-in SMTP for dev: platform sends to :1025, inbox UI at http://localhost:8025
+  mail:
+    image: axllent/mailpit
+    container_name: evoplatform_mail
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   evoplatform_pgdata:

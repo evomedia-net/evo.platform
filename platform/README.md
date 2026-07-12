@@ -7,7 +7,7 @@ registry, audit events, and email. See [../docs/ARCHITECTURE.md](../docs/ARCHITE
 
 ```bash
 cp .env.example .env          # then set SECRET_KEY
-docker compose up -d db       # Postgres on localhost:5433
+docker compose up -d          # Postgres on :5433 + Mailpit SMTP on :1025
 npm install
 npx prisma migrate dev        # create schema
 npm run seed                  # fictional demo data; prints credentials once
@@ -16,6 +16,15 @@ npm run start:dev             # http://localhost:8200
 
 An RSA signing keypair is generated into `./keys/` on first boot (gitignored). Delete the
 folder to rotate keys in dev; in production, mount persistent keys.
+
+## Email
+
+Email works out of the box: the compose stack bundles [Mailpit](https://mailpit.axllent.org/)
+as a built-in SMTP sink, and `.env.example` points the env-level fallback at it. Every mail
+the platform sends in dev lands in the Mailpit inbox UI at **http://localhost:8025**.
+
+Resolution order per send: tenant SMTP config → platform default (`PUT /admin/smtp` with no
+`tenantId`) → env fallback (Mailpit in dev, your real relay in production).
 
 ## Endpoints
 
