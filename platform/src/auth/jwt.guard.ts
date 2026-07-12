@@ -14,6 +14,9 @@ export class JwtAuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }
+    // Single-purpose tokens (e.g. WebAuthn challenge tokens) are signed with
+    // the same key but must never pass as access tokens.
+    if (req.user?.purpose) throw new UnauthorizedException('Invalid or expired token');
     return true;
   }
 }

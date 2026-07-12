@@ -62,3 +62,25 @@ export interface PushEventParams {
   userId?: string;
   detail?: unknown;
 }
+
+/** WebAuthn creation/request options as produced by the platform — pass straight
+ * to the browser (navigator.credentials.create/get) after base64url decoding,
+ * or hand to @simplewebauthn/browser's startRegistration/startAuthentication. */
+export interface PasskeyRegisterOptionsResult {
+  options: unknown;
+  challengeToken: string;
+}
+
+export interface PasskeyLoginOptionsResult {
+  /** null when the user has no registered passkeys — hide the passkey option. */
+  options: unknown | null;
+  challengeToken?: string;
+}
+
+export interface PasskeyInfo {
+  id: string;
+  nickname: string;
+  transports: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+}

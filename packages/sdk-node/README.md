@@ -41,6 +41,29 @@ const next = await platform.refresh(session.refreshToken); // rotates
 await platform.logout(next.refreshToken);
 ```
 
+## Passkeys (WebAuthn)
+
+```ts
+// Registration (user is logged in; run the browser ceremony between the two calls)
+const { options, challengeToken } = await platform.passkeyRegisterOptions(accessToken);
+const credential = await startRegistration({ optionsJSON: options }); // @simplewebauthn/browser
+await platform.passkeyRegisterVerify(accessToken, { credential, challengeToken, nickname: 'Work laptop' });
+
+// Login
+const start = await platform.passkeyLoginOptions({ tenantSlug, email });
+if (start.options) { // null → user has no passkeys; hide the button
+  const credential = await startAuthentication({ optionsJSON: start.options });
+  const session = await platform.passkeyLoginVerify({ credential, challengeToken: start.challengeToken! });
+}
+
+// Management
+await platform.listPasskeys(accessToken);
+await platform.deletePasskey(accessToken, id);
+```
+
+Passkey login enforces the same account/tenant gates as password login and returns the
+same session shape.
+
 ## Services
 
 ```ts

@@ -9,7 +9,7 @@ import { sha256 } from '../core/crypto.util';
 import { config } from '../config';
 import { LoginDto } from './dto';
 
-type UserWithRoles = Prisma.UserGetPayload<{
+export type UserWithRoles = Prisma.UserGetPayload<{
   include: { roles: { include: { role: { include: { app: true } } } } };
 }>;
 
@@ -39,12 +39,31 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const result = await this.issueTokens(user, tenant, dto.clientId);
+    return this.completeLogin(user, tenant, dto.clientId, { ip, method: 'password' });
+  }
+
+  /**
+   * Shared final gate for every login method (password, passkey). Account and
+   * tenant checks live here so all methods enforce identical rules — the
+   * ceremony/credential check alone never grants a session.
+   */
+  async completeLogin(
+    user: UserWithRoles,
+    tenant: Tenant | null,
+    clientId: string | undefined,
+    meta: { ip?: string; method: string },
+  ) {
+    if (user.deletedAt) throw new UnauthorizedException('Invalid credentials');
+    if (tenant && (tenant.deletedAt || tenant.status === 'SUSPENDED')) {
+      throw new ForbiddenException('Tenant is suspended');
+    }
+    const result = await this.issueTokens(user, tenant, clientId);
     await this.audit.record('auth.login', {
       tenantId: tenant?.id,
       userId: user.id,
-      appClientId: dto.clientId,
-      ip,
+      appClientId: clientId,
+      ip: meta.ip,
+      detail: { method: meta.method },
     });
     return result;
   }

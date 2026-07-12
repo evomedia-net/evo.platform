@@ -7,6 +7,17 @@ export const config = {
   jwtIssuer: process.env.JWT_ISSUER ?? 'evoplatform',
   accessTtlSec: Number(process.env.ACCESS_TOKEN_TTL_SEC ?? 900),
   refreshTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
+  webauthn: {
+    rpName: process.env.WEBAUTHN_RP_NAME ?? 'EvoPlatform',
+    // Registrable base domains allowed for passkey ceremonies (loopback is
+    // always allowed for dev). One passkey then works from the apex and any
+    // subdomain, mirroring subdomain-per-tenant routing.
+    baseDomains: (process.env.WEBAUTHN_BASE_DOMAINS ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+    challengeTtlSec: Number(process.env.WEBAUTHN_CHALLENGE_TTL_SEC ?? 300),
+  },
   smtpFallback: {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT ?? 587),

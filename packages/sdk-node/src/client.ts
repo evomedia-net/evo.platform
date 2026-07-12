@@ -6,6 +6,9 @@ import {
   EvoPlatformOptions,
   LoginParams,
   LoginResult,
+  PasskeyInfo,
+  PasskeyLoginOptionsResult,
+  PasskeyRegisterOptionsResult,
   PushEventParams,
   SendEmailParams,
 } from './types';
@@ -58,6 +61,48 @@ export class EvoPlatform {
     return this.post('/auth/logout', { refreshToken });
   }
 
+  // ---- passkeys (WebAuthn) ----
+
+  /** Start passkey registration for the logged-in user (Bearer auth). */
+  passkeyRegisterOptions(accessToken: string): Promise<PasskeyRegisterOptionsResult> {
+    return this.request('POST', '/auth/passkeys/register/options', {}, bearer(accessToken));
+  }
+
+  /** Finish passkey registration with the browser's credential response. */
+  passkeyRegisterVerify(
+    accessToken: string,
+    params: { credential: unknown; challengeToken: string; nickname?: string },
+  ): Promise<PasskeyInfo> {
+    return this.request('POST', '/auth/passkeys/register/verify', params, bearer(accessToken));
+  }
+
+  listPasskeys(accessToken: string): Promise<PasskeyInfo[]> {
+    return this.request('GET', '/auth/passkeys', undefined, bearer(accessToken));
+  }
+
+  deletePasskey(accessToken: string, id: string): Promise<{ ok: boolean }> {
+    return this.request('DELETE', `/auth/passkeys/${id}`, undefined, bearer(accessToken));
+  }
+
+  /** Start passkey login. `options` is null when the user has no passkeys. */
+  passkeyLoginOptions(params: {
+    tenantSlug?: string;
+    email: string;
+  }): Promise<PasskeyLoginOptionsResult> {
+    return this.request('POST', '/auth/passkeys/login/options', params);
+  }
+
+  /** Finish passkey login; returns the same session shape as password login. */
+  passkeyLoginVerify(params: {
+    credential: unknown;
+    challengeToken: string;
+  }): Promise<LoginResult> {
+    return this.request('POST', '/auth/passkeys/login/verify', {
+      ...params,
+      clientId: this.opts.clientId,
+    });
+  }
+
   // ---- client-credential services ----
 
   async sendEmail(params: SendEmailParams): Promise<{ ok: boolean; messageId: string }> {
@@ -80,15 +125,20 @@ export class EvoPlatform {
     };
   }
 
-  private async post<T>(
+  private post<T>(path: string, body: unknown, headers: Record<string, string> = {}): Promise<T> {
+    return this.request('POST', path, body, headers);
+  }
+
+  private async request<T>(
+    method: string,
     path: string,
-    body: unknown,
+    body?: unknown,
     headers: Record<string, string> = {},
   ): Promise<T> {
     const res = await this.fetchFn(`${this.baseUrl}${path}`, {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const text = await res.text();
     let parsed: unknown;
@@ -106,4 +156,8 @@ export class EvoPlatform {
     }
     return parsed as T;
   }
+}
+
+function bearer(accessToken: string): Record<string, string> {
+  return { Authorization: `Bearer ${accessToken}` };
 }

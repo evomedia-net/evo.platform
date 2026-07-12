@@ -126,6 +126,34 @@ describe('EvoPlatform API calls', () => {
     await expect(platform.pushEvent({ action: 'x' })).rejects.toBeInstanceOf(ConfigError);
   });
 
+  it('sends bearer auth for passkey registration options', async () => {
+    const fetchFn = makeFetch({
+      '/auth/passkeys/register/options': () =>
+        fakeResponse(200, { options: {}, challengeToken: 'ct' }),
+    });
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
+    await platform.passkeyRegisterOptions('tok123');
+    const headers = (fetchFn.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers['Authorization']).toBe('Bearer tok123');
+  });
+
+  it('attaches clientId on passkey login verify and uses GET for list', async () => {
+    const fetchFn = makeFetch({
+      '/auth/passkeys/login/verify': () => fakeResponse(200, { accessToken: 'a' }),
+      '/auth/passkeys': () => fakeResponse(200, []),
+    });
+    const platform = new EvoPlatform({
+      platformUrl: 'http://platform.test',
+      clientId: 'app_x',
+      fetchFn,
+    });
+    await platform.passkeyLoginVerify({ credential: {}, challengeToken: 'ct' });
+    const body = JSON.parse((fetchFn.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.clientId).toBe('app_x');
+    await platform.listPasskeys('tok');
+    expect((fetchFn.mock.calls[1][1] as RequestInit).method).toBe('GET');
+  });
+
   it('sends client credential headers on pushEvent', async () => {
     const fetchFn = makeFetch({ '/events': () => fakeResponse(201, { id: 'e1' }) });
     const platform = new EvoPlatform({

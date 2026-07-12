@@ -35,6 +35,12 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `POST /auth/logout` | — | Revoke a refresh token |
 | `GET /auth/me` | Bearer | Echo verified claims |
 | `GET /.well-known/jwks.json` | — | Public keys; apps cache this and verify locally |
+| `POST /auth/passkeys/register/options` | Bearer | Start passkey registration → WebAuthn options + challenge token |
+| `POST /auth/passkeys/register/verify` | Bearer | Finish registration: `{credential, challengeToken, nickname?}` |
+| `GET /auth/passkeys` | Bearer | List own passkeys |
+| `DELETE /auth/passkeys/:id` | Bearer | Remove own passkey (owner-scoped) |
+| `POST /auth/passkeys/login/options` | — | `{tenantSlug?, email}` → options (`null` if user has none) + challenge token |
+| `POST /auth/passkeys/login/verify` | — | `{credential, challengeToken, clientId?}` → same session shape as password login |
 | `GET/POST/PATCH/DELETE /admin/tenants[/:id]` | platform admin | Tenant CRUD (delete = soft) |
 | `POST /admin/tenants/:id/restore\|suspend\|activate` | platform admin | Lifecycle |
 | `GET/POST/PATCH/DELETE /admin/users[/:id]` | platform admin | User CRUD; `?tenantId=platform` for platform-level users |

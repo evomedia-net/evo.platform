@@ -8,6 +8,9 @@ export type {
   EvoPlatformOptions,
   LoginParams,
   LoginResult,
+  PasskeyInfo,
+  PasskeyLoginOptionsResult,
+  PasskeyRegisterOptionsResult,
   PushEventParams,
   SendEmailParams,
 } from './types';

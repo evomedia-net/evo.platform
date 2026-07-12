@@ -41,9 +41,30 @@ model User {
   deletedAt       DateTime?
   roles           UserRole[]
   refreshTokens   RefreshToken[]
+  passkeys        PasskeyCredential[]
 
   @@unique([tenantId, email])
   @@map("users")
+}
+
+model PasskeyCredential {
+  id           String    @id @default(uuid())
+  tenantId     String?
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Globally unique per the WebAuthn spec (authenticator-generated random id);
+  // it's the lookup key at login time, before identity is otherwise known.
+  credentialId String    @unique
+  publicKey    Bytes
+  signCount    Int       @default(0)
+  transports   String? // csv, browser-reported metadata (informational only)
+  aaguid       String?
+  nickname     String    @default("Passkey")
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
+  @@map("passkey_credentials")
 }
 
 model App {
