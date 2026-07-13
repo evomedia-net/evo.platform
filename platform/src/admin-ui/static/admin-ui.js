@@ -325,7 +325,7 @@ async function viewApps() {
       <p class="muted">Callbacks: ${a.callbackUrls.map((u) => `<code>${esc(u)}</code>`).join(" ") || "—"}</p>
       <div class="chips">${a.roles.map((r) => `<span class="chip">${esc(r.name)}</span>`).join("")}</div>
       <form class="inline" data-app="${a.id}" style="margin-top:10px">
-        <label class="grow0">Add role <input name="role" placeholder="admin" required /></label>
+        <label style="flex:0 0 200px">Add role <input name="role" placeholder="admin" required /></label>
         <button class="btn sm grow0">Add</button>
       </form>
     </div>`).join("");
