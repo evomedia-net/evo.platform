@@ -3,9 +3,10 @@
 A multi-tenant SaaS platform and app-template toolkit. Build a new tenant-aware site by
 cloning a starter template — tenancy, auth, RBAC, audit logging, and deployment come wired in.
 
-> **Status: design phase.** The architecture is settled and documented; implementation has
-> not started. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
-> [docs/TEMPLATE_CONTRACT.md](docs/TEMPLATE_CONTRACT.md).
+> **Status: working v1.** The platform service, Node SDK, Next.js template, and `evo new`
+> CLI all run and are tested. Not yet built: admin UI (API only), Python SDK, NiceGUI
+> template. **Setup: [docs/INSTALL.md](docs/INSTALL.md)** · design:
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/TEMPLATE_CONTRACT.md](docs/TEMPLATE_CONTRACT.md).
 
 ## The idea
 

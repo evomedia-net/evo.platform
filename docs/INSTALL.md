@@ -1,0 +1,289 @@
+# EvoPlatform — Install & Setup
+
+Complete path from a bare machine to a running platform with an app on it.
+Works on Windows, macOS, and Linux.
+
+## Contents
+
+1. [Prerequisites](#1-prerequisites)
+2. [Get the code](#2-get-the-code)
+3. [Run the platform service](#3-run-the-platform-service)
+4. [First login & admin basics](#4-first-login--admin-basics)
+5. [Create an app with `evo new`](#5-create-an-app-with-evo-new)
+6. [Flip an app into platform mode](#6-flip-an-app-into-platform-mode)
+7. [Integrate an existing Node app (SDK)](#7-integrate-an-existing-node-app-sdk)
+8. [Configuration reference](#8-configuration-reference)
+9. [Production notes](#9-production-notes)
+10. [Troubleshooting](#10-troubleshooting)
+
+---
+
+## 1. Prerequisites
+
+| Tool | Version | Notes |
+|---|---|---|
+| Node.js | ≥ 20 (22 LTS recommended) | everything is Node/TypeScript |
+| npm | ships with Node | |
+| Docker + Compose | any recent | Postgres + dev SMTP run in containers |
+| git | any recent | |
+
+No global installs needed beyond these; every package uses local `node_modules`.
+
+## 2. Get the code
+
+```bash
+git clone <your-remote>/EvoPlatform.git
+cd EvoPlatform
+```
+
+Monorepo layout:
+
+```
+platform/            The platform service (NestJS + Prisma + Postgres)
+packages/sdk-node/   Node SDK apps use to talk to the platform
+templates/next/      Next.js app starter (offline-first, multi-tenant)
+cli/                 `evo new` scaffolding tool
+docs/                Architecture, template contract, this guide
+```
+
+## 3. Run the platform service
+
+```bash
+cd platform
+cp .env.example .env
+```
+
+Edit `.env` and set at minimum:
+
+- `SECRET_KEY` — long random string (encrypts stored SMTP passwords).
+  Generate one: `openssl rand -base64 32` or
+  `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`
+
+Then:
+
+```bash
+docker compose up -d          # Postgres on :5433 + Mailpit (dev SMTP) on :1025/:8025
+npm install
+npx prisma migrate deploy     # apply committed migrations
+npx prisma generate
+npm run seed                  # fictional demo data — PRINTS CREDENTIALS ONCE, save them
+npm run start:dev             # http://localhost:8200
+```
+
+The seed creates a **platform admin** (`admin@example.com`), a demo tenant `acme`
+with a user, and a demo app — passwords and the app secret are printed once.
+Set `SEED_ADMIN_PASSWORD` / `SEED_OWNER_PASSWORD` in `.env` first if you want
+fixed values.
+
+On first boot the service generates an RSA signing keypair into `./keys/`
+(gitignored). Delete the folder to rotate keys in dev.
+
+**Verify:**
+
+```bash
+curl http://localhost:8200/.well-known/jwks.json           # public signing keys
+curl -X POST http://localhost:8200/auth/login \
+  -H "content-type: application/json" \
+  -d '{"email":"admin@example.com","password":"<seed password>"}'
+```
+
+Dev email: every message the platform sends lands in the Mailpit inbox at
+**http://localhost:8025** — no real SMTP needed. Full endpoint table:
+[platform/README.md](../platform/README.md).
+
+## 4. First login & admin basics
+
+All admin endpoints need a platform-admin bearer token:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8200/auth/login \
+  -H "content-type: application/json" \
+  -d '{"email":"admin@example.com","password":"<seed password>"}' | jq -r .accessToken)
+AUTH="Authorization: Bearer $TOKEN"
+```
+
+**Create a tenant** (a customer workspace):
+
+```bash
+curl -X POST http://localhost:8200/admin/tenants -H "$AUTH" \
+  -H "content-type: application/json" \
+  -d '{"slug":"globex","name":"Globex Corp"}'
+```
+
+**Create a user in it:**
+
+```bash
+curl -X POST http://localhost:8200/admin/users -H "$AUTH" \
+  -H "content-type: application/json" \
+  -d '{"tenantId":"<tenant id>","email":"owner@globex.example","password":"<pw>","name":"Owner"}'
+```
+
+**Register an app** (returns the client secret **once** — store it):
+
+```bash
+curl -X POST http://localhost:8200/admin/apps -H "$AUTH" \
+  -H "content-type: application/json" \
+  -d '{"name":"my-app","callbackUrls":["http://localhost:4180"]}'
+```
+
+**Give the app roles, and assign one to the user:**
+
+```bash
+curl -X POST http://localhost:8200/admin/apps/<app id>/roles -H "$AUTH" \
+  -H "content-type: application/json" -d '{"name":"admin"}'
+curl -X PUT http://localhost:8200/admin/users/<user id>/roles -H "$AUTH" \
+  -H "content-type: application/json" -d '{"roleIds":["<role id>"]}'
+```
+
+Lifecycle: `POST /admin/tenants/:id/suspend|activate|restore`,
+`DELETE /admin/tenants/:id` (soft delete). Audit trail: `GET /admin/audit`.
+
+## 5. Create an app with `evo new`
+
+Build the SDK and CLI once:
+
+```bash
+cd packages/sdk-node && npm install && npm run build
+cd ../../cli         && npm install && npm run build
+```
+
+Scaffold (pick ports that don't collide with other local apps):
+
+```bash
+node dist/cli.js new my-app --dir ~/apps --port 4300 --db-port 5450
+```
+
+This copies `templates/next`, renames every identity (package, UI titles,
+session-cookie name, IndexedDB prefix, Docker names, ports), vendors the SDK
+as a tarball in `vendor/`, and generates `.env` with a fresh `AUTH_SECRET`.
+Then:
+
+```bash
+cd ~/apps/my-app
+docker compose up -d                              # this app's own Postgres
+npm install
+npx prisma migrate deploy && npx prisma generate
+npm run db:seed                                   # optional fictional demo data
+npm run dev                                       # http://localhost:4300
+```
+
+The app is **standalone**: sign up on `/signup` to create a workspace, or log
+in as the seeded `demo@example.com`. It works fully offline — writes queue in
+an outbox and sync when the connection returns.
+
+## 6. Flip an app into platform mode
+
+1. Register the app in the platform admin (step 4) — note client id + secret.
+2. Create its roles (`admin`, `member`) and make sure your tenant slug and
+   users exist in the platform.
+3. Add to the app's `.env`:
+
+```env
+PLATFORM_URL=http://localhost:8200
+EVO_CLIENT_ID=app_...
+EVO_CLIENT_SECRET=...
+PLATFORM_DEFAULT_WORKSPACE=<tenant slug used when the login form leaves workspace blank>
+NEXT_PUBLIC_PLATFORM_MODE=1
+```
+
+4. Restart the app.
+
+Login (password **and** passkey), email, and audit events now flow through the
+platform. Local `Tenant`/`User`/`Membership` rows are JIT-provisioned from
+verified token claims on first login — existing local data is joined by tenant
+slug, never migrated. Remove `PLATFORM_URL` and the app is standalone again;
+no code changes in either direction.
+
+Passkeys: users add them under **Settings → Account** (password re-entry opens
+a 15-minute management window), then use "Sign in with a passkey" on the login
+page. Ceremonies run on the app's own origin; the platform derives the
+WebAuthn RP from it (loopback works in dev; set `WEBAUTHN_BASE_DOMAINS` for
+production domains).
+
+## 7. Integrate an existing Node app (SDK)
+
+```bash
+npm install <path or registry ref for @evoplatform/sdk-node>
+```
+
+```ts
+import { EvoPlatform } from "@evoplatform/sdk-node";
+
+const platform = new EvoPlatform({
+  platformUrl: process.env.PLATFORM_URL!,
+  clientId: process.env.EVO_CLIENT_ID,
+  clientSecret: process.env.EVO_CLIENT_SECRET, // server-side only
+});
+
+const claims = await platform.verifyToken(bearerToken); // local JWKS verify
+await platform.sendEmail({ to, subject, text });
+await platform.pushEvent({ action: "thing.created", tenantId });
+```
+
+Full surface (auth proxy, passkeys, middleware, errors):
+[packages/sdk-node/README.md](../packages/sdk-node/README.md). The recipe for
+wiring a full login flow is exactly what `templates/next` implements — copy
+`src/lib/platform.ts` and the `auth.ts` pattern from there.
+
+## 8. Configuration reference
+
+### Platform service (`platform/.env`)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `8200` | HTTP port |
+| `DATABASE_URL` | compose Postgres | platform DB |
+| `SECRET_KEY` | — (**set it**) | AES key for stored SMTP passwords |
+| `KEYS_DIR` | `./keys` | RSA signing keypair location |
+| `JWT_ISSUER` | `evoplatform` | token issuer claim |
+| `ACCESS_TOKEN_TTL_SEC` | `900` | access token lifetime |
+| `REFRESH_TOKEN_TTL_DAYS` | `30` | refresh token lifetime (rotating) |
+| `SMTP_HOST/PORT/SECURE/USERNAME/PASSWORD/FROM` | Mailpit | env-level email fallback |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | unset | billing (503 until set) |
+| `BILLING_GRACE_DAYS` | `7` | PAST_DUE grace before lockout |
+| `WEBAUTHN_RP_NAME` | `EvoPlatform` | passkey RP display name |
+| `WEBAUTHN_BASE_DOMAINS` | empty | allowed passkey domains (loopback always OK) |
+
+SMTP resolution order per send: tenant config (`PUT /admin/smtp` with
+`tenantId`) → platform default (`PUT /admin/smtp` without) → env fallback.
+
+### Generated app (`.env`)
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | the app's own Postgres |
+| `AUTH_SECRET` | Auth.js session encryption (generated by `evo new`) |
+| `AUTH_URL` | the app's public URL |
+| `SMTP_*`, `EMAIL_FROM` | standalone-mode email (optional; no-op when unset) |
+| `PLATFORM_URL`, `EVO_CLIENT_ID`, `EVO_CLIENT_SECRET`, `PLATFORM_DEFAULT_WORKSPACE`, `NEXT_PUBLIC_PLATFORM_MODE` | platform mode (section 6) |
+
+## 9. Production notes
+
+- **Platform**: build the image from `platform/Dockerfile`; run
+  `npx prisma migrate deploy` on release; mount a persistent volume at
+  `KEYS_DIR` (losing the keypair invalidates every outstanding token) and
+  back up the Postgres volume.
+- **Secrets**: set real `SECRET_KEY`, seed passwords, and Stripe keys via your
+  deploy environment — never commit them. `.env` files are gitignored.
+- **Stripe**: point a dashboard webhook at `POST /billing/webhook` with events
+  `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`, and set
+  `STRIPE_WEBHOOK_SECRET`.
+- **Passkeys**: set `WEBAUTHN_BASE_DOMAINS=yourdomain.com` so one passkey works
+  on the apex and every tenant subdomain. HTTPS is required outside loopback.
+- **Email**: point `SMTP_*` (or the platform-default config) at a real relay;
+  Mailpit is dev-only.
+- **TLS/routing**: put the platform and apps behind your reverse proxy; the
+  service itself speaks plain HTTP.
+
+## 10. Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| `prisma migrate dev` says it's "interactive" and refuses | Use `npx prisma migrate deploy` for applying; write new migration SQL by hand or run `migrate dev` in a real terminal |
+| `EPERM ... query_engine-windows.dll.node` during `prisma generate` (Windows) | The running app has the engine loaded — stop the dev server, regenerate, restart |
+| Turbopack: `Module not found: @evoplatform/sdk-node` with a `file:` dependency | Turbopack can't resolve `file:` symlinks outside the project root. Use a packed tarball (`npm pack` → `file:./vendor/*.tgz`) — `evo new` does this automatically |
+| Login loops / `JWTSessionError: no matching decryption secret` in dev | Two Auth.js apps on localhost are sharing a session cookie (cookies ignore ports). Generated apps get a unique cookie name; if you hand-copied the template, change `evoapp.session-token` in `src/auth.ts` + `src/proxy.ts` |
+| `POST /billing/*` returns 503 | Billing is unconfigured — set `STRIPE_SECRET_KEY` (+ webhook secret for `/billing/webhook`) |
+| `POST /email/send` returns 503 | No SMTP anywhere in the chain — start Mailpit (`docker compose up -d mail`) or configure `/admin/smtp` |
+| Passkey ceremony rejected with 403 "Unrecognized origin" | The page's origin isn't loopback and doesn't match `WEBAUTHN_BASE_DOMAINS` |
+| App can't verify tokens after platform key rotation | Apps refetch JWKS on unknown key ids automatically; if you deleted `keys/` AND restarted mid-session, users just log in again |
