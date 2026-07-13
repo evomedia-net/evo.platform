@@ -2,11 +2,13 @@
   --bg: #0f1115; --panel: #171a21; --panel2: #1e2230; --border: #2a2f3d;
   --text: #e6e8ee; --muted: #8b93a7; --accent: #4f8cff; --danger: #e5534b;
   --ok: #3fb950; --warn: #d29922;
+  --tip-bg: #05070b; --tip-text: #e6e8ee;
 }
 :root[data-theme="light"] {
   --bg: #f6f7f9; --panel: #ffffff; --panel2: #eef0f4; --border: #d5d9e0;
   --text: #1a1d24; --muted: #5c6472; --accent: #2563eb; --danger: #d1332a;
   --ok: #1a7f37; --warn: #9a6700;
+  --tip-bg: #23272f; --tip-text: #f6f7f9;
 }
 * { box-sizing: border-box; }
 /* Author display rules (flex etc.) must never defeat the hidden attribute. */
@@ -97,3 +99,32 @@ th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
 .roleselect { display: flex; gap: 6px; align-items: center; margin: 2px 0; }
 .roleselect .muted { font-size: 11px; min-width: 88px; }
 .roleselect select { margin-top: 0; width: auto; min-width: 110px; }
+
+/* ── Tooltips ────────────────────────────────────────────────────────────────
+   Instant, themed, keyboard-accessible. Add data-tip="…" to any element;
+   data-tip-pos="bottom" flips it below (for header controls). Pure CSS — the
+   pseudo-elements only render on hover/focus, so there is no idle footprint. */
+[data-tip] { position: relative; }
+[data-tip]:hover::after, [data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute; left: 50%; bottom: calc(100% + 7px);
+  transform: translateX(-50%);
+  width: max-content; max-width: 230px; white-space: normal; text-align: left;
+  background: var(--tip-bg); color: var(--tip-text);
+  padding: 6px 9px; border-radius: 8px;
+  font-size: 12px; font-weight: 400; line-height: 1.35;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35); z-index: 60; pointer-events: none;
+}
+[data-tip]:hover::before, [data-tip]:focus-visible::before {
+  content: ""; position: absolute; left: 50%; bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--tip-bg);
+  z-index: 60; pointer-events: none;
+}
+[data-tip-pos="bottom"]:hover::after, [data-tip-pos="bottom"]:focus-visible::after {
+  bottom: auto; top: calc(100% + 7px);
+}
+[data-tip-pos="bottom"]:hover::before, [data-tip-pos="bottom"]:focus-visible::before {
+  bottom: auto; top: calc(100% + 2px);
+  border-top-color: transparent; border-bottom-color: var(--tip-bg);
+}

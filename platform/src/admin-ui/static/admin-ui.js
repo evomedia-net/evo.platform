@@ -214,14 +214,14 @@ async function viewTenants() {
       : t.status === "ACTIVE"
         ? `<span class="badge ok">active</span>`
         : t.status === "PAST_DUE"
-          ? `<span class="badge warn"${t.graceUntil ? ` title="Grace until ${esc(fmt(t.graceUntil))}"` : ""}>past due</span>`
+          ? `<span class="badge warn"${t.graceUntil ? ` data-tip="Payment failed — logins keep working until the grace window closes on ${esc(fmt(t.graceUntil))}, then this tenant is blocked."` : ""}>past due</span>`
           : `<span class="badge bad">suspended</span>`;
     const actions = t.deletedAt
-      ? `<button class="btn sm" data-act="restore" data-id="${t.id}">Restore</button>`
+      ? `<button class="btn sm" data-act="restore" data-id="${t.id}" data-tip="Bring this soft-deleted tenant back; its data is intact.">Restore</button>`
       : `${t.status === "SUSPENDED"
-          ? `<button class="btn sm" data-act="activate" data-id="${t.id}">Activate</button>`
-          : `<button class="btn sm" data-act="suspend" data-id="${t.id}">Suspend</button>`}
-         <button class="btn sm danger" data-act="delete" data-id="${t.id}">Delete</button>`;
+          ? `<button class="btn sm" data-act="activate" data-id="${t.id}" data-tip="Re-enable logins for this tenant.">Activate</button>`
+          : `<button class="btn sm" data-act="suspend" data-id="${t.id}" data-tip="Block all logins to this tenant. Reversible — data is kept.">Suspend</button>`}
+         <button class="btn sm danger" data-act="delete" data-id="${t.id}" data-tip="Soft-delete — hides the tenant but keeps its data; restorable.">Delete</button>`;
     return `<tr><td><code>${esc(t.slug)}</code></td><td>${esc(t.name)}</td>
       <td>${esc(t.plan)}</td><td class="col-status">${state}</td><td class="muted">${esc(fmt(t.createdAt))}</td>
       <td class="col-actions">${actions}</td></tr>`;
@@ -301,9 +301,9 @@ async function viewUsers() {
       <td>${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}</td>
       <td>${roleCell(u)}</td>
       <td>${u.deletedAt
-        ? `<button class="btn sm" data-act="restore" data-id="${u.id}">Restore</button>`
-        : `<button class="btn sm" data-act="password" data-id="${u.id}" data-email="${esc(u.email)}">Password</button>
-           <button class="btn sm danger" data-act="delete" data-id="${u.id}" data-email="${esc(u.email)}">Delete</button>`}
+        ? `<button class="btn sm" data-act="restore" data-id="${u.id}" data-tip="Bring this soft-deleted user back.">Restore</button>`
+        : `<button class="btn sm" data-act="password" data-id="${u.id}" data-email="${esc(u.email)}" data-tip="Set a new password for this user. In platform mode this is the reset path for delegated apps too.">Password</button>
+           <button class="btn sm danger" data-act="delete" data-id="${u.id}" data-email="${esc(u.email)}" data-tip="Soft-delete this user; restorable.">Delete</button>`}
       </td></tr>`).join("");
 
   $("#content").innerHTML = `
@@ -416,11 +416,11 @@ async function viewApps() {
     <div class="card">
       <h2>${esc(a.name)}</h2>
       <p>Client id: <code>${esc(a.clientId)}</code>
-        <button class="btn sm" data-act="rotate" data-id="${a.id}" title="Replace this app's client secret — do it if the secret may have leaked, when someone with access to it leaves, or on a periodic rotation schedule. The old secret stops working immediately, so update the app's config with the new one right away.">Rotate secret</button></p>
+        <button class="btn sm" data-act="rotate" data-id="${a.id}" data-tip="Replace this app's client secret — do it if the secret may have leaked, when someone with access leaves, or on a rotation schedule. The old secret stops working immediately, so update the app's config right away.">Rotate secret</button></p>
       <p class="muted">Callbacks: ${a.callbackUrls.map((u) => `<code>${esc(u)}</code>`).join(" ") || "—"}</p>
       <div class="chips">${a.roles.map((r) => `<span class="chip">${esc(r.name)}
-        <button data-role-act="rename" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" title="Rename role">&#9998;</button>
-        <button data-role-act="delete" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" title="Delete role">&times;</button>
+        <button data-role-act="rename" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" data-tip="Rename this role. Tokens carry role names, so it applies at next login/refresh.">&#9998;</button>
+        <button data-role-act="delete" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" data-tip="Delete this role and remove it from every user that has it.">&times;</button>
       </span>`).join("")}</div>
       <form class="inline" data-app="${a.id}" style="margin-top:10px">
         <label style="flex:0 0 200px">Add role <input name="role" placeholder="admin" required /></label>
@@ -525,8 +525,8 @@ async function viewAudit() {
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
         <h2 style="margin:0">Audit (${events.length})</h2>
         <span class="spacer"></span>
-        <button class="btn sm grow0" id="audit-export-csv">Save CSV</button>
-        <button class="btn sm grow0" id="audit-export-json">Save JSON</button>
+        <button class="btn sm grow0" id="audit-export-csv" data-tip="Download the full filtered range as a spreadsheet-friendly CSV file." data-tip-pos="bottom">Save CSV</button>
+        <button class="btn sm grow0" id="audit-export-json" data-tip="Download the full filtered range as structured JSON." data-tip-pos="bottom">Save JSON</button>
       </div>
       <table><tr><th>Time</th><th>Action</th><th>Tenant</th><th>User</th><th>App</th><th>Detail</th></tr>${rows}</table>
     </div>`;
