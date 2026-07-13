@@ -1,4 +1,5 @@
-import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, Matches } from 'class-validator';
+import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../core/password-policy';
 
 export class CreateUserDto {
   /** Omit for a platform-level user (global admin candidate). */
@@ -10,7 +11,7 @@ export class CreateUserDto {
   email!: string;
 
   @IsString()
-  @MinLength(8)
+  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
   password!: string;
 
   @IsOptional()
@@ -29,7 +30,7 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(8)
+  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
   password?: string;
 
   @IsOptional()

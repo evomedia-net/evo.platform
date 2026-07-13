@@ -315,7 +315,7 @@ async function viewUsers() {
           ${S.tenants.filter((t) => !t.deletedAt).map((t) => `<option value="${t.id}">${esc(t.slug)}</option>`).join("")}
         </select></label>
         <label>Email <input name="email" type="email" required /></label>
-        <label>Password <input name="password" type="text" required minlength="8" /></label>
+        <label data-tip="At least 8 characters, including 2 numbers and 2 special characters.">Password <input name="password" type="text" required /></label>
         <label>Name <input name="name" /></label>
         <label class="grow0"><input type="checkbox" name="isPlatformAdmin" />platform admin</label>
         <button class="btn primary grow0">Create</button>
@@ -377,26 +377,68 @@ async function viewUsers() {
   });
 }
 
+/* Mirrors the server policy (src/core/password-policy.ts): ≥8 chars, ≥2 digits,
+ * ≥2 special characters. The server is authoritative; this is just fast feedback. */
+const PW_POLICY_RE = /^(?=(?:.*\d){2,})(?=(?:.*[^A-Za-z0-9]){2,}).{8,}$/;
+const PW_POLICY_MSG = "At least 8 characters, including 2 numbers and 2 special characters.";
+const EYE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+function pwField(name, label) {
+  return `<label>${label}</label>
+    <div class="pw-field">
+      <input name="${name}" type="password" required autocomplete="new-password" />
+      <button type="button" class="pw-toggle" data-pw-toggle aria-label="Show password">${EYE}</button>
+    </div>`;
+}
+
 /** Admin-set a user's password. In platform mode the platform owns passwords,
  *  so this is the reset path for delegated apps too. */
 function setPasswordModal(userId, email) {
   modal(`<h2>Set password</h2>
-    <p class="muted">For <b>${esc(email)}</b>. Minimum 8 characters.</p>
+    <p class="muted">For <b>${esc(email)}</b>. ${PW_POLICY_MSG}</p>
     <form id="set-pw-form">
-      <label>New password
-        <input name="password" type="password" minlength="8" required autocomplete="new-password" />
-      </label>
+      ${pwField("password", "New password")}
+      ${pwField("confirm", "Confirm password")}
+      <p id="pw-err" class="error" hidden></p>
       <button class="btn primary" style="margin-top:12px">Save password</button>
     </form>`);
-  $("#set-pw-form").addEventListener("submit", async (e) => {
+  const form = $("#set-pw-form");
+
+  form.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-pw-toggle]");
+    if (!btn) return;
+    const input = btn.parentElement.querySelector("input");
+    const reveal = input.type === "password";
+    input.type = reveal ? "text" : "password";
+    btn.innerHTML = reveal ? EYE_OFF : EYE;
+    btn.setAttribute("aria-label", reveal ? "Hide password" : "Show password");
+  });
+
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const password = new FormData(e.target).get("password");
+    const f = new FormData(form);
+    const password = f.get("password");
+    const confirm = f.get("confirm");
+    const err = $("#pw-err");
+    err.hidden = true;
+    if (password !== confirm) {
+      err.textContent = "Passwords don't match.";
+      err.hidden = false;
+      return;
+    }
+    if (!PW_POLICY_RE.test(password)) {
+      err.textContent = PW_POLICY_MSG;
+      err.hidden = false;
+      return;
+    }
     try {
       await api("PATCH", `/admin/users/${userId}`, { password });
       $("#modal").hidden = true;
       toast("Password updated");
-    } catch (err) {
-      toast(err.message, true);
+    } catch (e2) {
+      err.textContent = e2.message;
+      err.hidden = false;
     }
   });
 }
