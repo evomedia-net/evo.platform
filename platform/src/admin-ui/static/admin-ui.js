@@ -27,6 +27,8 @@ const S = {
   access: sessionStorage.getItem("evoadmin.access"),
   refresh: sessionStorage.getItem("evoadmin.refresh"),
   email: sessionStorage.getItem("evoadmin.email"),
+  userId: sessionStorage.getItem("evoadmin.userId"),
+  userName: sessionStorage.getItem("evoadmin.userName"),
   tenants: [],
   apps: [],
 };
@@ -54,15 +56,18 @@ $("#modal-close").addEventListener("click", () => ($("#modal").hidden = true));
 
 // ── auth + api ──────────────────────────────────────────────────────────────
 
-function setSession(access, refresh, email) {
-  S.access = access; S.refresh = refresh; S.email = email;
+function setSession(access, refresh, user) {
+  S.access = access; S.refresh = refresh;
+  S.email = user.email; S.userId = user.id; S.userName = user.name || "";
   sessionStorage.setItem("evoadmin.access", access);
   sessionStorage.setItem("evoadmin.refresh", refresh);
-  sessionStorage.setItem("evoadmin.email", email);
+  sessionStorage.setItem("evoadmin.email", S.email);
+  sessionStorage.setItem("evoadmin.userId", S.userId);
+  sessionStorage.setItem("evoadmin.userName", S.userName);
 }
 
 function clearSession() {
-  S.access = S.refresh = S.email = null;
+  S.access = S.refresh = S.email = S.userId = S.userName = null;
   sessionStorage.clear();
 }
 
@@ -85,7 +90,7 @@ async function api(method, path, body) {
   if (r.status === 401 && S.refresh) {
     const rr = await raw("POST", "/auth/refresh", { refreshToken: S.refresh });
     if (rr.ok) {
-      setSession(rr.data.accessToken, rr.data.refreshToken, rr.data.user.email);
+      setSession(rr.data.accessToken, rr.data.refreshToken, rr.data.user);
       r = await raw(method, path, body, S.access);
     }
   }
@@ -105,7 +110,8 @@ function showLogin() {
 function showApp() {
   $("#login-view").hidden = true;
   $("#app-view").hidden = false;
-  $("#who").textContent = S.email || "";
+  // Greet by name when we have one, falling back to email.
+  $("#who").textContent = S.userName ? `${S.userName} (${S.email})` : S.email || "";
   route();
 }
 
@@ -123,7 +129,7 @@ $("#login-form").addEventListener("submit", async (e) => {
     err.hidden = false;
     return;
   }
-  setSession(r.data.accessToken, r.data.refreshToken, r.data.user.email);
+  setSession(r.data.accessToken, r.data.refreshToken, r.data.user);
   showApp();
 });
 
@@ -261,7 +267,8 @@ async function viewUsers() {
       <td>${roleCell(u)}</td>
       <td>${u.deletedAt
         ? `<button class="btn sm" data-act="restore" data-id="${u.id}">Restore</button>`
-        : `<button class="btn sm danger" data-act="delete" data-id="${u.id}">Delete</button>`}
+        : `<button class="btn sm" data-act="password" data-id="${u.id}" data-email="${esc(u.email)}">Password</button>
+           <button class="btn sm danger" data-act="delete" data-id="${u.id}">Delete</button>`}
       </td></tr>`).join("");
 
   $("#content").innerHTML = `
@@ -306,6 +313,7 @@ async function viewUsers() {
     const btn = e.target.closest("button[data-act]");
     if (!btn) return;
     const { act: a, id } = btn.dataset;
+    if (a === "password") { setPasswordModal(id, btn.dataset.email); return; }
     try {
       if (a === "delete") { await api("DELETE", `/admin/users/${id}`); toast("User deleted"); route(); }
       else if (a === "restore") { await api("POST", `/admin/users/${id}/restore`); toast("User restored"); route(); }
@@ -327,6 +335,30 @@ async function viewUsers() {
     } catch (err) {
       toast(err.message, true);
       route(); // reset the selects to server truth
+    }
+  });
+}
+
+/** Admin-set a user's password. In platform mode the platform owns passwords,
+ *  so this is the reset path for delegated apps too. */
+function setPasswordModal(userId, email) {
+  modal(`<h2>Set password</h2>
+    <p class="muted">For <b>${esc(email)}</b>. Minimum 8 characters.</p>
+    <form id="set-pw-form">
+      <label>New password
+        <input name="password" type="password" minlength="8" required autocomplete="new-password" />
+      </label>
+      <button class="btn primary" style="margin-top:12px">Save password</button>
+    </form>`);
+  $("#set-pw-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const password = new FormData(e.target).get("password");
+    try {
+      await api("PATCH", `/admin/users/${userId}`, { password });
+      $("#modal").hidden = true;
+      toast("Password updated");
+    } catch (err) {
+      toast(err.message, true);
     }
   });
 }
