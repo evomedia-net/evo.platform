@@ -46,7 +46,12 @@ model User {
   tenant          Tenant?   @relation(fields: [tenantId], references: [id])
   email           String
   passwordHash    String
+  // Display name, kept in sync from firstName/lastName; it's what the JWT
+  // `name` claim and apps read. Set directly only via the legacy API path.
   name            String?
+  firstName       String?
+  lastName        String?
+  phone           String?
   isPlatformAdmin Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

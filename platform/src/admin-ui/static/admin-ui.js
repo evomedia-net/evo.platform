@@ -300,6 +300,49 @@ async function viewTenants() {
 
 // ── users ───────────────────────────────────────────────────────────────────
 
+const PROFILE_KEYS = ["firstName", "lastName", "phone"];
+
+/** Shared profile inputs for the create form and edit modal, pre-filled from u.
+ *  Users are people — just name + phone; company address lives on the tenant. */
+function profileFields(u = {}) {
+  const v = (k) => esc(u[k] ?? "");
+  return `
+    <label>First name <input name="firstName" value="${v("firstName")}" /></label>
+    <label>Last name <input name="lastName" value="${v("lastName")}" /></label>
+    <label class="full">Phone <input name="phone" value="${v("phone")}" /></label>`;
+}
+
+/** Collect profile fields from a form. `all=true` includes blanks (edit: allow
+ *  clearing); otherwise only non-empty (create: omit blanks). */
+function collectProfile(f, all = false) {
+  const out = {};
+  for (const k of PROFILE_KEYS) {
+    const val = (f.get(k) || "").trim();
+    if (all || val) out[k] = val;
+  }
+  return out;
+}
+
+function editUserModal(u) {
+  modal(`<h2>Edit user</h2>
+    <p class="muted">${esc(u.email)}</p>
+    <form class="userform" id="user-edit">
+      ${profileFields(u)}
+      <div class="actions"><button class="btn primary">Save changes</button></div>
+    </form>`);
+  $("#user-edit").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await api("PATCH", `/admin/users/${u.id}`, collectProfile(new FormData(e.target), true));
+      $("#modal").hidden = true;
+      toast("User updated");
+      route();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+}
+
 async function viewUsers() {
   await Promise.all([loadTenants(), loadApps()]);
   const filter = sessionStorage.getItem("evoadmin.userFilter") || "";
@@ -335,23 +378,24 @@ async function viewUsers() {
       <td>${roleCell(u)}</td>
       <td>${u.deletedAt
         ? `<button class="btn sm" data-act="restore" data-id="${u.id}" data-tip="Bring this soft-deleted user back.">Restore</button>`
-        : `<button class="btn sm" data-act="password" data-id="${u.id}" data-email="${esc(u.email)}" data-tip="Set a new password for this user. In platform mode this is the reset path for delegated apps too.">Password</button>
+        : `<button class="btn sm" data-act="edit" data-id="${u.id}" data-tip="Edit this user's name, phone, and address.">Edit</button>
+           <button class="btn sm" data-act="password" data-id="${u.id}" data-email="${esc(u.email)}" data-tip="Set a new password for this user. In platform mode this is the reset path for delegated apps too.">Password</button>
            <button class="btn sm danger" data-act="delete" data-id="${u.id}" data-email="${esc(u.email)}" data-tip="Soft-delete this user; restorable.">Delete</button>`}
       </td></tr>`).join("");
 
   $("#content").innerHTML = `
     <div class="card">
       <h2>New user</h2>
-      <form class="inline" id="user-create">
+      <form class="userform" id="user-create">
         <label>Tenant <select name="tenantId">
           <option value="">Platform-level</option>
           ${S.tenants.filter((t) => !t.deletedAt).map((t) => `<option value="${t.id}">${esc(t.slug)}</option>`).join("")}
         </select></label>
         <label>Email <input name="email" type="email" required /></label>
-        <label data-tip="At least 8 characters, including 2 numbers and 2 special characters.">Password <input name="password" type="text" required /></label>
-        <label>Name <input name="name" /></label>
-        <label class="grow0"><input type="checkbox" name="isPlatformAdmin" />platform admin</label>
-        <button class="btn primary grow0">Create</button>
+        ${profileFields()}
+        <label class="full" data-tip="At least 8 characters, including 2 numbers and 2 special characters.">Password <input name="password" type="text" required /></label>
+        <label class="full check"><input type="checkbox" name="isPlatformAdmin" /> Platform admin</label>
+        <div class="actions"><button class="btn primary">Create user</button></div>
       </form>
     </div>
     <div class="card">
@@ -371,7 +415,7 @@ async function viewUsers() {
     await api("POST", "/admin/users", {
       ...(f.get("tenantId") ? { tenantId: f.get("tenantId") } : {}),
       email: f.get("email"), password: f.get("password"),
-      ...(f.get("name") ? { name: f.get("name") } : {}),
+      ...collectProfile(f),
       isPlatformAdmin: f.get("isPlatformAdmin") === "on",
     });
     toast("User created");
@@ -382,6 +426,7 @@ async function viewUsers() {
     if (!btn) return;
     const { act: a, id } = btn.dataset;
     if (a === "password") { setPasswordModal(id, btn.dataset.email); return; }
+    if (a === "edit") { editUserModal(users.find((x) => x.id === id)); return; }
     try {
       if (a === "delete") {
         if (!(await confirmDialog(`Delete user "${btn.dataset.email}"? It can be restored.`))) return;
