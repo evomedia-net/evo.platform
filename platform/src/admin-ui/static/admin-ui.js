@@ -323,7 +323,10 @@ async function viewApps() {
       <p>Client id: <code>${esc(a.clientId)}</code>
         <button class="btn sm" data-act="rotate" data-id="${a.id}">Rotate secret</button></p>
       <p class="muted">Callbacks: ${a.callbackUrls.map((u) => `<code>${esc(u)}</code>`).join(" ") || "—"}</p>
-      <div class="chips">${a.roles.map((r) => `<span class="chip">${esc(r.name)}</span>`).join("")}</div>
+      <div class="chips">${a.roles.map((r) => `<span class="chip">${esc(r.name)}
+        <button data-role-act="rename" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" title="Rename role">&#9998;</button>
+        <button data-role-act="delete" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" title="Delete role">&times;</button>
+      </span>`).join("")}</div>
       <form class="inline" data-app="${a.id}" style="margin-top:10px">
         <label style="flex:0 0 200px">Add role <input name="role" placeholder="admin" required /></label>
         <button class="btn sm grow0">Add</button>
@@ -355,6 +358,25 @@ async function viewApps() {
   });
 
   $("#content").addEventListener("click", async (e) => {
+    const roleBtn = e.target.closest("button[data-role-act]");
+    if (roleBtn) {
+      const { roleAct, appId, roleId, roleName } = roleBtn.dataset;
+      try {
+        if (roleAct === "rename") {
+          const next = prompt(`Rename role "${roleName}" to:`, roleName);
+          if (!next || !next.trim() || next.trim() === roleName) return;
+          await api("PATCH", `/admin/apps/${appId}/roles/${roleId}`, { name: next.trim() });
+          toast("Role renamed — takes effect in tokens at next login/refresh");
+        } else {
+          if (!confirm(`Delete role "${roleName}"? It will be removed from every user that has it.`)) return;
+          const out = await api("DELETE", `/admin/apps/${appId}/roles/${roleId}`);
+          toast(`Role deleted (${out.assignmentsRemoved} assignment${out.assignmentsRemoved === 1 ? "" : "s"} removed)`);
+        }
+        route();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+
     const btn = e.target.closest("button[data-act=rotate]");
     if (!btn) return;
     if (!confirm("Rotate this app's secret? The old secret stops working immediately.")) return;

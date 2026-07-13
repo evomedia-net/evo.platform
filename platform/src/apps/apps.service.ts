@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../core/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { CreateAppDto, CreateRoleDto, UpdateAppDto } from './dto';
+import { CreateAppDto, CreateRoleDto, UpdateAppDto, UpdateRoleDto } from './dto';
 
 const PUBLIC_FIELDS = {
   id: true,
@@ -81,5 +81,41 @@ export class AppsService {
   async listRoles(appId: string) {
     await this.get(appId);
     return this.prisma.role.findMany({ where: { appId }, orderBy: { name: 'asc' } });
+  }
+
+  /**
+   * Rename/redescribe a role. The JWT roles claim carries role NAMES, so a
+   * rename takes effect in tokens at next login/refresh — apps matching on
+   * the old name must be updated in step.
+   */
+  async updateRole(appId: string, roleId: string, dto: UpdateRoleDto) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, appId } });
+    if (!role) throw new NotFoundException('Role not found');
+    if (dto.name && dto.name !== role.name) {
+      const clash = await this.prisma.role.findUnique({
+        where: { appId_name: { appId, name: dto.name } },
+      });
+      if (clash) throw new ConflictException(`Role "${dto.name}" already exists for this app`);
+    }
+    const updated = await this.prisma.role.update({
+      where: { id: roleId },
+      data: { name: dto.name ?? undefined, description: dto.description ?? undefined },
+    });
+    await this.audit.record('app.role_renamed', {
+      detail: { from: role.name, to: updated.name },
+    });
+    return updated;
+  }
+
+  /** Delete a role; every assignment of it is removed (cascade). */
+  async removeRole(appId: string, roleId: string) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, appId } });
+    if (!role) throw new NotFoundException('Role not found');
+    const assignmentsRemoved = await this.prisma.userRole.count({ where: { roleId } });
+    await this.prisma.role.delete({ where: { id: roleId } });
+    await this.audit.record('app.role_deleted', {
+      detail: { role: role.name, assignmentsRemoved },
+    });
+    return { ok: true, assignmentsRemoved };
   }
 }

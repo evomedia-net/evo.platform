@@ -66,6 +66,10 @@ tr:last-child td { border-bottom: none; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { background: var(--panel2); border: 1px solid var(--border);
   padding: 1px 8px; border-radius: 999px; font-size: 12px; }
+.chip button { background: none; border: none; color: var(--muted);
+  cursor: pointer; padding: 0 1px; font-size: 12px; line-height: 1; }
+.chip button:hover { color: var(--accent); }
+.chip button[data-role-act="delete"]:hover { color: var(--danger); }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6);
   display: flex; align-items: center; justify-content: center; z-index: 20; }

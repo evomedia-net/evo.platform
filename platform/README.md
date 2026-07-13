@@ -48,6 +48,7 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `GET/POST/PATCH /admin/apps[/:id]` | platform admin | App registry; create returns the client secret **once** |
 | `POST /admin/apps/:id/rotate-secret` | platform admin | New client secret |
 | `GET/POST /admin/apps/:id/roles` | platform admin | App-specific roles |
+| `PATCH/DELETE /admin/apps/:id/roles/:roleId` | platform admin | Rename a role / delete it (removes all assignments) |
 | `GET /admin/audit` | platform admin | Query audit events |
 | `GET/PUT /admin/smtp` | platform admin | Per-tenant SMTP config; omit `tenantId` for platform default |
 | `POST /events` | client creds | Apps push audit events (`x-client-id` / `x-client-secret`) |

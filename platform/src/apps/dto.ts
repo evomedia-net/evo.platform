@@ -29,3 +29,13 @@ export class CreateRoleDto {
   @IsString()
   description?: string;
 }
+
+export class UpdateRoleDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
