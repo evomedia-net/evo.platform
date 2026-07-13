@@ -1,3 +1,19 @@
+/* Self-hosted brand fonts (variable weight; no external CDN). */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/outfit.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/dm-sans.woff2') format('woff2');
+}
+
 /* Palette + type mirror evomedia.net/www: navy brand (#003366 / #336699),
    Outfit for headings, DM Sans for body. */
 :root {
