@@ -64,6 +64,11 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--bor
   vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; }
 tr:last-child td { border-bottom: none; }
+/* Pinned widths so a Suspend↔Activate toggle (or badge change) never reflows
+   the table. Status is centered and sized to the badge; actions holds the
+   widest button combo without shifting. */
+th.col-status, td.col-status { width: 96px; text-align: center; }
+th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
 
 .badge { display: inline-block; padding: 1px 8px; border-radius: 999px;
   font-size: 11px; border: 1px solid var(--border); }

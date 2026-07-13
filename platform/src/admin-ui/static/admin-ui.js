@@ -214,7 +214,7 @@ async function viewTenants() {
       : t.status === "ACTIVE"
         ? `<span class="badge ok">active</span>`
         : t.status === "PAST_DUE"
-          ? `<span class="badge warn">past due${t.graceUntil ? " · grace to " + esc(fmt(t.graceUntil)) : ""}</span>`
+          ? `<span class="badge warn"${t.graceUntil ? ` title="Grace until ${esc(fmt(t.graceUntil))}"` : ""}>past due</span>`
           : `<span class="badge bad">suspended</span>`;
     const actions = t.deletedAt
       ? `<button class="btn sm" data-act="restore" data-id="${t.id}">Restore</button>`
@@ -223,8 +223,8 @@ async function viewTenants() {
           : `<button class="btn sm" data-act="suspend" data-id="${t.id}">Suspend</button>`}
          <button class="btn sm danger" data-act="delete" data-id="${t.id}">Delete</button>`;
     return `<tr><td><code>${esc(t.slug)}</code></td><td>${esc(t.name)}</td>
-      <td>${esc(t.plan)}</td><td>${state}</td><td class="muted">${esc(fmt(t.createdAt))}</td>
-      <td>${actions}</td></tr>`;
+      <td>${esc(t.plan)}</td><td class="col-status">${state}</td><td class="muted">${esc(fmt(t.createdAt))}</td>
+      <td class="col-actions">${actions}</td></tr>`;
   }).join("");
 
   $("#content").innerHTML = `
@@ -238,7 +238,7 @@ async function viewTenants() {
       </form>
     </div>
     <div class="card"><h2>Tenants (${S.tenants.length})</h2>
-      <table><tr><th>Slug</th><th>Name</th><th>Plan</th><th>Status</th><th>Created</th><th></th></tr>${rows}</table>
+      <table><tr><th>Slug</th><th>Name</th><th>Plan</th><th class="col-status">Status</th><th>Created</th><th class="col-actions"></th></tr>${rows}</table>
     </div>`;
 
   $("#tenant-create").addEventListener("submit", act(async (e) => {
