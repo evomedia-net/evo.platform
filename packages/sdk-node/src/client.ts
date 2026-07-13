@@ -63,9 +63,19 @@ export class EvoPlatform {
 
   // ---- passkeys (WebAuthn) ----
 
-  /** Start passkey registration for the logged-in user (Bearer auth). */
-  passkeyRegisterOptions(accessToken: string): Promise<PasskeyRegisterOptionsResult> {
-    return this.request('POST', '/auth/passkeys/register/options', {}, bearer(accessToken));
+  /**
+   * Start passkey registration for the logged-in user (Bearer auth).
+   * Pass the BROWSER page's origin when proxying server-side — the platform
+   * derives the WebAuthn RP from it, and the ceremony runs on that page.
+   */
+  passkeyRegisterOptions(
+    accessToken: string,
+    opts: { origin?: string } = {},
+  ): Promise<PasskeyRegisterOptionsResult> {
+    return this.request('POST', '/auth/passkeys/register/options', {}, {
+      ...bearer(accessToken),
+      ...originHeader(opts.origin),
+    });
   }
 
   /** Finish passkey registration with the browser's credential response. */
@@ -84,12 +94,13 @@ export class EvoPlatform {
     return this.request('DELETE', `/auth/passkeys/${id}`, undefined, bearer(accessToken));
   }
 
-  /** Start passkey login. `options` is null when the user has no passkeys. */
-  passkeyLoginOptions(params: {
-    tenantSlug?: string;
-    email: string;
-  }): Promise<PasskeyLoginOptionsResult> {
-    return this.request('POST', '/auth/passkeys/login/options', params);
+  /** Start passkey login. `options` is null when the user has no passkeys.
+   * Pass the browser page's origin when proxying server-side. */
+  passkeyLoginOptions(
+    params: { tenantSlug?: string; email: string },
+    opts: { origin?: string } = {},
+  ): Promise<PasskeyLoginOptionsResult> {
+    return this.request('POST', '/auth/passkeys/login/options', params, originHeader(opts.origin));
   }
 
   /** Finish passkey login; returns the same session shape as password login. */
@@ -160,4 +171,8 @@ export class EvoPlatform {
 
 function bearer(accessToken: string): Record<string, string> {
   return { Authorization: `Bearer ${accessToken}` };
+}
+
+function originHeader(origin?: string): Record<string, string> {
+  return origin ? { Origin: origin } : {};
 }
