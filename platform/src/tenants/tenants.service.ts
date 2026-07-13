@@ -26,10 +26,11 @@ export class TenantsService {
   async create(dto: CreateTenantDto) {
     const existing = await this.prisma.tenant.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug "${dto.slug}" is already taken`);
+    const { slug, name, plan, ...profile } = dto;
     const tenant = await this.prisma.tenant.create({
-      data: { slug: dto.slug, name: dto.name, plan: dto.plan ?? 'free' },
+      data: { slug, name, plan: plan ?? 'free', ...profile },
     });
-    await this.audit.record('tenant.created', { tenantId: tenant.id, detail: { slug: dto.slug } });
+    await this.audit.record('tenant.created', { tenantId: tenant.id, detail: { slug } });
     return tenant;
   }
 
