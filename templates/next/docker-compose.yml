@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: evoapp_db
+    environment:
+      POSTGRES_USER: evoapp
+      POSTGRES_PASSWORD: evoapp
+      POSTGRES_DB: evoapp
+    ports:
+      - "5446:5432"
+    volumes:
+      - evoapp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evoapp"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  evoapp_pgdata:

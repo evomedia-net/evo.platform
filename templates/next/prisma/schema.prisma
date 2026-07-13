@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Tenant {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  memberships Membership[]
+  projects    Project[]
+  settings    TenantSettings?
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  name          String?
+  passwordHash  String? // null in platform mode — the platform owns the password
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  memberships   Membership[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  tenantId  String
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+}
+
+/// Auth.js adapter tables (JWT session strategy leaves Session unused at
+/// runtime; Account activates the day an OAuth provider is enabled).
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/// Per-tenant app settings (template contract). Admin UI is a stub — extend
+/// the JSON blob or promote keys to columns as the app grows.
+model TenantSettings {
+  id       String @id @default(cuid())
+  tenantId String @unique
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  data     Json   @default("{}")
+}
+
+/// App-level audit trail (template contract). Auth events also flow to the
+/// platform's central audit log in platform mode (src/lib/audit.ts).
+model AuditEvent {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  action    String
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+/// Single-row table recording the max rowVersion whose tombstones have been
+/// hard-deleted. Clients with an older cursor get resyncRequired.
+model SyncGcHorizon {
+  id        Int      @id @default(1)
+  horizon   BigInt   @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+/// ── Example domain: Project (parent) + Task (child) ────────────────────────
+/// Mirrors the sync-v2 shape: client-generated string ids (offline creation),
+/// tenant scoping, tombstones, and a DB-trigger-assigned rowVersion cursor.
+/// Replace with your real domain; keep the last four columns and the trigger.
+model Project {
+  id          String    @id
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  name        String
+  description String?
+  status      String    @default("Active")
+  deletedAt   DateTime?
+  rowVersion  BigInt    @default(0)
+  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+
+  tasks Task[]
+
+  @@index([tenantId, rowVersion])
+  @@index([tenantId, deletedAt])
+}
+
+model Task {
+  id         String    @id // "{projectId}::{uuid}" — prefix keeps outbox purges cheap
+  tenantId   String // denormalized so sync pulls need no join
+  projectId  String
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String
+  done       Boolean   @default(false)
+  deletedAt  DateTime?
+  rowVersion BigInt    @default(0)
+  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, rowVersion])
+  @@index([projectId])
+}
