@@ -4,6 +4,24 @@
  * auto-refreshed via the rotating refresh token). */
 "use strict";
 
+// ── theme ───────────────────────────────────────────────────────────────────
+// Applied before first paint (this script is at end of <body>). Explicit
+// choice wins; otherwise follow the OS preference.
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("evoadmin.theme", theme);
+  const btn = document.getElementById("theme-toggle");
+  if (btn) btn.textContent = theme === "light" ? "☾" : "☀"; // moon / sun
+}
+(function initTheme() {
+  const saved = localStorage.getItem("evoadmin.theme");
+  const prefersLight = window.matchMedia?.("(prefers-color-scheme: light)").matches;
+  applyTheme(saved || (prefersLight ? "light" : "dark"));
+})();
+document.getElementById("theme-toggle")?.addEventListener("click", () => {
+  applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light");
+});
+
 const $ = (sel) => document.querySelector(sel);
 const S = {
   access: sessionStorage.getItem("evoadmin.access"),

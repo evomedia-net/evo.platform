@@ -1,7 +1,12 @@
-:root {
+:root, :root[data-theme="dark"] {
   --bg: #0f1115; --panel: #171a21; --panel2: #1e2230; --border: #2a2f3d;
   --text: #e6e8ee; --muted: #8b93a7; --accent: #4f8cff; --danger: #e5534b;
   --ok: #3fb950; --warn: #d29922;
+}
+:root[data-theme="light"] {
+  --bg: #f6f7f9; --panel: #ffffff; --panel2: #eef0f4; --border: #d5d9e0;
+  --text: #1a1d24; --muted: #5c6472; --accent: #2563eb; --danger: #d1332a;
+  --ok: #1a7f37; --warn: #9a6700;
 }
 * { box-sizing: border-box; }
 /* Author display rules (flex etc.) must never defeat the hidden attribute. */
@@ -38,6 +43,9 @@ input, select {
   width: 100%; margin-top: 4px; padding: 7px 9px; border-radius: 8px;
   border: 1px solid var(--border); background: var(--panel2); color: var(--text);
 }
+/* A bare select in an inline form (filter/scope pickers) must stay usable even
+   when its flex label is narrow. */
+form.inline select { min-width: 140px; }
 input[type="checkbox"] { width: auto; margin-right: 6px; }
 form.inline { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 form.inline label { flex: 1; min-width: 130px; }
