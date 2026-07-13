@@ -416,7 +416,7 @@ async function viewApps() {
     <div class="card">
       <h2>${esc(a.name)}</h2>
       <p>Client id: <code>${esc(a.clientId)}</code>
-        <button class="btn sm" data-act="rotate" data-id="${a.id}">Rotate secret</button></p>
+        <button class="btn sm" data-act="rotate" data-id="${a.id}" title="Replace this app's client secret — do it if the secret may have leaked, when someone with access to it leaves, or on a periodic rotation schedule. The old secret stops working immediately, so update the app's config with the new one right away.">Rotate secret</button></p>
       <p class="muted">Callbacks: ${a.callbackUrls.map((u) => `<code>${esc(u)}</code>`).join(" ") || "—"}</p>
       <div class="chips">${a.roles.map((r) => `<span class="chip">${esc(r.name)}
         <button data-role-act="rename" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" title="Rename role">&#9998;</button>
