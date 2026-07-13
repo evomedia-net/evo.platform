@@ -1,7 +1,40 @@
-import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../core/password-policy';
 
-export class CreateUserDto {
+/** Simple person profile shared by create and update. Address/company details
+ *  live on the Tenant, not the user. */
+class ProfileFields {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  lastName?: string;
+
+  /** Legacy/explicit display name. Ignored when firstName/lastName are given. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone?: string;
+}
+
+export class CreateUserDto extends ProfileFields {
   /** Omit for a platform-level user (global admin candidate). */
   @IsOptional()
   @IsString()
@@ -15,19 +48,11 @@ export class CreateUserDto {
   password!: string;
 
   @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
   @IsBoolean()
   isPlatformAdmin?: boolean;
 }
 
-export class UpdateUserDto {
-  @IsOptional()
-  @IsString()
-  name?: string;
-
+export class UpdateUserDto extends ProfileFields {
   @IsOptional()
   @IsString()
   @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })

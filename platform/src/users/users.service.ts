@@ -9,11 +9,35 @@ const PUBLIC_FIELDS = {
   tenantId: true,
   email: true,
   name: true,
+  firstName: true,
+  lastName: true,
+  phone: true,
   isPlatformAdmin: true,
   createdAt: true,
   deletedAt: true,
   roles: { select: { role: { select: { id: true, name: true, appId: true } } } },
 } as const;
+
+const PROFILE_KEYS = ['firstName', 'lastName', 'phone'] as const;
+
+interface ProfileInput {
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  phone?: string;
+}
+
+/** Pick only the profile keys present on the DTO (so an update never nulls a
+ *  field the caller didn't mention). */
+function profileData(dto: ProfileInput): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const k of PROFILE_KEYS) if (dto[k] !== undefined) out[k] = dto[k];
+  return out;
+}
+
+function fullName(first?: string | null, last?: string | null): string | null {
+  return [first, last].filter(Boolean).join(' ').trim() || null;
+}
 
 @Injectable()
 export class UsersService {
@@ -47,11 +71,14 @@ export class UsersService {
     const existing = await this.prisma.user.findFirst({ where: { tenantId, email } });
     if (existing) throw new ConflictException('A user with that email already exists');
 
+    const name =
+      dto.firstName || dto.lastName ? fullName(dto.firstName, dto.lastName) : (dto.name ?? null);
     const user = await this.prisma.user.create({
       data: {
         tenantId,
         email,
-        name: dto.name,
+        ...profileData(dto),
+        name,
         passwordHash: await bcrypt.hash(dto.password, 10),
         isPlatformAdmin: dto.isPlatformAdmin ?? false,
       },
@@ -62,11 +89,23 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto) {
-    await this.get(id);
+    const existing = await this.get(id);
+    // Recompute the display name when either name part changes, merging with
+    // whatever's already stored so a single-field edit keeps the other half.
+    let name: string | null | undefined;
+    if (dto.firstName !== undefined || dto.lastName !== undefined) {
+      name = fullName(
+        dto.firstName ?? existing.firstName,
+        dto.lastName ?? existing.lastName,
+      );
+    } else if (dto.name !== undefined) {
+      name = dto.name;
+    }
     return this.prisma.user.update({
       where: { id },
       data: {
-        name: dto.name,
+        ...profileData(dto),
+        ...(name !== undefined ? { name } : {}),
         isPlatformAdmin: dto.isPlatformAdmin,
         ...(dto.password ? { passwordHash: await bcrypt.hash(dto.password, 10) } : {}),
       },

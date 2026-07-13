@@ -89,6 +89,14 @@ input, select {
    when its flex label is narrow. */
 form.inline select { min-width: 140px; }
 
+/* Multi-field user form (create card + edit modal). */
+.userform { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; max-width: 620px; }
+.userform .full { grid-column: 1 / -1; }
+.userform label { display: block; font-size: 13px; }
+.userform .actions { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+.userform .check { display: flex; align-items: center; gap: 6px; }
+.userform .check input { width: auto; margin-top: 0; }
+
 /* Password field with an inline show/hide toggle. */
 .pw-field { position: relative; margin-top: 4px; margin-bottom: 4px; }
 .pw-field input { margin-top: 0; padding-right: 38px; }
