@@ -81,6 +81,6 @@ tr:last-child td { border-bottom: none; }
   padding: 10px 14px; border-radius: 8px; z-index: 30; max-width: 380px; }
 #toast.err { border-left-color: var(--danger); }
 
-.rowform { background: var(--panel2); border-radius: 8px; padding: 10px; margin: 6px 0; }
-.rolegroup { margin: 6px 0; }
-.rolegroup b { font-size: 12px; color: var(--muted); }
+.roleselect { display: flex; gap: 6px; align-items: center; margin: 2px 0; }
+.roleselect .muted { font-size: 11px; min-width: 88px; }
+.roleselect select { margin-top: 0; width: auto; min-width: 110px; }

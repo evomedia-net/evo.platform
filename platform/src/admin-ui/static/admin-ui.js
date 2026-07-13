@@ -220,22 +220,31 @@ async function viewUsers() {
     ${S.tenants.filter((t) => !t.deletedAt).map((t) =>
       `<option value="${t.id}"${sel === t.id ? " selected" : ""}>${esc(t.slug)}</option>`).join("")}`;
 
-  const rows = users.map((u) => {
-    const roles = u.roles.map((r) => `<span class="chip">${esc(r.role.name)}</span>`).join(" ");
-    return `<tr>
+  // One dropdown per app: pick a role (or —) and it saves immediately.
+  const roleCell = (u) =>
+    S.apps
+      .filter((a) => a.roles.length)
+      .map((a) => {
+        const current = u.roles.find((r) => a.roles.some((ar) => ar.id === r.role.id));
+        return `<div class="roleselect"><span class="muted">${esc(a.name)}</span>
+          <select data-user-roles="${u.id}">
+            <option value="">&mdash;</option>
+            ${a.roles.map((ar) =>
+              `<option value="${ar.id}"${current?.role.id === ar.id ? " selected" : ""}>${esc(ar.name)}</option>`).join("")}
+          </select></div>`;
+      })
+      .join("") || '<span class="muted">no roles defined</span>';
+
+  const rows = users.map((u) => `<tr>
       <td>${esc(u.email)}${u.deletedAt ? ' <span class="badge bad">deleted</span>' : ""}</td>
       <td>${esc(u.name ?? "")}</td>
       <td><code>${esc(tenantName(u.tenantId))}</code></td>
       <td>${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}</td>
-      <td><div class="chips">${roles}</div></td>
-      <td>
-        <button class="btn sm" data-act="roles" data-id="${u.id}">Roles</button>
-        ${u.deletedAt
-          ? `<button class="btn sm" data-act="restore" data-id="${u.id}">Restore</button>`
-          : `<button class="btn sm danger" data-act="delete" data-id="${u.id}">Delete</button>`}
-      </td></tr>
-      <tr id="roles-${u.id}" hidden><td colspan="6"></td></tr>`;
-  }).join("");
+      <td>${roleCell(u)}</td>
+      <td>${u.deletedAt
+        ? `<button class="btn sm" data-act="restore" data-id="${u.id}">Restore</button>`
+        : `<button class="btn sm danger" data-act="delete" data-id="${u.id}">Delete</button>`}
+      </td></tr>`).join("");
 
   $("#content").innerHTML = `
     <div class="card">
@@ -253,7 +262,7 @@ async function viewUsers() {
       </form>
     </div>
     <div class="card">
-      <form class="inline"><label class="grow0">Filter by tenant
+      <form class="inline"><label style="flex:0 0 220px">Filter by tenant
         <select id="user-filter">${tenantOpts(filter)}</select></label></form>
       <table><tr><th>Email</th><th>Name</th><th>Tenant</th><th></th><th>Roles</th><th></th></tr>${rows}</table>
     </div>`;
@@ -282,28 +291,26 @@ async function viewUsers() {
     try {
       if (a === "delete") { await api("DELETE", `/admin/users/${id}`); toast("User deleted"); route(); }
       else if (a === "restore") { await api("POST", `/admin/users/${id}/restore`); toast("User restored"); route(); }
-      else if (a === "roles") toggleRoleEditor(id, users.find((u) => u.id === id));
-      else if (a === "save-roles") {
-        const boxes = document.querySelectorAll(`#roles-${id} input[type=checkbox]:checked`);
-        await api("PUT", `/admin/users/${id}/roles`, { roleIds: [...boxes].map((b) => b.value) });
-        toast("Roles updated"); route();
-      }
     } catch (err) { toast(err.message, true); }
   });
-}
 
-function toggleRoleEditor(id, user) {
-  const row = $(`#roles-${id}`);
-  if (!row.hidden) { row.hidden = true; return; }
-  const have = new Set(user.roles.map((r) => r.role.id));
-  row.firstElementChild.innerHTML = `<div class="rowform">
-    ${S.apps.map((a) => `<div class="rolegroup"><b>${esc(a.name)}</b><br/>
-      ${a.roles.map((r) => `<label style="display:inline-block;margin-right:12px">
-        <input type="checkbox" value="${r.id}"${have.has(r.id) ? " checked" : ""}/>${esc(r.name)}</label>`).join("")
-        || '<span class="muted">no roles</span>'}</div>`).join("")}
-    <button class="btn sm primary" data-act="save-roles" data-id="${id}">Save roles</button>
-  </div>`;
-  row.hidden = false;
+  // Role dropdowns save on change: collect every app-select for the user and
+  // PUT the full assignment set.
+  $("#content").addEventListener("change", async (e) => {
+    const sel = e.target.closest("select[data-user-roles]");
+    if (!sel) return;
+    const id = sel.dataset.userRoles;
+    const roleIds = [...document.querySelectorAll(`select[data-user-roles="${id}"]`)]
+      .map((s) => s.value)
+      .filter(Boolean);
+    try {
+      await api("PUT", `/admin/users/${id}/roles`, { roleIds });
+      toast("Roles updated");
+    } catch (err) {
+      toast(err.message, true);
+      route(); // reset the selects to server truth
+    }
+  });
 }
 
 // ── apps ────────────────────────────────────────────────────────────────────
@@ -450,7 +457,7 @@ async function viewSmtp() {
 
   $("#content").innerHTML = `
     <div class="card">
-      <form class="inline"><label class="grow0">Scope
+      <form class="inline"><label style="flex:0 0 220px">Scope
         <select id="smtp-scope">
           <option value="">Platform default</option>
           ${S.tenants.filter((t) => !t.deletedAt).map((t) =>
