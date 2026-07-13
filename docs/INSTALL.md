@@ -93,6 +93,11 @@ Dev email: every message the platform sends lands in the Mailpit inbox at
 
 ## 4. First login & admin basics
 
+The easiest way to administer the platform is the **built-in admin console at
+`http://localhost:8200/`** — sign in with the platform-admin account and manage
+tenants, users, apps, audit, and SMTP from the browser.
+
+Everything below is the same thing via the REST API (useful for scripting).
 All admin endpoints need a platform-admin bearer token:
 
 ```bash

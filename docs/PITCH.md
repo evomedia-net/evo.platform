@@ -34,8 +34,8 @@ flips the same build into a platform tenant app. Adopt the template today, adopt
 platform never, or later — your call.
 
 Extracted from shipping production apps, not designed in the abstract. Early: one template
-stack (Next.js), one SDK (Node), no admin UI yet. Everything claimed above runs and is
-tested.
+stack (Next.js), one SDK (Node). Everything claimed above runs and is tested, including a
+built-in admin console for tenants, users, apps, audit, and SMTP.
 
 ## General-audience one-liner (10 seconds)
 

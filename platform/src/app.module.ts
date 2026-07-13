@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AdminUiModule } from './admin-ui/admin-ui.module';
 import { CoreModule } from './core/core.module';
 import { AuthModule } from './auth/auth.module';
 import { PasskeysModule } from './passkeys/passkeys.module';
@@ -11,6 +12,7 @@ import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
+    AdminUiModule,
     CoreModule,
     AuthModule,
     PasskeysModule,

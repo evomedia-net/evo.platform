@@ -3,6 +3,7 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "tsConfigPath": "tsconfig.build.json"
+    "tsConfigPath": "tsconfig.build.json",
+    "assets": [{ "include": "admin-ui/static/**", "outDir": "dist", "watchAssets": true }]
   }
 }
