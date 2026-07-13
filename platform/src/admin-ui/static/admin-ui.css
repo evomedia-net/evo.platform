@@ -29,12 +29,14 @@
   --tip-bg: #0a1f33; --tip-text: #eaf1f8;
   --mesh-1: rgba(51, 102, 153, 0.20); --mesh-2: rgba(10, 30, 55, 0.45);
 }
+/* Light = the same navy theme, ~50% lighter: airy blue-tinted surfaces that
+   still read as the dark theme's sibling, not a generic white theme. */
 :root[data-theme="light"] {
-  --bg: #eef3f8; --panel: #ffffff; --panel2: #f1f5fa; --border: #d3deea;
-  --text: #1a2d42; --muted: #4d5c6b; --accent: #336699; --danger: #c23b32;
-  --ok: #1a7f47; --warn: #9a6700;
-  --tip-bg: #003366; --tip-text: #ffffff;
-  --mesh-1: rgba(51, 102, 153, 0.08); --mesh-2: rgba(51, 102, 153, 0.05);
+  --bg: #cfe0f0; --panel: #f5faff; --panel2: #e4eef9; --border: #a9c6e2;
+  --text: #14304a; --muted: #556f8a; --accent: #3574b8; --danger: #d05a51;
+  --ok: #2ea457; --warn: #c98f2e;
+  --tip-bg: #14304a; --tip-text: #eaf1f8;
+  --mesh-1: rgba(51, 102, 153, 0.16); --mesh-2: rgba(51, 102, 153, 0.09);
 }
 * { box-sizing: border-box; }
 /* Author display rules (flex etc.) must never defeat the hidden attribute. */
