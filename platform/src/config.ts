@@ -7,6 +7,12 @@ export const config = {
   jwtIssuer: process.env.JWT_ISSUER ?? 'evoplatform',
   accessTtlSec: Number(process.env.ACCESS_TOKEN_TTL_SEC ?? 900),
   refreshTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
+  retention: {
+    /** Days to keep audit events; 0 = keep forever. */
+    auditDays: Number(process.env.RETENTION_AUDIT_DAYS ?? 0),
+    /** Days to keep revoked/expired refresh tokens. */
+    tokenDays: Number(process.env.RETENTION_TOKEN_DAYS ?? 30),
+  },
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY,
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,

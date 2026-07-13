@@ -94,6 +94,25 @@ export class UsersService {
     });
   }
 
+  /**
+   * Hard delete (erasure). Requires prior soft-delete, same safety pattern as
+   * tenant purge. Audit rows survive but are unlinked from the user id, so
+   * the trail keeps its shape without pointing at an erased person.
+   */
+  async purge(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.deletedAt) {
+      throw new ConflictException('Purge requires the user to be soft-deleted first');
+    }
+    await this.prisma.$transaction([
+      this.prisma.auditEvent.updateMany({ where: { userId: id }, data: { userId: null } }),
+      this.prisma.user.delete({ where: { id } }),
+    ]);
+    await this.audit.record('user.purged', { tenantId: user.tenantId ?? undefined });
+    return { ok: true };
+  }
+
   async setRoles(id: string, roleIds: string[]) {
     await this.get(id);
     await this.prisma.$transaction([
