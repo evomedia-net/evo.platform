@@ -55,6 +55,11 @@ export class UsersController {
     return this.users.restore(id);
   }
 
+  @Delete(':id/purge')
+  purge(@Param('id') id: string) {
+    return this.users.purge(id);
+  }
+
   @Put(':id/roles')
   setRoles(@Param('id') id: string, @Body() dto: SetRolesDto) {
     return this.users.setRoles(id, dto.roleIds);

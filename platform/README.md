@@ -43,6 +43,9 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `POST /auth/passkeys/login/verify` | — | `{credential, challengeToken, clientId?}` → same session shape as password login |
 | `GET/POST/PATCH/DELETE /admin/tenants[/:id]` | platform admin | Tenant CRUD (delete = soft) |
 | `POST /admin/tenants/:id/restore\|suspend\|activate` | platform admin | Lifecycle |
+| `GET /admin/tenants/:id/export` | platform admin | Full platform-data export (portability/backup); secrets omitted |
+| `DELETE /admin/tenants/:id/purge` | platform admin | Hard delete (erasure); requires prior soft-delete |
+| `DELETE /admin/users/:id/purge` | platform admin | Hard delete a soft-deleted user; audit rows unlinked |
 | `GET/POST/PATCH/DELETE /admin/users[/:id]` | platform admin | User CRUD; `?tenantId=platform` for platform-level users |
 | `PUT /admin/users/:id/roles` | platform admin | Assign roles |
 | `GET/POST/PATCH /admin/apps[/:id]` | platform admin | App registry; create returns the client secret **once** |
@@ -56,6 +59,21 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `POST /billing/portal` | client creds | Stripe billing-portal URL (payment method, cancel) |
 | `POST /billing/webhook` | stripe signature | Subscription/invoice events → tenant status + 7-day grace on failed payment |
 | `POST /email/send` | client creds | Send via tenant SMTP → platform default → env fallback |
+
+## Data lifecycle
+
+- **Export** (`GET /admin/tenants/:id/export`): the tenant's platform-owned data as one
+  JSON document — tenant, users with role assignments, SMTP config (password masked),
+  audit trail. App domain data is exported by each app from its own database.
+- **Purge** (`DELETE /admin/tenants/:id/purge`, `DELETE /admin/users/:id/purge`): true
+  erasure, deliberately two-step — the row must already be soft-deleted, so one mistaken
+  call can never destroy data. Tenant purge removes users (cascading tokens, passkeys,
+  role links), SMTP config, audit events, then the tenant. User purge unlinks the user
+  from remaining audit rows before deleting. Stripe customers are not touched — cancel
+  in Stripe first.
+- **Retention**: a daily sweep (and on boot) deletes audit events older than
+  `RETENTION_AUDIT_DAYS` (0 = keep forever) and refresh tokens revoked/expired longer
+  than `RETENTION_TOKEN_DAYS` (default 30) ago.
 
 ## Tests
 

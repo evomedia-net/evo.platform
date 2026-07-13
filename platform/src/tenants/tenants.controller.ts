@@ -58,4 +58,14 @@ export class TenantsController {
   activate(@Param('id') id: string) {
     return this.tenants.activate(id);
   }
+
+  @Get(':id/export')
+  exportTenant(@Param('id') id: string) {
+    return this.tenants.exportTenant(id);
+  }
+
+  @Delete(':id/purge')
+  purge(@Param('id') id: string) {
+    return this.tenants.purge(id);
+  }
 }

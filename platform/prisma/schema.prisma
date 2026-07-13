@@ -19,6 +19,14 @@ model Tenant {
   name                 String
   plan                 String       @default("free")
   status               TenantStatus @default(ACTIVE)
+  // Company profile — a tenant is an organization, so it carries the address.
+  phone                String?
+  addressLine1         String?
+  addressLine2         String?
+  city                 String?
+  state                String?
+  postalCode           String?
+  country              String?
   stripeCustomerId     String?      @unique
   stripeSubscriptionId String?
   // While PAST_DUE, logins keep working until this moment (billing grace).

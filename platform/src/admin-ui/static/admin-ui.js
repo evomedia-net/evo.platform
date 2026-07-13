@@ -206,6 +206,51 @@ function act(fn) {
 
 // ── tenants ─────────────────────────────────────────────────────────────────
 
+const TENANT_PROFILE_KEYS = [
+  "phone", "addressLine1", "addressLine2", "city", "state", "postalCode", "country",
+];
+
+/** Create-tenant form as a dismissible overlay (triggered by "+ New tenant").
+ *  A tenant is a company, so it carries the full address. */
+function newTenantModal() {
+  modal(`<h2>New tenant</h2>
+    <form class="userform" id="tenant-create">
+      <label>Slug <input name="slug" required pattern="[a-z0-9][a-z0-9-]*" placeholder="acme" /></label>
+      <label>Name <input name="name" required placeholder="Acme Widgets" /></label>
+      <label>Plan <input name="plan" placeholder="free" /></label>
+      <label>Phone <input name="phone" /></label>
+      <label class="full">Address line 1 <input name="addressLine1" /></label>
+      <label class="full">Address line 2 <input name="addressLine2" /></label>
+      <label>City <input name="city" /></label>
+      <label>State / Province <input name="state" /></label>
+      <label>Postal code <input name="postalCode" /></label>
+      <label>Country <input name="country" /></label>
+      <div class="actions"><button class="btn primary">Create tenant</button></div>
+    </form>`);
+  $("#tenant-create").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const profile = {};
+    for (const k of TENANT_PROFILE_KEYS) {
+      const val = (f.get(k) || "").trim();
+      if (val) profile[k] = val;
+    }
+    try {
+      await api("POST", "/admin/tenants", {
+        slug: f.get("slug"),
+        name: f.get("name"),
+        ...(f.get("plan") ? { plan: f.get("plan") } : {}),
+        ...profile,
+      });
+      $("#modal").hidden = true;
+      toast("Tenant created");
+      route();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+}
+
 async function viewTenants() {
   await loadTenants();
   const rows = S.tenants.map((t) => {
@@ -229,27 +274,15 @@ async function viewTenants() {
 
   $("#content").innerHTML = `
     <div class="card">
-      <h2>New tenant</h2>
-      <form class="inline" id="tenant-create">
-        <label>Slug <input name="slug" required pattern="[a-z0-9][a-z0-9-]*" placeholder="acme" /></label>
-        <label>Name <input name="name" required placeholder="Acme Widgets" /></label>
-        <label>Plan <input name="plan" placeholder="free" /></label>
-        <button class="btn primary grow0">Create</button>
-      </form>
-    </div>
-    <div class="card"><h2>Tenants (${S.tenants.length})</h2>
+      <div class="cardhead">
+        <h2>Tenants (${S.tenants.length})</h2>
+        <span class="spacer"></span>
+        <button class="btn primary" id="new-tenant-btn">+ New tenant</button>
+      </div>
       <table><tr><th>Slug</th><th>Name</th><th>Plan</th><th class="col-status">Status</th><th>Created</th><th class="col-actions"></th></tr>${rows}</table>
     </div>`;
 
-  $("#tenant-create").addEventListener("submit", act(async (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target);
-    await api("POST", "/admin/tenants", {
-      slug: f.get("slug"), name: f.get("name"),
-      ...(f.get("plan") ? { plan: f.get("plan") } : {}),
-    });
-    toast("Tenant created");
-  }));
+  $("#new-tenant-btn").addEventListener("click", newTenantModal);
 
   $("#content").addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-act]");
