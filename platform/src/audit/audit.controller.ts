@@ -49,8 +49,24 @@ export class AuditController {
   list(
     @Query('tenantId') tenantId?: string,
     @Query('action') action?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('take') take?: string,
   ) {
-    return this.audit.list({ tenantId, action, take: take ? Number(take) : undefined });
+    return this.audit.list({
+      tenantId,
+      action,
+      from: parseDate(from),
+      // A date-only "to" (YYYY-MM-DD) should include that whole day.
+      to: parseDate(to, true),
+      take: take ? Number(take) : undefined,
+    });
   }
+}
+
+function parseDate(value?: string, endOfDayIfDateOnly = false): Date | undefined {
+  if (!value) return undefined;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const d = new Date(endOfDayIfDateOnly && dateOnly ? `${value}T23:59:59.999` : value);
+  return Number.isNaN(d.getTime()) ? undefined : d;
 }

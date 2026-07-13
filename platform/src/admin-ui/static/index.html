@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EvoPlatform Admin</title>
+  <link rel="stylesheet" href="/admin-ui.css" />
+</head>
+<body>
+  <!-- Login -->
+  <div id="login-view" class="login-wrap" hidden>
+    <form id="login-form" class="card login-card">
+      <h1>EvoPlatform</h1>
+      <p class="muted">Platform admin console</p>
+      <label>Email <input id="login-email" type="email" autocomplete="username" required /></label>
+      <label>Password <input id="login-password" type="password" autocomplete="current-password" required /></label>
+      <p id="login-error" class="error" hidden></p>
+      <button type="submit" class="btn primary">Sign in</button>
+    </form>
+  </div>
+
+  <!-- App -->
+  <div id="app-view" hidden>
+    <header>
+      <a href="#/" class="brand" title="Home">EvoPlatform <span class="muted">Admin</span></a>
+      <span class="spacer"></span>
+      <span id="who" class="muted"></span>
+      <button id="theme-toggle" class="btn ghost" data-tip="Switch between light and dark" data-tip-pos="bottom" aria-label="Toggle theme"></button>
+      <button id="logout" class="btn ghost" data-tip="End your admin session" data-tip-pos="bottom">Sign out</button>
+    </header>
+    <div class="layout">
+      <nav id="nav">
+        <a href="#/tenants">Tenants</a>
+        <a href="#/users">Users</a>
+        <a href="#/apps">Apps</a>
+        <a href="#/audit">Audit</a>
+        <a href="#/smtp">SMTP</a>
+      </nav>
+      <main id="content"></main>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal" class="modal-overlay" hidden>
+    <div class="card modal-card">
+      <div id="modal-body"></div>
+      <button id="modal-close" class="btn">Close</button>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+  <script src="/admin-ui.js"></script>
+</body>
+</html>

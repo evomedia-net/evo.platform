@@ -48,7 +48,8 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `GET/POST/PATCH /admin/apps[/:id]` | platform admin | App registry; create returns the client secret **once** |
 | `POST /admin/apps/:id/rotate-secret` | platform admin | New client secret |
 | `GET/POST /admin/apps/:id/roles` | platform admin | App-specific roles |
-| `GET /admin/audit` | platform admin | Query audit events |
+| `PATCH/DELETE /admin/apps/:id/roles/:roleId` | platform admin | Rename a role / delete it (removes all assignments) |
+| `GET /admin/audit` | platform admin | Query audit events (`action`, `tenantId`, `from`, `to` dates, `take`) |
 | `GET/PUT /admin/smtp` | platform admin | Per-tenant SMTP config; omit `tenantId` for platform default |
 | `POST /events` | client creds | Apps push audit events (`x-client-id` / `x-client-secret`) |
 | `POST /billing/checkout` | client creds | Stripe Checkout URL for a tenant's subscription upgrade |
@@ -72,6 +73,13 @@ the tenant is blocked like a suspension. `invoice.paid` lifts `PAST_DUE` automat
 never un-suspends a manually suspended tenant. Unconfigured, billing endpoints return 503
 and everything else works normally.
 
+## Admin console
+
+A dependency-free admin UI is served at **`/`** (the service root): tenant lifecycle,
+users and role assignment, app registry with one-time secret display and rotation,
+audit browsing, and SMTP config. Sign in with a platform-admin account. It is a thin
+static client over the `/admin` API — all authorization stays in the API guards.
+
 ## Not yet built (MVP roadmap)
 
-Admin UI (endpoints exist, UI later), rate limiting, MFA/SSO.
+Rate limiting, MFA/SSO.

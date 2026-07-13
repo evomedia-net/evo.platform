@@ -27,14 +27,22 @@ export class AuditService {
     });
   }
 
-  list(filters: { tenantId?: string; action?: string; take?: number } = {}) {
+  list(
+    filters: { tenantId?: string; action?: string; from?: Date; to?: Date; take?: number } = {},
+  ) {
+    const createdAt =
+      filters.from || filters.to
+        ? { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) }
+        : undefined;
     return this.prisma.auditEvent.findMany({
       where: {
         ...(filters.tenantId ? { tenantId: filters.tenantId } : {}),
         ...(filters.action ? { action: filters.action } : {}),
+        ...(createdAt ? { createdAt } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      take: Math.min(filters.take ?? 100, 1000),
+      // Export needs the full range; cap high but bounded.
+      take: Math.min(filters.take ?? 100, 10000),
     });
   }
 }
