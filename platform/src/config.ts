@@ -7,6 +7,11 @@ export const config = {
   jwtIssuer: process.env.JWT_ISSUER ?? 'evoplatform',
   accessTtlSec: Number(process.env.ACCESS_TOKEN_TTL_SEC ?? 900),
   refreshTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    graceDays: Number(process.env.BILLING_GRACE_DAYS ?? 7),
+  },
   webauthn: {
     rpName: process.env.WEBAUTHN_RP_NAME ?? 'EvoPlatform',
     // Registrable base domains allowed for passkey ceremonies (loopback is

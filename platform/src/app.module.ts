@@ -6,6 +6,7 @@ import { TenantsModule } from './tenants/tenants.module';
 import { UsersModule } from './users/users.module';
 import { AppsModule } from './apps/apps.module';
 import { AuditModule } from './audit/audit.module';
+import { BillingModule } from './billing/billing.module';
 import { EmailModule } from './email/email.module';
 
 @Module({
@@ -17,6 +18,7 @@ import { EmailModule } from './email/email.module';
     UsersModule,
     AppsModule,
     AuditModule,
+    BillingModule,
     EmailModule,
   ],
 })

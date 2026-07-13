@@ -70,6 +70,31 @@ describe('AuthService.login', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('blocks login once the PAST_DUE grace window has expired', async () => {
+    prisma.tenant.findFirst.mockResolvedValue({
+      ...tenant,
+      status: 'PAST_DUE',
+      graceUntil: new Date(Date.now() - 1000),
+    });
+    await expect(
+      svc.login({ tenantSlug: 'acme', email: 'owner@acme.example', password: 'correct-password' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('allows login while the PAST_DUE grace window is still open', async () => {
+    prisma.tenant.findFirst.mockResolvedValue({
+      ...tenant,
+      status: 'PAST_DUE',
+      graceUntil: new Date(Date.now() + 86_400_000),
+    });
+    const result = await svc.login({
+      tenantSlug: 'acme',
+      email: 'owner@acme.example',
+      password: 'correct-password',
+    });
+    expect(result.accessToken).toBeTruthy();
+  });
+
   it('rejects an unknown tenant slug without leaking its absence', async () => {
     prisma.tenant.findFirst.mockResolvedValue(null);
     await expect(

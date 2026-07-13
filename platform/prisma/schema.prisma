@@ -14,16 +14,20 @@ enum TenantStatus {
 }
 
 model Tenant {
-  id         String       @id @default(uuid())
-  slug       String       @unique
-  name       String
-  plan       String       @default("free")
-  status     TenantStatus @default(ACTIVE)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  deletedAt  DateTime?
-  users      User[]
-  smtpConfig SmtpConfig?
+  id                   String       @id @default(uuid())
+  slug                 String       @unique
+  name                 String
+  plan                 String       @default("free")
+  status               TenantStatus @default(ACTIVE)
+  stripeCustomerId     String?      @unique
+  stripeSubscriptionId String?
+  // While PAST_DUE, logins keep working until this moment (billing grace).
+  graceUntil           DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  deletedAt            DateTime?
+  users                User[]
+  smtpConfig           SmtpConfig?
 
   @@map("tenants")
 }

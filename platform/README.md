@@ -51,6 +51,9 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `GET /admin/audit` | platform admin | Query audit events |
 | `GET/PUT /admin/smtp` | platform admin | Per-tenant SMTP config; omit `tenantId` for platform default |
 | `POST /events` | client creds | Apps push audit events (`x-client-id` / `x-client-secret`) |
+| `POST /billing/checkout` | client creds | Stripe Checkout URL for a tenant's subscription upgrade |
+| `POST /billing/portal` | client creds | Stripe billing-portal URL (payment method, cancel) |
+| `POST /billing/webhook` | stripe signature | Subscription/invoice events → tenant status + 7-day grace on failed payment |
 | `POST /email/send` | client creds | Send via tenant SMTP → platform default → env fallback |
 
 ## Tests
@@ -59,6 +62,16 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 npm test
 ```
 
+## Billing
+
+Stripe subscriptions. Set `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` and point a Stripe
+webhook at `/billing/webhook` (events: `customer.subscription.*`, `invoice.paid`,
+`invoice.payment_failed`). Failed payment marks the tenant `PAST_DUE` with a
+`BILLING_GRACE_DAYS` (default 7) grace window — logins keep working until it closes, then
+the tenant is blocked like a suspension. `invoice.paid` lifts `PAST_DUE` automatically but
+never un-suspends a manually suspended tenant. Unconfigured, billing endpoints return 503
+and everything else works normally.
+
 ## Not yet built (MVP roadmap)
 
-Stripe billing, admin UI (endpoints exist, UI later), rate limiting, MFA/SSO.
+Admin UI (endpoints exist, UI later), rate limiting, MFA/SSO.

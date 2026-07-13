@@ -54,8 +54,13 @@ export class AuthService {
     meta: { ip?: string; method: string },
   ) {
     if (user.deletedAt) throw new UnauthorizedException('Invalid credentials');
-    if (tenant && (tenant.deletedAt || tenant.status === 'SUSPENDED')) {
-      throw new ForbiddenException('Tenant is suspended');
+    if (tenant) {
+      // PAST_DUE keeps working until the billing grace window closes
+      const graceExpired =
+        tenant.status === 'PAST_DUE' && tenant.graceUntil != null && tenant.graceUntil < new Date();
+      if (tenant.deletedAt || tenant.status === 'SUSPENDED' || graceExpired) {
+        throw new ForbiddenException('Tenant is suspended');
+      }
     }
     const result = await this.issueTokens(user, tenant, clientId);
     await this.audit.record('auth.login', {
