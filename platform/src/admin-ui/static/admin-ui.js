@@ -54,6 +54,41 @@ function modal(html) {
 }
 $("#modal-close").addEventListener("click", () => ($("#modal").hidden = true));
 
+/**
+ * Themed Yes/No confirmation. Resolves true only on Yes; backdrop click,
+ * No, and Escape all resolve false. Focus starts on No so a stray Enter
+ * never confirms a destructive action.
+ */
+function confirmDialog(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `<div class="card modal-card">
+      <p style="margin:0 0 4px">${esc(message)}</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn" data-c="no">No</button>
+        <button class="btn danger" data-c="yes">Yes</button>
+      </div></div>`;
+    const finish = (v) => {
+      document.removeEventListener("keydown", onKey);
+      overlay.remove();
+      resolve(v);
+    };
+    const onKey = (ev) => {
+      if (ev.key === "Escape") finish(false);
+      if (ev.key === "Enter" && ev.target.dataset?.c) finish(ev.target.dataset.c === "yes");
+    };
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) return finish(false); // backdrop
+      const b = e.target.closest("button[data-c]");
+      if (b) finish(b.dataset.c === "yes");
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-c="no"]').focus();
+  });
+}
+
 // ── auth + api ──────────────────────────────────────────────────────────────
 
 function setSession(access, refresh, user) {
@@ -220,7 +255,7 @@ async function viewTenants() {
     const btn = e.target.closest("button[data-act]");
     if (!btn) return;
     const { act: a, id } = btn.dataset;
-    if (a === "delete" && !confirm("Soft-delete this tenant? It can be restored.")) return;
+    if (a === "delete" && !(await confirmDialog("Soft-delete this tenant? It can be restored."))) return;
     try {
       if (a === "delete") await api("DELETE", `/admin/tenants/${id}`);
       else await api("POST", `/admin/tenants/${id}/${a}`);
@@ -268,7 +303,7 @@ async function viewUsers() {
       <td>${u.deletedAt
         ? `<button class="btn sm" data-act="restore" data-id="${u.id}">Restore</button>`
         : `<button class="btn sm" data-act="password" data-id="${u.id}" data-email="${esc(u.email)}">Password</button>
-           <button class="btn sm danger" data-act="delete" data-id="${u.id}">Delete</button>`}
+           <button class="btn sm danger" data-act="delete" data-id="${u.id}" data-email="${esc(u.email)}">Delete</button>`}
       </td></tr>`).join("");
 
   $("#content").innerHTML = `
@@ -315,7 +350,10 @@ async function viewUsers() {
     const { act: a, id } = btn.dataset;
     if (a === "password") { setPasswordModal(id, btn.dataset.email); return; }
     try {
-      if (a === "delete") { await api("DELETE", `/admin/users/${id}`); toast("User deleted"); route(); }
+      if (a === "delete") {
+        if (!(await confirmDialog(`Delete user "${btn.dataset.email}"? It can be restored.`))) return;
+        await api("DELETE", `/admin/users/${id}`); toast("User deleted"); route();
+      }
       else if (a === "restore") { await api("POST", `/admin/users/${id}/restore`); toast("User restored"); route(); }
     } catch (err) { toast(err.message, true); }
   });
@@ -425,7 +463,7 @@ async function viewApps() {
           await api("PATCH", `/admin/apps/${appId}/roles/${roleId}`, { name: next.trim() });
           toast("Role renamed — takes effect in tokens at next login/refresh");
         } else {
-          if (!confirm(`Delete role "${roleName}"? It will be removed from every user that has it.`)) return;
+          if (!(await confirmDialog(`Delete role "${roleName}"? It will be removed from every user that has it.`))) return;
           const out = await api("DELETE", `/admin/apps/${appId}/roles/${roleId}`);
           toast(`Role deleted (${out.assignmentsRemoved} assignment${out.assignmentsRemoved === 1 ? "" : "s"} removed)`);
         }
@@ -436,7 +474,7 @@ async function viewApps() {
 
     const btn = e.target.closest("button[data-act=rotate]");
     if (!btn) return;
-    if (!confirm("Rotate this app's secret? The old secret stops working immediately.")) return;
+    if (!(await confirmDialog("Rotate this app's secret? The old secret stops working immediately."))) return;
     try {
       const out = await api("POST", `/admin/apps/${btn.dataset.id}/rotate-secret`);
       secretModal(out.clientId, out.clientSecret);
