@@ -1,9 +1,15 @@
-import { Controller, Get, Header, NotFoundException, Param, Res } from '@nestjs/common';
+import { Controller, Get, Param, Res } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { basename, join } from 'path';
 
 interface SendsFile {
   sendFile(path: string): void;
+}
+
+interface FontRes {
+  set(field: string, value: string): void;
+  status(code: number): { end(): void };
+  send(body: Buffer): void;
 }
 
 const FONTS = new Set(['outfit.woff2', 'dm-sans.woff2']);
@@ -36,13 +42,16 @@ export class AdminUiController {
   }
 
   /** Self-hosted brand fonts. Allow-listed by name (basename strips any path
-   *  traversal); returned as a Buffer with immutable long-cache headers. */
+   *  traversal). Sent via res.send so the raw bytes aren't JSON-serialized. */
   @Get('fonts/:file')
-  @Header('Content-Type', 'font/woff2')
-  @Header('Cache-Control', 'public, max-age=31536000, immutable')
-  font(@Param('file') file: string): Buffer {
+  font(@Param('file') file: string, @Res() res: FontRes) {
     const name = basename(file);
-    if (!FONTS.has(name)) throw new NotFoundException();
-    return readFileSync(join(__dirname, 'static', 'fonts', name));
+    if (!FONTS.has(name)) {
+      res.status(404).end();
+      return;
+    }
+    res.set('Content-Type', 'font/woff2');
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(readFileSync(join(__dirname, 'static', 'fonts', name)));
   }
 }
