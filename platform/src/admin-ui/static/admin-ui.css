@@ -32,7 +32,7 @@
 /* Light = the same navy theme, ~50% lighter: airy blue-tinted surfaces that
    still read as the dark theme's sibling, not a generic white theme. */
 :root[data-theme="light"] {
-  --bg: #cfe0f0; --panel: #f5faff; --panel2: #e4eef9; --border: #a9c6e2;
+  --bg: #cfe0f0; --panel: #bcd3ee; --panel2: #e4eef9; --border: #a9c6e2;
   --text: #14304a; --muted: #556f8a; --accent: #3574b8; --danger: #d05a51;
   --ok: #2ea457; --warn: #c98f2e;
   --tip-bg: #14304a; --tip-text: #eaf1f8;
