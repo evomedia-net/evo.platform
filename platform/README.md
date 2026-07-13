@@ -49,7 +49,7 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `POST /admin/apps/:id/rotate-secret` | platform admin | New client secret |
 | `GET/POST /admin/apps/:id/roles` | platform admin | App-specific roles |
 | `PATCH/DELETE /admin/apps/:id/roles/:roleId` | platform admin | Rename a role / delete it (removes all assignments) |
-| `GET /admin/audit` | platform admin | Query audit events |
+| `GET /admin/audit` | platform admin | Query audit events (`action`, `tenantId`, `from`, `to` dates, `take`) |
 | `GET/PUT /admin/smtp` | platform admin | Per-tenant SMTP config; omit `tenantId` for platform default |
 | `POST /events` | client creds | Apps push audit events (`x-client-id` / `x-client-secret`) |
 | `POST /billing/checkout` | client creds | Stripe Checkout URL for a tenant's subscription upgrade |

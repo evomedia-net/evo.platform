@@ -427,11 +427,19 @@ async function viewAudit() {
           <option value="">All</option>
           ${S.tenants.map((t) => `<option value="${t.id}"${p.get("tenantId") === t.id ? " selected" : ""}>${esc(t.slug)}</option>`).join("")}
         </select></label>
+        <label class="grow0">From <input name="from" type="date" value="${esc(p.get("from") ?? "")}" /></label>
+        <label class="grow0">To <input name="to" type="date" value="${esc(p.get("to") ?? "")}" /></label>
         <label class="grow0">Max <input name="take" type="number" value="${esc(p.get("take") ?? "100")}" style="width:80px" /></label>
         <button class="btn primary grow0">Apply</button>
       </form>
     </div>
-    <div class="card"><h2>Audit (${events.length})</h2>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <h2 style="margin:0">Audit (${events.length})</h2>
+        <span class="spacer"></span>
+        <button class="btn sm grow0" id="audit-export-csv">Save CSV</button>
+        <button class="btn sm grow0" id="audit-export-json">Save JSON</button>
+      </div>
       <table><tr><th>Time</th><th>Action</th><th>Tenant</th><th>User</th><th>App</th><th>Detail</th></tr>${rows}</table>
     </div>`;
 
@@ -439,12 +447,53 @@ async function viewAudit() {
     e.preventDefault();
     const f = new FormData(e.target);
     const q = new URLSearchParams();
-    if (f.get("action")) q.set("action", f.get("action"));
-    if (f.get("tenantId")) q.set("tenantId", f.get("tenantId"));
+    for (const k of ["action", "tenantId", "from", "to"]) if (f.get(k)) q.set(k, f.get(k));
     q.set("take", f.get("take") || "100");
     sessionStorage.setItem("evoadmin.auditQ", q.toString());
     route();
   });
+
+  // Export downloads exactly what the current filter selects (server truth —
+  // re-fetched, not just the rows on screen, so Max doesn't silently cap it).
+  const stamp = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  $("#audit-export-json").addEventListener("click", async () => {
+    try {
+      const all = await api("GET", `/admin/audit?${withTake(p, 10000)}`);
+      download(`audit-${stamp()}.json`, "application/json", JSON.stringify(all, null, 2));
+      toast(`Exported ${all.length} events`);
+    } catch (err) { toast(err.message, true); }
+  });
+  $("#audit-export-csv").addEventListener("click", async () => {
+    try {
+      const all = await api("GET", `/admin/audit?${withTake(p, 10000)}`);
+      download(`audit-${stamp()}.csv`, "text/csv", toCsv(all));
+      toast(`Exported ${all.length} events`);
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+function withTake(params, take) {
+  const q = new URLSearchParams(params);
+  q.set("take", String(take));
+  return q.toString();
+}
+
+function toCsv(events) {
+  const cols = ["createdAt", "action", "tenantId", "userId", "appClientId", "ip", "detail"];
+  const cell = (v) => {
+    const s = v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.join(","), ...events.map((e) => cols.map((c) => cell(e[c])).join(","))].join("\r\n");
+}
+
+function download(filename, type, content) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── smtp ────────────────────────────────────────────────────────────────────
