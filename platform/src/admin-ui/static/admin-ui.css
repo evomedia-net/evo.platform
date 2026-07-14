@@ -133,7 +133,8 @@ th.col-status, td.col-status { width: 96px; text-align: center; }
 th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
 
 .badge { display: inline-block; padding: 1px 8px; border-radius: 999px;
-  font-size: 11px; border: 1px solid var(--border); }
+  font-size: 11px; border: 1px solid var(--border);
+  white-space: nowrap; flex-shrink: 0; }
 .badge.ok { color: var(--ok); border-color: var(--ok); }
 .badge.warn { color: var(--warn); border-color: var(--warn); }
 .badge.bad { color: var(--danger); border-color: var(--danger); }
