@@ -45,4 +45,4 @@ docs/                Architecture and design docs
 
 ## License
 
-Not yet decided; all rights reserved until a license file is added.
+[MIT](LICENSE) © Kelly Michels

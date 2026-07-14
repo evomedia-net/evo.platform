@@ -2,7 +2,7 @@
   "name": "@evoplatform/cli",
   "version": "0.1.0",
   "description": "EvoPlatform scaffolding: evo new <app-name> --stack next",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "bin": {
     "evo": "dist/cli.js"
   },

@@ -87,7 +87,7 @@ Offline means two different things, both in scope:
 | Auth | Platform-issued JWT, app-side JWKS verification (no per-request platform call) |
 | Repo shape | Monorepo: platform + 2 SDKs + 2 templates + CLI (degit/copier can pull subfolders) |
 | Deployment | Docker Compose |
-| Licensing | Undecided; all rights reserved until a LICENSE is added |
+| Licensing | MIT (decided 2026-07-13) — maximizes adoption for the indie/small-team audience |
 
 ## Build order
 
@@ -110,7 +110,6 @@ data, all without editing template internals.
 
 ## Open questions
 
-- License: MIT (adoption) vs AGPL (prevents closed-source SaaS clones) vs stay proprietary
 - SQLite option for Next standalone mode: skipped for now (two migration paths); local
   Postgres via Docker is the default
 - Hosted platform vs self-hosted only, if open-sourced
