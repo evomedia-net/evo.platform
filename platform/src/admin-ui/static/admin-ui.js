@@ -343,6 +343,40 @@ function editUserModal(u) {
   });
 }
 
+/** Create-user form as a dismissible overlay (triggered by "+ New user"),
+ *  matching the New Tenant overlay. */
+function newUserModal() {
+  modal(`<h2>New user</h2>
+    <form class="userform" id="user-create">
+      <label>Tenant <select name="tenantId">
+        <option value="">Platform-level</option>
+        ${S.tenants.filter((t) => !t.deletedAt).map((t) => `<option value="${t.id}">${esc(t.slug)}</option>`).join("")}
+      </select></label>
+      <label>Email <input name="email" type="email" required /></label>
+      ${profileFields()}
+      <label class="full" data-tip="At least 8 characters, including 2 numbers and 2 special characters.">Password <input name="password" type="text" required /></label>
+      <label class="full check"><input type="checkbox" name="isPlatformAdmin" /> Platform admin</label>
+      <div class="actions"><button class="btn primary">Create user</button></div>
+    </form>`);
+  $("#user-create").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try {
+      await api("POST", "/admin/users", {
+        ...(f.get("tenantId") ? { tenantId: f.get("tenantId") } : {}),
+        email: f.get("email"), password: f.get("password"),
+        ...collectProfile(f),
+        isPlatformAdmin: f.get("isPlatformAdmin") === "on",
+      });
+      $("#modal").hidden = true;
+      toast("User created");
+      route();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+}
+
 async function viewUsers() {
   await Promise.all([loadTenants(), loadApps()]);
   const filter = sessionStorage.getItem("evoadmin.userFilter") || "";
@@ -385,41 +419,22 @@ async function viewUsers() {
 
   $("#content").innerHTML = `
     <div class="card">
-      <h2>New user</h2>
-      <form class="userform" id="user-create">
-        <label>Tenant <select name="tenantId">
-          <option value="">Platform-level</option>
-          ${S.tenants.filter((t) => !t.deletedAt).map((t) => `<option value="${t.id}">${esc(t.slug)}</option>`).join("")}
-        </select></label>
-        <label>Email <input name="email" type="email" required /></label>
-        ${profileFields()}
-        <label class="full" data-tip="At least 8 characters, including 2 numbers and 2 special characters.">Password <input name="password" type="text" required /></label>
-        <label class="full check"><input type="checkbox" name="isPlatformAdmin" /> Platform admin</label>
-        <div class="actions"><button class="btn primary">Create user</button></div>
-      </form>
-    </div>
-    <div class="card">
+      <div class="cardhead">
+        <h2>Users (${users.length})</h2>
+        <span class="spacer"></span>
+        <button class="btn primary" id="new-user-btn">+ New user</button>
+      </div>
       <form class="inline"><label style="flex:0 0 220px">Filter by tenant
         <select id="user-filter">${tenantOpts(filter)}</select></label></form>
       <table><tr><th>Email</th><th>Name</th><th>Tenant</th><th></th><th>Roles</th><th></th></tr>${rows}</table>
     </div>`;
 
+  $("#new-user-btn").addEventListener("click", newUserModal);
+
   $("#user-filter").addEventListener("change", (e) => {
     sessionStorage.setItem("evoadmin.userFilter", e.target.value);
     route();
   });
-
-  $("#user-create").addEventListener("submit", act(async (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target);
-    await api("POST", "/admin/users", {
-      ...(f.get("tenantId") ? { tenantId: f.get("tenantId") } : {}),
-      email: f.get("email"), password: f.get("password"),
-      ...collectProfile(f),
-      isPlatformAdmin: f.get("isPlatformAdmin") === "on",
-    });
-    toast("User created");
-  }));
 
   $("#content").addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-act]");
