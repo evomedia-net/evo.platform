@@ -1,11 +1,14 @@
 # EvoPlatform
 
+![CI](https://github.com/kellymichels/EvoPlatform/actions/workflows/ci.yml/badge.svg)
+
 A multi-tenant SaaS platform and app-template toolkit. Build a new tenant-aware site by
 cloning a starter template — tenancy, auth, RBAC, audit logging, and deployment come wired in.
 
 > **Status: working v1.** The platform service (with admin console), Node SDK, Next.js
 > template, and `evo new` CLI all run and are tested. Not yet built: Python SDK, NiceGUI
-> template. **Setup: [docs/INSTALL.md](docs/INSTALL.md)** · design:
+> template. **Setup: [docs/INSTALL.md](docs/INSTALL.md)** · deploy:
+> [docs/DEPLOY.md](docs/DEPLOY.md) · design:
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/TEMPLATE_CONTRACT.md](docs/TEMPLATE_CONTRACT.md).
 
 ## The idea

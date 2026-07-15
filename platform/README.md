@@ -98,6 +98,14 @@ users and role assignment, app registry with one-time secret display and rotatio
 audit browsing, and SMTP config. Sign in with a platform-admin account. It is a thin
 static client over the `/admin` API — all authorization stays in the API guards.
 
+## Production
+
+Deploy behind an nginx/TLS reverse proxy with `docker-compose.prod.yml` — see
+[../docs/DEPLOY.md](../docs/DEPLOY.md) for the full walkthrough (env, migrations,
+nginx, DNS, Stripe). Back up the database **and** the signing keys with
+`scripts/backup.sh` (losing the keys logs every user out); schedule it via cron and
+ship the output off-box.
+
 ## Not yet built (MVP roadmap)
 
 Rate limiting, MFA/SSO.

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: build + test (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dir: platform
+            prisma: true
+          - dir: packages/sdk-node
+            prisma: false
+          - dir: cli
+            prisma: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      - name: Install
+        working-directory: ${{ matrix.dir }}
+        run: npm ci
+
+      # Generate the Prisma client so the TypeScript build type-checks. No DB
+      # connection is made; the URL is a placeholder to satisfy the datasource.
+      - name: Prisma generate
+        if: ${{ matrix.prisma }}
+        working-directory: ${{ matrix.dir }}
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: Build
+        working-directory: ${{ matrix.dir }}
+        run: npm run build
+
+      - name: Test
+        working-directory: ${{ matrix.dir }}
+        run: npm test
