@@ -54,6 +54,8 @@ model User {
   lastName        String?
   phone           String?
   isPlatformAdmin Boolean   @default(false)
+  // Tenant admin: may manage their own tenant's members via /tenant/*.
+  isTenantAdmin   Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?

@@ -19,6 +19,7 @@ describe('AuthService.login', () => {
     passwordHash,
     name: 'Owner',
     isPlatformAdmin: false,
+    isTenantAdmin: false,
     deletedAt: null,
     roles: [{ role: { name: 'admin', app: { clientId: 'app_demo' } } }],
   };

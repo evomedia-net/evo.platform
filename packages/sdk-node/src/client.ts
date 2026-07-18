@@ -3,6 +3,7 @@ import { JwksCache } from './jwks';
 import { ConfigError, PlatformError, TokenError } from './errors';
 import {
   Claims,
+  CreateMemberParams,
   EvoPlatformOptions,
   LoginParams,
   LoginResult,
@@ -11,6 +12,9 @@ import {
   PasskeyRegisterOptionsResult,
   PushEventParams,
   SendEmailParams,
+  TenantAppRoles,
+  TenantMember,
+  UpdateMemberParams,
 } from './types';
 
 export class EvoPlatform {
@@ -112,6 +116,48 @@ export class EvoPlatform {
       ...params,
       clientId: this.opts.clientId,
     });
+  }
+
+  // ---- tenant member management (requires a tenant-admin user's token) ----
+  // The platform scopes every call to the token's own tenant; there is no way
+  // to name another tenant from this surface.
+
+  listTenantMembers(accessToken: string): Promise<TenantMember[]> {
+    return this.request('GET', '/tenant/users', undefined, bearer(accessToken));
+  }
+
+  /** Apps enabled for the tenant with their assignable roles — feeds role pickers. */
+  listTenantRoles(accessToken: string): Promise<TenantAppRoles[]> {
+    return this.request('GET', '/tenant/roles', undefined, bearer(accessToken));
+  }
+
+  createTenantMember(accessToken: string, params: CreateMemberParams): Promise<TenantMember> {
+    return this.request('POST', '/tenant/users', params, bearer(accessToken));
+  }
+
+  updateTenantMember(
+    accessToken: string,
+    id: string,
+    params: UpdateMemberParams,
+  ): Promise<TenantMember> {
+    return this.request('PATCH', `/tenant/users/${id}`, params, bearer(accessToken));
+  }
+
+  /** Soft-deactivate: the member can no longer sign in; restorable. */
+  deactivateTenantMember(accessToken: string, id: string): Promise<TenantMember> {
+    return this.request('DELETE', `/tenant/users/${id}`, undefined, bearer(accessToken));
+  }
+
+  restoreTenantMember(accessToken: string, id: string): Promise<TenantMember> {
+    return this.request('POST', `/tenant/users/${id}/restore`, undefined, bearer(accessToken));
+  }
+
+  setTenantMemberRoles(
+    accessToken: string,
+    id: string,
+    roleIds: string[],
+  ): Promise<TenantMember> {
+    return this.request('PUT', `/tenant/users/${id}/roles`, { roleIds }, bearer(accessToken));
   }
 
   // ---- client-credential services ----
