@@ -1,0 +1,50 @@
+# Production stack for the EvoPlatform service. Differs from docker-compose.yml
+# (dev): runs the built image, persists BOTH the database and the signing keys,
+# drops the Mailpit dev sink (uses real SMTP from .env), does not expose Postgres
+# to the host, and binds the app to loopback so a host reverse proxy (nginx)
+# terminates TLS in front of it.
+#
+# Requires a .env in this directory (see .env.prod.example). Compose reads it for
+# ${...} interpolation below and passes it into the app container via env_file.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: evoplatform_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - evoplatform_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    image: evoplatform:latest
+    container_name: evoplatform_app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    # Persist the RSA signing keypair — losing it logs everyone out. KEYS_DIR
+    # defaults to ./keys, which is /app/keys inside the container.
+    volumes:
+      - evoplatform_keys:/app/keys
+    # Only the host reverse proxy reaches the app; nothing binds publicly here.
+    ports:
+      - "127.0.0.1:8200:8200"
+    # Apply migrations before serving (prisma CLI ships in the image's node_modules).
+    command: sh -c "npx prisma migrate deploy && node dist/main.js"
+
+volumes:
+  evoplatform_pgdata:
+  evoplatform_keys:
