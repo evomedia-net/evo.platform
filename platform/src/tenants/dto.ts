@@ -1,4 +1,5 @@
-import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsEnum, IsISO8601, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { AppTenantStatus } from '@prisma/client';
 
 /** Company profile shared by create and update. */
 class TenantProfileFields {
@@ -59,4 +60,22 @@ export class UpdateTenantDto extends TenantProfileFields {
   @IsOptional()
   @IsString()
   plan?: string;
+}
+
+export class SetAppAccessDto {
+  @IsOptional()
+  @IsEnum(AppTenantStatus)
+  status?: AppTenantStatus;
+
+  @IsOptional()
+  @IsString()
+  plan?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  trialEndsAt?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  graceUntil?: string;
 }

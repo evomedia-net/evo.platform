@@ -36,6 +36,7 @@ model Tenant {
   deletedAt            DateTime?
   users                User[]
   smtpConfig           SmtpConfig?
+  appTenants           AppTenant[]
 
   @@map("tenants")
 }
@@ -93,8 +94,36 @@ model App {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   roles            Role[]
+  appTenants       AppTenant[]
 
   @@map("apps")
+}
+
+enum AppTenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+}
+
+// Which tenants may sign in to which apps, and on what terms. No row = the
+// app is not enabled for that tenant and logins scoped to it are refused.
+model AppTenant {
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appId       String
+  app         App             @relation(fields: [appId], references: [id], onDelete: Cascade)
+  status      AppTenantStatus @default(ACTIVE)
+  plan        String          @default("free")
+  // TRIAL logins keep working until this moment.
+  trialEndsAt DateTime?
+  // While PAST_DUE, logins for this app keep working until this moment.
+  graceUntil  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@id([tenantId, appId])
+  @@map("app_tenants")
 }
 
 model Role {

@@ -67,6 +67,19 @@ export class AppsService {
     return { clientId: app.clientId, clientSecret };
   }
 
+  /** Every non-deleted tenant's access state for this app (the matrix column). */
+  async listTenants(appId: string) {
+    await this.get(appId);
+    const tenants = await this.prisma.tenant.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, slug: true, name: true, status: true },
+    });
+    const access = await this.prisma.appTenant.findMany({ where: { appId } });
+    const byTenant = new Map(access.map((a) => [a.tenantId, a]));
+    return tenants.map((t) => ({ ...t, access: byTenant.get(t.id) ?? null }));
+  }
+
   async addRole(appId: string, dto: CreateRoleDto) {
     await this.get(appId);
     const existing = await this.prisma.role.findUnique({

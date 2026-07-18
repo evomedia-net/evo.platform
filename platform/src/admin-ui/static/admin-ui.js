@@ -545,8 +545,34 @@ function secretModal(clientId, secret) {
     <p>Client secret<br/><code>${esc(secret)}</code></p>`);
 }
 
+const ACCESS_STATUSES = ["TRIAL", "ACTIVE", "PAST_DUE", "SUSPENDED"];
+
 async function viewApps() {
   await loadApps();
+  // Per-app tenant access (the enablement matrix, one column per card)
+  const accessByApp = Object.fromEntries(await Promise.all(
+    S.apps.map(async (a) => [a.id, await api("GET", `/admin/apps/${a.id}/tenants`)]),
+  ));
+
+  const accessRows = (a) => accessByApp[a.id].map((t) => {
+    const acc = t.access;
+    const detail = acc?.status === "TRIAL" && acc.trialEndsAt
+      ? `<span class="muted">ends ${esc(fmt(acc.trialEndsAt))}</span>`
+      : acc?.status === "PAST_DUE" && acc.graceUntil
+        ? `<span class="muted">grace until ${esc(fmt(acc.graceUntil))}</span>`
+        : "";
+    return `<tr><td><code>${esc(t.slug)}</code></td><td>${esc(t.name)}</td>
+      <td>${acc
+        ? `<select data-access-app="${a.id}" data-access-tenant="${t.id}" data-tip="Access state for this workspace on ${esc(a.name)} only — its other apps are unaffected. Suspended refuses logins to this app; trial and past due refuse once their end dates pass.">
+            ${ACCESS_STATUSES.map((s) => `<option value="${s}"${acc.status === s ? " selected" : ""}>${s.toLowerCase().replace("_", " ")}</option>`).join("")}
+          </select> ${detail}`
+        : '<span class="badge warn">not enabled</span>'}</td>
+      <td class="col-actions">${acc
+        ? `<button class="btn sm danger" data-access-act="disable" data-app-id="${a.id}" data-tenant-id="${t.id}" data-tenant-slug="${esc(t.slug)}" data-app-name="${esc(a.name)}" data-tip="Remove this workspace's access to ${esc(a.name)} entirely — logins to this app are refused. The workspace and its other apps are untouched.">Disable</button>`
+        : `<button class="btn sm" data-access-act="enable" data-app-id="${a.id}" data-tenant-id="${t.id}" data-tip="Let this workspace sign in to ${esc(a.name)}.">Enable</button>`}
+      </td></tr>`;
+  }).join("");
+
   const cards = S.apps.map((a) => `
     <div class="card">
       <h2>${esc(a.name)}</h2>
@@ -561,6 +587,8 @@ async function viewApps() {
         <label style="flex:0 0 200px">Add role <input name="role" placeholder="admin" required /></label>
         <button class="btn sm grow0">Add</button>
       </form>
+      <h3 data-tip="Which workspaces may sign in to this app. Logins scoped to an app are refused unless the workspace is enabled here.">Tenant access</h3>
+      <table><tr><th>Slug</th><th>Name</th><th>Access</th><th class="col-actions"></th></tr>${accessRows(a)}</table>
     </div>`).join("");
 
   $("#content").innerHTML = `
@@ -607,6 +635,23 @@ async function viewApps() {
       return;
     }
 
+    const accessBtn = e.target.closest("button[data-access-act]");
+    if (accessBtn) {
+      const { accessAct, appId, tenantId, tenantSlug, appName } = accessBtn.dataset;
+      try {
+        if (accessAct === "disable") {
+          if (!(await confirmDialog(`Disable ${appName} for "${tenantSlug}"? Logins to this app will be refused until re-enabled.`))) return;
+          await api("DELETE", `/admin/tenants/${tenantId}/apps/${appId}`);
+          toast("App disabled for workspace");
+        } else {
+          await api("PUT", `/admin/tenants/${tenantId}/apps/${appId}`, {});
+          toast("App enabled for workspace");
+        }
+        route();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+
     const btn = e.target.closest("button[data-act=rotate]");
     if (!btn) return;
     if (!(await confirmDialog("Rotate this app's secret? The old secret stops working immediately."))) return;
@@ -614,6 +659,21 @@ async function viewApps() {
       const out = await api("POST", `/admin/apps/${btn.dataset.id}/rotate-secret`);
       secretModal(out.clientId, out.clientSecret);
     } catch (err) { toast(err.message, true); }
+  });
+
+  // Access dropdowns save on change; on error re-render to server truth.
+  $("#content").addEventListener("change", async (e) => {
+    const sel = e.target.closest("select[data-access-app]");
+    if (!sel) return;
+    try {
+      await api("PUT", `/admin/tenants/${sel.dataset.accessTenant}/apps/${sel.dataset.accessApp}`, {
+        status: sel.value,
+      });
+      toast("Access updated");
+    } catch (err) {
+      toast(err.message, true);
+      route();
+    }
   });
 
   $("#content").addEventListener("submit", async (e) => {
