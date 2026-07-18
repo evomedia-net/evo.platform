@@ -328,12 +328,17 @@ function editUserModal(u) {
     <p class="muted">${esc(u.email)}</p>
     <form class="userform" id="user-edit">
       ${profileFields(u)}
+      <label class="full check" data-tip="Lets this user manage their own tenant's members (invite, edit, deactivate, roles) from inside the apps — without platform access."><input type="checkbox" name="isTenantAdmin"${u.isTenantAdmin ? " checked" : ""} /> Tenant admin</label>
       <div class="actions"><button class="btn primary">Save changes</button></div>
     </form>`);
   $("#user-edit").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
-      await api("PATCH", `/admin/users/${u.id}`, collectProfile(new FormData(e.target), true));
+      const f = new FormData(e.target);
+      await api("PATCH", `/admin/users/${u.id}`, {
+        ...collectProfile(f, true),
+        isTenantAdmin: f.get("isTenantAdmin") === "on",
+      });
       $("#modal").hidden = true;
       toast("User updated");
       route();
@@ -356,6 +361,7 @@ function newUserModal() {
       ${profileFields()}
       <label class="full" data-tip="At least 8 characters, including 2 numbers and 2 special characters.">Password <input name="password" type="text" required /></label>
       <label class="full check"><input type="checkbox" name="isPlatformAdmin" /> Platform admin</label>
+      <label class="full check" data-tip="Lets this user manage their own tenant's members (invite, edit, deactivate, roles) from inside the apps — without platform access."><input type="checkbox" name="isTenantAdmin" /> Tenant admin</label>
       <div class="actions"><button class="btn primary">Create user</button></div>
     </form>`);
   $("#user-create").addEventListener("submit", async (e) => {
@@ -367,6 +373,7 @@ function newUserModal() {
         email: f.get("email"), password: f.get("password"),
         ...collectProfile(f),
         isPlatformAdmin: f.get("isPlatformAdmin") === "on",
+        isTenantAdmin: f.get("isTenantAdmin") === "on",
       });
       $("#modal").hidden = true;
       toast("User created");
@@ -408,7 +415,7 @@ async function viewUsers() {
       <td>${esc(u.email)}${u.deletedAt ? ' <span class="badge bad">deleted</span>' : ""}</td>
       <td>${esc(u.name ?? "")}</td>
       <td><code>${esc(tenantName(u.tenantId))}</code></td>
-      <td>${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}</td>
+      <td>${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}${u.isTenantAdmin ? ' <span class="badge ok" data-tip="Manages their own tenant\'s members from inside the apps.">tenant admin</span>' : ""}</td>
       <td>${roleCell(u)}</td>
       <td>${u.deletedAt
         ? `<button class="btn sm" data-act="restore" data-id="${u.id}" data-tip="Bring this soft-deleted user back.">Restore</button>`

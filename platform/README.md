@@ -41,6 +41,13 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `DELETE /auth/passkeys/:id` | Bearer | Remove own passkey (owner-scoped) |
 | `POST /auth/passkeys/login/options` | — | `{tenantSlug?, email}` → options (`null` if user has none) + challenge token |
 | `POST /auth/passkeys/login/verify` | — | `{credential, challengeToken, clientId?}` → same session shape as password login |
+| `GET /tenant/users` | tenant admin | List own tenant's members (deactivated included) |
+| `POST /tenant/users` | tenant admin | Create a member in own tenant |
+| `PATCH /tenant/users/:id` | tenant admin | Update profile / tenant-admin flag (self-demotion blocked) |
+| `DELETE /tenant/users/:id` | tenant admin | Deactivate a member — soft, restorable (self blocked) |
+| `POST /tenant/users/:id/restore` | tenant admin | Restore a deactivated member |
+| `PUT /tenant/users/:id/roles` | tenant admin | Replace the member's roles (enabled apps only) |
+| `GET /tenant/roles` | tenant admin | Enabled apps with their assignable roles |
 | `GET/POST/PATCH/DELETE /admin/tenants[/:id]` | platform admin | Tenant CRUD (delete = soft) |
 | `POST /admin/tenants/:id/restore\|suspend\|activate` | platform admin | Lifecycle |
 | `GET /admin/tenants/:id/apps` | platform admin | Registered apps with this tenant's access state for each |
@@ -75,6 +82,17 @@ only. Admin-created tenants start enabled on every registered app; the migration
 backfills existing tenants the same way, so turning this on locks nobody out. Manage
 it per app in the console ("Tenant access") or via the `/admin/tenants/:id/apps`
 endpoints.
+
+## Tenant admins
+
+Users with `isTenantAdmin` (set per user in the console or admin API) carry a
+`tenant_admin` claim and manage their own tenant's members through `/tenant/*`.
+The tenant scope always comes from the verified token — the API takes no tenant
+parameter, so a tenant admin can never reach another tenant. Self-lockout is
+prevented (you cannot demote or deactivate yourself), role assignment is limited
+to apps enabled for the tenant, and `isPlatformAdmin` is not settable from this
+surface. Apps integrate via the SDK's `*TenantMember*` methods; the Next.js
+template ships a Members page behind a password-confirm (sudo) window.
 
 ## Data lifecycle
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { verifySession } from "@/lib/auth/dal";
+import { isPlatformMode } from "@/lib/platform";
 import { signOut } from "@/auth";
 import { TenantProvider } from "@/components/TenantProvider";
 import { SyncStatusButton } from "@/components/SyncStatusButton";
@@ -22,6 +23,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             Evo App
           </Link>
           <div className="ml-auto flex items-center gap-2">
+            {isPlatformMode() && (
+              <Link href="/members" className="text-sm text-zinc-500 hover:text-zinc-800 px-2">
+                Members
+              </Link>
+            )}
             <SyncStatusButton />
             <Link
               href="/settings/account"

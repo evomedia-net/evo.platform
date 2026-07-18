@@ -50,6 +50,10 @@ export class CreateUserDto extends ProfileFields {
   @IsOptional()
   @IsBoolean()
   isPlatformAdmin?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isTenantAdmin?: boolean;
 }
 
 export class UpdateUserDto extends ProfileFields {
@@ -61,6 +65,10 @@ export class UpdateUserDto extends ProfileFields {
   @IsOptional()
   @IsBoolean()
   isPlatformAdmin?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isTenantAdmin?: boolean;
 }
 
 export class SetRolesDto {

@@ -163,6 +163,7 @@ export class AuthService {
         roles: this.rolesForApp(user, clientId),
         app: clientId ?? null,
         platform_admin: user.isPlatformAdmin,
+        tenant_admin: user.isTenantAdmin,
       },
       config.accessTtlSec,
     );
@@ -186,6 +187,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         platformAdmin: user.isPlatformAdmin,
+        tenantAdmin: user.isTenantAdmin,
         tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name } : null,
       },
     };

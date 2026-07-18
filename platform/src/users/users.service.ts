@@ -13,6 +13,7 @@ const PUBLIC_FIELDS = {
   lastName: true,
   phone: true,
   isPlatformAdmin: true,
+  isTenantAdmin: true,
   createdAt: true,
   deletedAt: true,
   roles: { select: { role: { select: { id: true, name: true, appId: true } } } },
@@ -81,6 +82,7 @@ export class UsersService {
         name,
         passwordHash: await bcrypt.hash(dto.password, 10),
         isPlatformAdmin: dto.isPlatformAdmin ?? false,
+        isTenantAdmin: dto.isTenantAdmin ?? false,
       },
       select: PUBLIC_FIELDS,
     });
@@ -107,6 +109,7 @@ export class UsersService {
         ...profileData(dto),
         ...(name !== undefined ? { name } : {}),
         isPlatformAdmin: dto.isPlatformAdmin,
+        isTenantAdmin: dto.isTenantAdmin,
         ...(dto.password ? { passwordHash: await bcrypt.hash(dto.password, 10) } : {}),
       },
       select: PUBLIC_FIELDS,

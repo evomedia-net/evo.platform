@@ -7,6 +7,7 @@ export interface Claims {
   roles: string[];
   app: string | null;
   platform_admin: boolean;
+  tenant_admin: boolean;
   iat: number;
   exp: number;
   iss: string;
@@ -43,6 +44,7 @@ export interface LoginResult {
     email: string;
     name: string | null;
     platformAdmin: boolean;
+    tenantAdmin: boolean;
     tenant: { id: string; slug: string; name: string } | null;
   };
 }
@@ -83,4 +85,42 @@ export interface PasskeyInfo {
   transports: string | null;
   createdAt: string;
   lastUsedAt: string | null;
+}
+
+/** A user of the caller's own tenant, as returned by the /tenant/users API. */
+export interface TenantMember {
+  id: string;
+  email: string;
+  name: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  isTenantAdmin: boolean;
+  createdAt: string;
+  deletedAt: string | null;
+  roles: { role: { id: string; name: string; app: { name: string; clientId: string } } }[];
+}
+
+/** An app enabled for the caller's tenant, with its assignable roles. */
+export interface TenantAppRoles {
+  app: string;
+  clientId: string;
+  status: string;
+  roles: { id: string; name: string; description: string | null }[];
+}
+
+export interface CreateMemberParams {
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  isTenantAdmin?: boolean;
+}
+
+export interface UpdateMemberParams {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  isTenantAdmin?: boolean;
 }
