@@ -62,6 +62,7 @@ export class AuthService {
         throw new ForbiddenException('Tenant is suspended');
       }
     }
+    await this.assertAppEnabled(tenant, clientId);
     const result = await this.issueTokens(user, tenant, clientId);
     await this.audit.record('auth.login', {
       tenantId: tenant?.id,
@@ -94,6 +95,7 @@ export class AuthService {
     if (tenant && (tenant.deletedAt || tenant.status === 'SUSPENDED')) {
       throw new ForbiddenException('Tenant is suspended');
     }
+    await this.assertAppEnabled(tenant ?? null, stored.appClientId ?? undefined);
     // Rotate: revoke the used token, issue a fresh pair
     await this.prisma.refreshToken.update({
       where: { id: stored.id },
@@ -108,6 +110,41 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     return { ok: true };
+  }
+
+  /**
+   * App-enablement gate: a session scoped to an app (clientId) requires an
+   * enabled AppTenant row for the user's tenant. Platform-level logins (no
+   * tenant) and tenant logins without an app scope are not gated here —
+   * those are governed by the tenant checks above.
+   */
+  private async assertAppEnabled(tenant: Tenant | null, clientId?: string) {
+    if (!tenant || !clientId) return;
+    const app = await this.prisma.app.findUnique({ where: { clientId } });
+    const enablement = app
+      ? await this.prisma.appTenant.findUnique({
+          where: { tenantId_appId: { tenantId: tenant.id, appId: app.id } },
+        })
+      : null;
+    if (!enablement) throw new ForbiddenException('App is not enabled for this workspace');
+    const now = new Date();
+    if (enablement.status === 'SUSPENDED') {
+      throw new ForbiddenException('App access is suspended for this workspace');
+    }
+    if (
+      enablement.status === 'TRIAL' &&
+      enablement.trialEndsAt != null &&
+      enablement.trialEndsAt < now
+    ) {
+      throw new ForbiddenException('Trial has ended for this workspace');
+    }
+    if (
+      enablement.status === 'PAST_DUE' &&
+      enablement.graceUntil != null &&
+      enablement.graceUntil < now
+    ) {
+      throw new ForbiddenException('App access is suspended for this workspace');
+    }
   }
 
   private rolesForApp(user: UserWithRoles, clientId?: string): string[] {

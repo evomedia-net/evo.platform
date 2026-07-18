@@ -6,13 +6,14 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { TenantsService } from './tenants.service';
-import { CreateTenantDto, UpdateTenantDto } from './dto';
+import { CreateTenantDto, SetAppAccessDto, UpdateTenantDto } from './dto';
 
 @Controller('admin/tenants')
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
@@ -57,6 +58,25 @@ export class TenantsController {
   @Post(':id/activate')
   activate(@Param('id') id: string) {
     return this.tenants.activate(id);
+  }
+
+  @Get(':id/apps')
+  listApps(@Param('id') id: string) {
+    return this.tenants.listApps(id);
+  }
+
+  @Put(':id/apps/:appId')
+  setAppAccess(
+    @Param('id') id: string,
+    @Param('appId') appId: string,
+    @Body() dto: SetAppAccessDto,
+  ) {
+    return this.tenants.setAppAccess(id, appId, dto);
+  }
+
+  @Delete(':id/apps/:appId')
+  removeAppAccess(@Param('id') id: string, @Param('appId') appId: string) {
+    return this.tenants.removeAppAccess(id, appId);
   }
 
   @Get(':id/export')

@@ -23,10 +23,21 @@ describe('AuthService.login', () => {
     roles: [{ role: { name: 'admin', app: { clientId: 'app_demo' } } }],
   };
 
+  const enabledAccess = {
+    tenantId: 't1',
+    appId: 'a1',
+    status: 'ACTIVE',
+    plan: 'free',
+    trialEndsAt: null,
+    graceUntil: null,
+  };
+
   let prisma: {
     tenant: { findFirst: jest.Mock };
     user: { findFirst: jest.Mock };
     refreshToken: { create: jest.Mock };
+    app: { findUnique: jest.Mock };
+    appTenant: { findUnique: jest.Mock };
   };
   let svc: AuthService;
 
@@ -37,6 +48,8 @@ describe('AuthService.login', () => {
       tenant: { findFirst: jest.fn().mockResolvedValue(tenant) },
       user: { findFirst: jest.fn().mockResolvedValue(user) },
       refreshToken: { create: jest.fn().mockResolvedValue({}) },
+      app: { findUnique: jest.fn().mockResolvedValue({ id: 'a1', clientId: 'app_demo' }) },
+      appTenant: { findUnique: jest.fn().mockResolvedValue(enabledAccess) },
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     svc = new AuthService(prisma as any, keys, audit as any);
@@ -100,5 +113,67 @@ describe('AuthService.login', () => {
     await expect(
       svc.login({ tenantSlug: 'ghost', email: 'owner@acme.example', password: 'correct-password' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  // App enablement: a login scoped to an app requires an enabled AppTenant row
+  const appLogin = {
+    tenantSlug: 'acme',
+    email: 'owner@acme.example',
+    password: 'correct-password',
+    clientId: 'app_demo',
+  };
+
+  it('rejects an app-scoped login when the app is not enabled for the tenant', async () => {
+    prisma.appTenant.findUnique.mockResolvedValue(null);
+    await expect(svc.login(appLogin)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects an app-scoped login for an unknown clientId', async () => {
+    prisma.app.findUnique.mockResolvedValue(null);
+    await expect(svc.login(appLogin)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects when app access is suspended for the tenant', async () => {
+    prisma.appTenant.findUnique.mockResolvedValue({ ...enabledAccess, status: 'SUSPENDED' });
+    await expect(svc.login(appLogin)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects once the app trial has ended', async () => {
+    prisma.appTenant.findUnique.mockResolvedValue({
+      ...enabledAccess,
+      status: 'TRIAL',
+      trialEndsAt: new Date(Date.now() - 1000),
+    });
+    await expect(svc.login(appLogin)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('allows login while the app trial is still running', async () => {
+    prisma.appTenant.findUnique.mockResolvedValue({
+      ...enabledAccess,
+      status: 'TRIAL',
+      trialEndsAt: new Date(Date.now() + 86_400_000),
+    });
+    const result = await svc.login(appLogin);
+    expect(result.accessToken).toBeTruthy();
+  });
+
+  it('rejects once the app-level PAST_DUE grace window has expired', async () => {
+    prisma.appTenant.findUnique.mockResolvedValue({
+      ...enabledAccess,
+      status: 'PAST_DUE',
+      graceUntil: new Date(Date.now() - 1000),
+    });
+    await expect(svc.login(appLogin)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('skips the enablement gate for tenant logins without an app scope', async () => {
+    prisma.appTenant.findUnique.mockResolvedValue(null);
+    const result = await svc.login({
+      tenantSlug: 'acme',
+      email: 'owner@acme.example',
+      password: 'correct-password',
+    });
+    expect(result.accessToken).toBeTruthy();
+    expect(prisma.appTenant.findUnique).not.toHaveBeenCalled();
   });
 });

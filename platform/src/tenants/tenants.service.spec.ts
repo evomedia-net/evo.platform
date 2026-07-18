@@ -18,12 +18,26 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
   const tx = {
     auditEvent: { deleteMany: jest.fn().mockResolvedValue({ count: 4 }) },
     smtpConfig: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    appTenant: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
     user: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
     tenant: { delete: jest.fn().mockResolvedValue({}) },
   };
   return {
     tx,
-    tenant: { findUnique: jest.fn().mockResolvedValue({ ...tenantRow, ...overrides }) },
+    tenant: {
+      findUnique: jest.fn().mockResolvedValue({ ...tenantRow, ...overrides }),
+      create: jest.fn().mockResolvedValue(tenantRow),
+    },
+    app: {
+      findMany: jest.fn().mockResolvedValue([{ id: 'a1' }, { id: 'a2' }]),
+      findUnique: jest.fn().mockResolvedValue({ id: 'a1', clientId: 'app_demo', name: 'demo-app' }),
+    },
+    appTenant: {
+      createMany: jest.fn().mockResolvedValue({ count: 2 }),
+      findMany: jest.fn().mockResolvedValue([]),
+      upsert: jest.fn().mockResolvedValue({ tenantId: 't1', appId: 'a1', status: 'ACTIVE', plan: 'free' }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
     auditEvent: { findMany: jest.fn().mockResolvedValue([{ id: 'e1', action: 'auth.login' }]) },
     $transaction: jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
   };
@@ -46,6 +60,7 @@ describe('TenantsService.purge', () => {
     const out = await svc.purge('t1');
     expect(out).toEqual({ ok: true, users: 2, auditEvents: 4 });
     expect(prisma.tx.auditEvent.deleteMany).toHaveBeenCalledWith({ where: { tenantId: 't1' } });
+    expect(prisma.tx.appTenant.deleteMany).toHaveBeenCalledWith({ where: { tenantId: 't1' } });
     expect(prisma.tx.user.deleteMany).toHaveBeenCalledWith({ where: { tenantId: 't1' } });
     expect(prisma.tx.tenant.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
     expect(audit.record).toHaveBeenCalledWith('tenant.purged', expect.anything());
@@ -75,14 +90,68 @@ describe('TenantsService.exportTenant', () => {
         },
       ],
       smtpConfig: { host: 'smtp.example.com', port: 587, secure: false, username: 'x', passwordEnc: 'ENC', fromAddress: 'noreply@example.com' },
+      appTenants: [
+        {
+          app: { name: 'demo-app', clientId: 'app_demo' },
+          status: 'ACTIVE',
+          plan: 'free',
+          trialEndsAt: null,
+          graceUntil: null,
+        },
+      ],
     });
     const out = await makeSvc(prisma).exportTenant('t1');
     expect(out.users[0].roles).toEqual([{ app: 'demo-app', role: 'admin' }]);
     expect(out.smtpConfig).toMatchObject({ host: 'smtp.example.com', hasPassword: true });
+    expect(out.appAccess).toEqual([
+      expect.objectContaining({ app: 'demo-app', clientId: 'app_demo', status: 'ACTIVE' }),
+    ]);
     expect(out.auditEvents).toHaveLength(1);
     const dump = JSON.stringify(out);
     expect(dump).not.toContain('SECRET-HASH');
     expect(dump).not.toContain('passwordEnc');
     expect(dump).not.toContain('"ENC"');
+  });
+});
+
+describe('TenantsService app access', () => {
+  it('create() enables every registered app for the new tenant', async () => {
+    const prisma = makePrisma();
+    prisma.tenant.findUnique.mockResolvedValue(null); // slug is free
+    await makeSvc(prisma).create({ slug: 'acme', name: 'Acme' });
+    expect(prisma.appTenant.createMany).toHaveBeenCalledWith({
+      data: [
+        { tenantId: 't1', appId: 'a1', plan: 'free' },
+        { tenantId: 't1', appId: 'a2', plan: 'free' },
+      ],
+    });
+  });
+
+  it('setAppAccess upserts the enablement row and audits it', async () => {
+    const prisma = makePrisma();
+    const out = await makeSvc(prisma).setAppAccess('t1', 'a1', { status: 'SUSPENDED' });
+    expect(prisma.appTenant.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId_appId: { tenantId: 't1', appId: 'a1' } } }),
+    );
+    expect(audit.record).toHaveBeenCalledWith('tenant.app_access_set', expect.anything());
+    expect(out.status).toBe('ACTIVE'); // echoes what the mock upsert returned
+  });
+
+  it('setAppAccess 404s on an unknown app', async () => {
+    const prisma = makePrisma();
+    prisma.app.findUnique.mockResolvedValue(null);
+    await expect(makeSvc(prisma).setAppAccess('t1', 'ghost', {})).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('removeAppAccess deletes the row and audits it', async () => {
+    const prisma = makePrisma();
+    const out = await makeSvc(prisma).removeAppAccess('t1', 'a1');
+    expect(out).toEqual({ ok: true });
+    expect(prisma.appTenant.deleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 't1', appId: 'a1' },
+    });
+    expect(audit.record).toHaveBeenCalledWith('tenant.app_access_removed', expect.anything());
   });
 });

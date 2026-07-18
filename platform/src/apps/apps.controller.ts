@@ -34,6 +34,11 @@ export class AppsController {
     return this.apps.rotateSecret(id);
   }
 
+  @Get(':id/tenants')
+  listTenants(@Param('id') id: string) {
+    return this.apps.listTenants(id);
+  }
+
   @Get(':id/roles')
   listRoles(@Param('id') id: string) {
     return this.apps.listRoles(id);

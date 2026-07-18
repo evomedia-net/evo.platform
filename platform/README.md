@@ -43,6 +43,10 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `POST /auth/passkeys/login/verify` | — | `{credential, challengeToken, clientId?}` → same session shape as password login |
 | `GET/POST/PATCH/DELETE /admin/tenants[/:id]` | platform admin | Tenant CRUD (delete = soft) |
 | `POST /admin/tenants/:id/restore\|suspend\|activate` | platform admin | Lifecycle |
+| `GET /admin/tenants/:id/apps` | platform admin | Registered apps with this tenant's access state for each |
+| `PUT /admin/tenants/:id/apps/:appId` | platform admin | Enable an app for a tenant, or change its status/plan/trial/grace |
+| `DELETE /admin/tenants/:id/apps/:appId` | platform admin | Disable an app for a tenant — logins scoped to it are refused |
+| `GET /admin/apps/:id/tenants` | platform admin | Every tenant's access state for an app (the enablement matrix) |
 | `GET /admin/tenants/:id/export` | platform admin | Full platform-data export (portability/backup); secrets omitted |
 | `DELETE /admin/tenants/:id/purge` | platform admin | Hard delete (erasure); requires prior soft-delete |
 | `DELETE /admin/users/:id/purge` | platform admin | Hard delete a soft-deleted user; audit rows unlinked |
@@ -59,6 +63,18 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `POST /billing/portal` | client creds | Stripe billing-portal URL (payment method, cancel) |
 | `POST /billing/webhook` | stripe signature | Subscription/invoice events → tenant status + 7-day grace on failed payment |
 | `POST /email/send` | client creds | Send via tenant SMTP → platform default → env fallback |
+
+## App enablement
+
+Tenants are granted access **per app** (`app_tenants`): a login or refresh scoped to a
+`clientId` requires an enabled row for that tenant — `ACTIVE`, `TRIAL` until
+`trialEndsAt`, or `PAST_DUE` until `graceUntil`; `SUSPENDED` or no row refuses the
+login. One app's suspension never touches the tenant's other apps. Platform-admin
+logins and tenant logins without an app scope are governed by the tenant-level checks
+only. Admin-created tenants start enabled on every registered app; the migration
+backfills existing tenants the same way, so turning this on locks nobody out. Manage
+it per app in the console ("Tenant access") or via the `/admin/tenants/:id/apps`
+endpoints.
 
 ## Data lifecycle
 
