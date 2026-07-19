@@ -223,6 +223,27 @@ export class EvoPlatform {
 
   // ---- client-credential services ----
 
+  /** Stripe Checkout for the tenant's subscription to THIS app. The webhook
+   *  then drives the tenant's access to the app (paid → active, failed →
+   *  grace → suspended) — a completed first checkout enables the app. */
+  createCheckout(params: {
+    tenantId: string;
+    successUrl: string;
+    cancelUrl: string;
+    priceId?: string;
+    quantity?: number;
+  }): Promise<{ url: string | null }> {
+    return this.post('/billing/checkout', params, this.clientHeaders());
+  }
+
+  /** Stripe billing portal (payment method, invoices, cancel). */
+  createBillingPortal(params: {
+    tenantId: string;
+    returnUrl: string;
+  }): Promise<{ url: string | null }> {
+    return this.post('/billing/portal', params, this.clientHeaders());
+  }
+
   async sendEmail(params: SendEmailParams): Promise<{ ok: boolean; messageId: string }> {
     return this.post('/email/send', params, this.clientHeaders());
   }

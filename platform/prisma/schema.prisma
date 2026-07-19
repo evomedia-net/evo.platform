@@ -119,6 +119,8 @@ model App {
   clientSecretHash String
   name             String   @unique
   callbackUrls     String[]
+  // Stripe Price (price_...) for this app's subscription; null = not sellable yet.
+  stripePriceId    String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   roles            Role[]
@@ -147,6 +149,8 @@ model AppTenant {
   trialEndsAt DateTime?
   // While PAST_DUE, logins for this app keep working until this moment.
   graceUntil  DateTime?
+  // The Stripe subscription that owns this row's status (one sub per app+tenant).
+  stripeSubscriptionId String? @unique
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 

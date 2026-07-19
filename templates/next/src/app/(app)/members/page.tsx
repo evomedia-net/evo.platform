@@ -1,6 +1,7 @@
 import { verifySession } from "@/lib/auth/dal";
 import { isPlatformMode } from "@/lib/platform";
 import { MembersManager } from "@/components/members/MembersManager";
+import { BillingCard } from "@/components/members/BillingCard";
 
 /**
  * Workspace member management, for tenant admins (platform mode only). All
@@ -22,5 +23,10 @@ export default async function MembersPage() {
     );
   }
 
-  return <MembersManager />;
+  return (
+    <div className="space-y-4">
+      <MembersManager />
+      <BillingCard />
+    </div>
+  );
 }

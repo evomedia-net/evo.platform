@@ -6,23 +6,33 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import Stripe from 'stripe';
-import { TenantStatus } from '@prisma/client';
+import { AppTenantStatus } from '@prisma/client';
 import { PrismaService } from '../core/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { config } from '../config';
 import { CheckoutDto, PortalDto } from './dto';
 
+/** The calling app, as attached to the request by ClientGuard. */
+export interface CallingApp {
+  id: string;
+  clientId: string;
+  stripePriceId: string | null;
+}
+
 /**
- * Stripe subscription billing. The platform owns the Stripe relationship;
- * apps only read the resulting tenant plan/status from JWT-time checks.
+ * Stripe subscription billing, scoped **per app**: each (tenant, app) pair
+ * carries its own subscription, and webhook events drive that pair's
+ * AppTenant row — one app's lapse never touches the tenant's other apps.
+ * The tenant keeps a single Stripe customer; subscriptions hang off it.
  *
- * Status mapping (subscription sync writes tenant.status directly — cancel
+ * Status mapping (sync writes AppTenant.status directly — cancel
  * subscriptions in Stripe, don't fight the webhook):
  *   active/trialing            → ACTIVE
  *   past_due                   → PAST_DUE (+ grace window if not already set)
  *   canceled/unpaid/paused/... → SUSPENDED
- * invoice.paid only lifts PAST_DUE → ACTIVE; it never un-suspends a tenant an
- * admin suspended manually.
+ * invoice.paid only lifts PAST_DUE → ACTIVE; it never revives a row an admin
+ * suspended manually. Paying for an app that was never enabled creates the
+ * row — a completed checkout IS enablement.
  */
 @Injectable()
 export class BillingService {
@@ -60,15 +70,24 @@ export class BillingService {
     return customer.id;
   }
 
-  async checkout(dto: CheckoutDto) {
+  /** Checkout for the CALLING app's subscription: the price comes from the app
+   *  registry (dto.priceId may override), and the subscription is tagged with
+   *  tenant + app so the webhook can route it to the right AppTenant row. */
+  async checkout(dto: CheckoutDto, app: CallingApp) {
+    const priceId = dto.priceId ?? app.stripePriceId;
+    if (!priceId) {
+      throw new BadRequestException('This app has no Stripe price configured');
+    }
     const customer = await this.ensureCustomer(dto.tenantId);
     const session = await this.requireStripe().checkout.sessions.create({
       mode: 'subscription',
       customer,
-      line_items: [{ price: dto.priceId, quantity: dto.quantity ?? 1 }],
+      line_items: [{ price: priceId, quantity: dto.quantity ?? 1 }],
       success_url: dto.successUrl,
       cancel_url: dto.cancelUrl,
-      subscription_data: { metadata: { tenantId: dto.tenantId } },
+      subscription_data: {
+        metadata: { tenantId: dto.tenantId, appId: app.id, appClientId: app.clientId },
+      },
     });
     return { url: session.url };
   }
@@ -115,74 +134,113 @@ export class BillingService {
     }
   }
 
-  private customerId(ref: string | { id: string } | null): string | null {
+  /** Invoice → subscription id across Stripe API shapes (pre/post "basil":
+   *  `invoice.subscription` vs `invoice.parent.subscription_details`). */
+  private invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+    const inv = invoice as unknown as {
+      subscription?: string | { id: string } | null;
+      parent?: {
+        subscription_details?: { subscription?: string | { id: string } | null } | null;
+      } | null;
+    };
+    const ref = inv.subscription ?? inv.parent?.subscription_details?.subscription ?? null;
     return typeof ref === 'string' ? ref : (ref?.id ?? null);
   }
 
-  private async syncSubscription(sub: Stripe.Subscription) {
-    const customerId = this.customerId(sub.customer);
-    const tenant = customerId
-      ? await this.prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } })
-      : null;
-    if (!tenant) return { handled: false };
+  private async accessBySubscriptionId(subId: string | null) {
+    if (!subId) return null;
+    return this.prisma.appTenant.findFirst({ where: { stripeSubscriptionId: subId } });
+  }
 
-    let status: TenantStatus;
+  private async syncSubscription(sub: Stripe.Subscription) {
+    // Prefer the metadata stamped at checkout; fall back to the stored sub id.
+    const meta = (sub.metadata ?? {}) as { tenantId?: string; appId?: string };
+    let access =
+      meta.tenantId && meta.appId
+        ? await this.prisma.appTenant.findUnique({
+            where: { tenantId_appId: { tenantId: meta.tenantId, appId: meta.appId } },
+          })
+        : await this.accessBySubscriptionId(sub.id);
+
+    let status: AppTenantStatus;
     let graceUntil: Date | null;
     if (sub.status === 'active' || sub.status === 'trialing') {
       status = 'ACTIVE';
       graceUntil = null;
     } else if (sub.status === 'past_due') {
       status = 'PAST_DUE';
-      graceUntil = tenant.graceUntil ?? this.graceDeadline();
+      graceUntil = access?.graceUntil ?? this.graceDeadline();
     } else {
       status = 'SUSPENDED';
       graceUntil = null;
     }
 
-    await this.prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { stripeSubscriptionId: sub.id, status, graceUntil },
-    });
+    if (!access) {
+      // A subscription for a pair with no row yet: paying IS enablement —
+      // but only if the metadata names a real tenant + app.
+      if (!meta.tenantId || !meta.appId) return { handled: false };
+      access = await this.prisma.appTenant.create({
+        data: {
+          tenantId: meta.tenantId,
+          appId: meta.appId,
+          status,
+          graceUntil,
+          stripeSubscriptionId: sub.id,
+        },
+      });
+    } else {
+      // A row already owned by a DIFFERENT subscription ignores terminal
+      // events from the old one (upgrade flows replace subscriptions).
+      if (
+        access.stripeSubscriptionId &&
+        access.stripeSubscriptionId !== sub.id &&
+        status === 'SUSPENDED'
+      ) {
+        return { handled: true };
+      }
+      access = await this.prisma.appTenant.update({
+        where: { tenantId_appId: { tenantId: access.tenantId, appId: access.appId } },
+        data: { status, graceUntil, stripeSubscriptionId: sub.id, trialEndsAt: null },
+      });
+    }
+
     await this.audit.record('billing.subscription_synced', {
-      tenantId: tenant.id,
-      detail: { stripeStatus: sub.status, status },
+      tenantId: access.tenantId,
+      detail: { appId: access.appId, stripeStatus: sub.status, status },
     });
     return { handled: true };
   }
 
   private async onInvoicePaid(invoice: Stripe.Invoice) {
-    const customerId = this.customerId(invoice.customer);
-    const tenant = customerId
-      ? await this.prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } })
-      : null;
-    if (!tenant) return { handled: false };
-    // Only lift billing-driven PAST_DUE; never un-suspend a manual suspension.
-    if (tenant.status === 'PAST_DUE') {
-      await this.prisma.tenant.update({
-        where: { id: tenant.id },
+    const access = await this.accessBySubscriptionId(this.invoiceSubscriptionId(invoice));
+    if (!access) return { handled: false };
+    // Only lift billing-driven PAST_DUE; never revive a manual suspension.
+    if (access.status === 'PAST_DUE') {
+      await this.prisma.appTenant.update({
+        where: { tenantId_appId: { tenantId: access.tenantId, appId: access.appId } },
         data: { status: 'ACTIVE', graceUntil: null },
       });
-      await this.audit.record('billing.payment_recovered', { tenantId: tenant.id });
+      await this.audit.record('billing.payment_recovered', {
+        tenantId: access.tenantId,
+        detail: { appId: access.appId },
+      });
     }
     return { handled: true };
   }
 
   private async onPaymentFailed(invoice: Stripe.Invoice) {
-    const customerId = this.customerId(invoice.customer);
-    const tenant = customerId
-      ? await this.prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } })
-      : null;
-    if (!tenant) return { handled: false };
-    await this.prisma.tenant.update({
-      where: { id: tenant.id },
+    const access = await this.accessBySubscriptionId(this.invoiceSubscriptionId(invoice));
+    if (!access) return { handled: false };
+    await this.prisma.appTenant.update({
+      where: { tenantId_appId: { tenantId: access.tenantId, appId: access.appId } },
       data: {
         status: 'PAST_DUE',
-        graceUntil: tenant.graceUntil ?? this.graceDeadline(),
+        graceUntil: access.graceUntil ?? this.graceDeadline(),
       },
     });
     await this.audit.record('billing.payment_failed', {
-      tenantId: tenant.id,
-      detail: { graceDays: config.stripe.graceDays },
+      tenantId: access.tenantId,
+      detail: { appId: access.appId, graceDays: config.stripe.graceDays },
     });
     return { handled: true };
   }

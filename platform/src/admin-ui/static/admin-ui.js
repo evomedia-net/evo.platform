@@ -594,6 +594,10 @@ async function viewApps() {
         <label style="flex:0 0 200px">Add role <input name="role" placeholder="admin" required /></label>
         <button class="btn sm grow0">Add</button>
       </form>
+      <form class="inline" data-app-price="${a.id}" style="margin-top:10px">
+        <label style="flex:0 0 280px" data-tip="Stripe Price id (price_...) sold as this app's subscription. Checkout uses it; webhook events then drive each workspace's access to this app. Leave empty while the app isn't sellable.">Stripe price <input name="priceId" placeholder="price_..." value="${esc(a.stripePriceId ?? "")}" /></label>
+        <button class="btn sm grow0">Save</button>
+      </form>
       <h3 data-tip="Which workspaces may sign in to this app. Logins scoped to an app are refused unless the workspace is enabled here.">Tenant access</h3>
       <table><tr><th>Slug</th><th>Name</th><th>Access</th><th class="col-actions"></th></tr>${accessRows(a)}</table>
     </div>`).join("");
@@ -684,6 +688,17 @@ async function viewApps() {
   });
 
   $("#content").addEventListener("submit", async (e) => {
+    const priceForm = e.target.closest("form[data-app-price]");
+    if (priceForm) {
+      e.preventDefault();
+      try {
+        await api("PATCH", `/admin/apps/${priceForm.dataset.appPrice}`, {
+          stripePriceId: String(new FormData(priceForm).get("priceId") || "").trim(),
+        });
+        toast("Stripe price saved"); route();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
     const form = e.target.closest("form[data-app]");
     if (!form) return;
     e.preventDefault();

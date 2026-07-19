@@ -10,6 +10,7 @@ const PUBLIC_FIELDS = {
   clientId: true,
   name: true,
   callbackUrls: true,
+  stripePriceId: true,
   createdAt: true,
   roles: { select: { id: true, name: true, description: true } },
 } as const;
@@ -53,7 +54,18 @@ export class AppsService {
 
   async update(id: string, dto: UpdateAppDto) {
     await this.get(id);
-    return this.prisma.app.update({ where: { id }, data: dto, select: PUBLIC_FIELDS });
+    return this.prisma.app.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        callbackUrls: dto.callbackUrls,
+        // Empty string clears the price (app becomes non-sellable).
+        ...(dto.stripePriceId !== undefined
+          ? { stripePriceId: dto.stripePriceId || null }
+          : {}),
+      },
+      select: PUBLIC_FIELDS,
+    });
   }
 
   async rotateSecret(id: string) {

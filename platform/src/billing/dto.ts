@@ -4,9 +4,10 @@ export class CheckoutDto {
   @IsString()
   tenantId!: string;
 
-  /** Stripe Price id (price_...) for the subscription. */
+  /** Optional override; defaults to the calling app's registered price. */
+  @IsOptional()
   @IsString()
-  priceId!: string;
+  priceId?: string;
 
   @IsOptional()
   @IsInt()
