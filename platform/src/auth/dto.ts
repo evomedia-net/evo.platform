@@ -1,4 +1,5 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../core/password-policy';
 
 export class LoginDto {
   /** Omit for platform-level (global admin) login. */
@@ -22,4 +23,28 @@ export class LoginDto {
 export class RefreshDto {
   @IsString()
   refreshToken!: string;
+}
+
+/** Verification / reset requests: tenant + email, like login. */
+export class EmailFlowDto {
+  @IsOptional()
+  @IsString()
+  tenantSlug?: string;
+
+  @IsEmail()
+  email!: string;
+}
+
+export class VerifyDto {
+  @IsString()
+  token!: string;
+}
+
+export class ResetDto {
+  @IsString()
+  token!: string;
+
+  @IsString()
+  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  password!: string;
 }

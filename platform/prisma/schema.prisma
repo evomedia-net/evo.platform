@@ -56,6 +56,9 @@ model User {
   isPlatformAdmin Boolean   @default(false)
   // Tenant admin: may manage their own tenant's members via /tenant/*.
   isTenantAdmin   Boolean   @default(false)
+  // NULL = mailbox not yet proven; login is refused until it is. Admin-created
+  // users are stamped at creation (credentials were handed over directly).
+  emailVerifiedAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?

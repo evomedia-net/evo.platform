@@ -14,6 +14,7 @@ const PUBLIC_FIELDS = {
   phone: true,
   isPlatformAdmin: true,
   isTenantAdmin: true,
+  emailVerifiedAt: true,
   createdAt: true,
   deletedAt: true,
   roles: { select: { role: { select: { id: true, name: true, appId: true } } } },
@@ -83,6 +84,8 @@ export class UsersService {
         passwordHash: await bcrypt.hash(dto.password, 10),
         isPlatformAdmin: dto.isPlatformAdmin ?? false,
         isTenantAdmin: dto.isTenantAdmin ?? false,
+        // Admin handed the credentials over directly — that is the identity proof.
+        emailVerifiedAt: new Date(),
       },
       select: PUBLIC_FIELDS,
     });

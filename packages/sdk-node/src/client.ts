@@ -65,6 +65,27 @@ export class EvoPlatform {
     return this.post('/auth/logout', { refreshToken });
   }
 
+  // ---- email verification & password reset ----
+  // Send endpoints always answer ok (no account enumeration). A login rejected
+  // with "Email not verified" should offer sendVerificationEmail as the retry.
+
+  sendVerificationEmail(params: { tenantSlug?: string; email: string }): Promise<{ ok: boolean }> {
+    return this.post('/auth/verify/send', params);
+  }
+
+  verifyEmail(token: string): Promise<{ ok: boolean }> {
+    return this.post('/auth/verify', { token });
+  }
+
+  forgotPassword(params: { tenantSlug?: string; email: string }): Promise<{ ok: boolean }> {
+    return this.post('/auth/forgot', params);
+  }
+
+  /** Resets the password and revokes every session of that user. */
+  resetPassword(token: string, password: string): Promise<{ ok: boolean }> {
+    return this.post('/auth/reset', { token, password });
+  }
+
   // ---- passkeys (WebAuthn) ----
 
   /**

@@ -415,7 +415,7 @@ async function viewUsers() {
       <td>${esc(u.email)}${u.deletedAt ? ' <span class="badge bad">deleted</span>' : ""}</td>
       <td>${esc(u.name ?? "")}</td>
       <td><code>${esc(tenantName(u.tenantId))}</code></td>
-      <td>${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}${u.isTenantAdmin ? ' <span class="badge ok" data-tip="Manages their own tenant\'s members from inside the apps.">tenant admin</span>' : ""}</td>
+      <td>${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}${u.isTenantAdmin ? ' <span class="badge ok" data-tip="Manages their own tenant\'s members from inside the apps.">tenant admin</span>' : ""}${u.emailVerifiedAt ? "" : ' <span class="badge warn" data-tip="Mailbox not yet proven — sign-in is refused until the user clicks their verification email.">unverified</span>'}</td>
       <td>${roleCell(u)}</td>
       <td>${u.deletedAt
         ? `<button class="btn sm" data-act="restore" data-id="${u.id}" data-tip="Bring this soft-deleted user back.">Restore</button>`

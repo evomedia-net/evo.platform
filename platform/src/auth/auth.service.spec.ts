@@ -20,6 +20,7 @@ describe('AuthService.login', () => {
     name: 'Owner',
     isPlatformAdmin: false,
     isTenantAdmin: false,
+    emailVerifiedAt: new Date('2026-01-01'),
     deletedAt: null,
     roles: [{ role: { name: 'admin', app: { clientId: 'app_demo' } } }],
   };
@@ -107,6 +108,13 @@ describe('AuthService.login', () => {
       password: 'correct-password',
     });
     expect(result.accessToken).toBeTruthy();
+  });
+
+  it('refuses login while the email is unverified', async () => {
+    prisma.user.findFirst.mockResolvedValue({ ...user, emailVerifiedAt: null });
+    await expect(
+      svc.login({ tenantSlug: 'acme', email: 'owner@acme.example', password: 'correct-password' }),
+    ).rejects.toMatchObject({ message: 'Email not verified' });
   });
 
   it('rejects an unknown tenant slug without leaking its absence', async () => {
