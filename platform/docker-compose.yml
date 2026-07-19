@@ -1,3 +1,7 @@
+# Explicit project name — otherwise compose uses the directory name
+# ("platform"), which is meaningless in a Docker Desktop full of stacks.
+name: evo-platform
+
 services:
   db:
     image: postgres:17-alpine
@@ -26,3 +30,7 @@ services:
 
 volumes:
   evoplatform_pgdata:
+    # Pinned: this volume predates the project rename (it was created under
+    # project "platform"). Without the pin, compose would silently mount a
+    # NEW empty volume and the dev tenants/users would "disappear".
+    name: evo-platform_evoplatform_pgdata

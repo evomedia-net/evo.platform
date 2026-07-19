@@ -19,6 +19,11 @@ export class UpdateAppDto {
   @IsArray()
   @IsString({ each: true })
   callbackUrls?: string[];
+
+  /** Stripe Price (price_...) sold as this app's subscription; empty clears it. */
+  @IsOptional()
+  @IsString()
+  stripePriceId?: string;
 }
 
 export class CreateRoleDto {

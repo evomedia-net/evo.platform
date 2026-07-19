@@ -16,12 +16,16 @@ import { CheckoutDto, PortalDto } from './dto';
 export class BillingController {
   constructor(private billing: BillingService) {}
 
-  /** Apps request a Stripe Checkout URL for a tenant's upgrade flow. */
+  /** Apps request a Stripe Checkout URL for the tenant's subscription to THIS
+   *  app (the caller's identity comes from ClientGuard). */
   @Post('checkout')
   @HttpCode(200)
   @UseGuards(ClientGuard)
-  checkout(@Body() dto: CheckoutDto) {
-    return this.billing.checkout(dto);
+  checkout(
+    @Body() dto: CheckoutDto,
+    @Req() req: { clientApp: { id: string; clientId: string; stripePriceId: string | null } },
+  ) {
+    return this.billing.checkout(dto, req.clientApp);
   }
 
   /** Apps request a Stripe billing-portal URL (manage payment method, cancel). */
