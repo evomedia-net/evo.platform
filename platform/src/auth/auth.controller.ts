@@ -1,4 +1,6 @@
 import { Body, Controller, Get, HttpCode, Ip, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { config } from '../config';
 import { AuthService } from './auth.service';
 import { AccountFlowsService } from './account-flows.service';
 import { SignupService } from './signup.service';
@@ -17,6 +19,8 @@ interface HtmlRes {
   send(body: string): void;
 }
 
+// The public credential surface gets the tighter per-IP budget.
+@Throttle({ default: { limit: config.rateLimit.authPerMin, ttl: 60_000 } })
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -118,6 +122,8 @@ export class AuthController {
   }
 }
 
+// Apps poll JWKS on a cache TTL; never throttle key discovery.
+@SkipThrottle()
 @Controller('.well-known')
 export class JwksController {
   constructor(private keys: KeysService) {}

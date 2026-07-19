@@ -16,6 +16,8 @@ import type {
   AuthenticationResponseJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server';
+import { Throttle } from '@nestjs/throttler';
+import { config } from '../config';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../core/prisma.service';
@@ -43,6 +45,7 @@ function rpFromRequest(req: { headers: Record<string, string | string[] | undefi
   return rp;
 }
 
+@Throttle({ default: { limit: config.rateLimit.authPerMin, ttl: 60_000 } })
 @Controller('auth/passkeys')
 export class PasskeysController {
   constructor(

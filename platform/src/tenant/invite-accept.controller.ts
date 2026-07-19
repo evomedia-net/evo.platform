@@ -1,4 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Query, Res } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { config } from '../config';
 import { InvitesService } from './invites.service';
 import { AcceptInviteDto } from './dto';
 import { inviteAcceptPage, inviteInvalidPage } from '../auth/auth-pages';
@@ -14,6 +16,7 @@ interface HtmlRes {
 
 /** Public: where the emailed invite link lands. No auth — the token is the
  *  credential, and it is single-use, expiring, and stored only as a hash. */
+@Throttle({ default: { limit: config.rateLimit.authPerMin, ttl: 60_000 } })
 @Controller('auth/invites')
 export class InviteAcceptController {
   constructor(private invites: InvitesService) {}

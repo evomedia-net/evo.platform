@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { config } from './config';
 import { AdminUiModule } from './admin-ui/admin-ui.module';
 import { CoreModule } from './core/core.module';
 import { AuthModule } from './auth/auth.module';
@@ -13,6 +16,10 @@ import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
+    // Per-IP rate limiting, enforced globally via APP_GUARD. The public auth
+    // surface tightens this with class-level @Throttle overrides; the Stripe
+    // webhook and JWKS opt out with @SkipThrottle.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: config.rateLimit.defaultPerMin }]),
     AdminUiModule,
     CoreModule,
     AuthModule,
@@ -25,5 +32,6 @@ import { EmailModule } from './email/email.module';
     BillingModule,
     EmailModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
