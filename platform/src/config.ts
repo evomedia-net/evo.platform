@@ -10,6 +10,18 @@ export const config = {
     /** Days of app trial a self-service signup starts with. */
     trialDays: Number(process.env.SIGNUP_TRIAL_DAYS ?? 14),
   },
+  rateLimit: {
+    /** Per-IP requests per minute, all routes (webhook + JWKS exempt). */
+    defaultPerMin: Number(process.env.RATE_LIMIT_PER_MIN ?? 100),
+    /** Per-IP requests per minute on the public auth surface. */
+    authPerMin: Number(process.env.RATE_LIMIT_AUTH_PER_MIN ?? 30),
+  },
+  /** Set behind a reverse proxy so throttling sees the real client IP. */
+  trustProxy: process.env.TRUST_PROXY === '1',
+  bootstrapAdmin: {
+    email: process.env.BOOTSTRAP_ADMIN_EMAIL,
+    password: process.env.BOOTSTRAP_ADMIN_PASSWORD,
+  },
   secretKey: process.env.SECRET_KEY ?? 'dev-only-secret-change-me',
   keysDir: process.env.KEYS_DIR ?? './keys',
   jwtIssuer: process.env.JWT_ISSUER ?? 'evoplatform',

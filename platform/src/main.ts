@@ -9,6 +9,10 @@ async function bootstrap() {
   // rawBody is required for Stripe webhook signature verification
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  if (config.trustProxy) {
+    // Behind nginx: rate limiting must see the real client IP, not the proxy's.
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
   await app.listen(config.port);
   console.log(`EvoPlatform service listening on :${config.port}`);
 }

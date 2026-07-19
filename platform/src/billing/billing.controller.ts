@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ClientGuard } from '../auth/client.guard';
 import { BillingService } from './billing.service';
 import { CheckoutDto, PortalDto } from './dto';
@@ -32,7 +33,9 @@ export class BillingController {
     return this.billing.portal(dto);
   }
 
-  /** Stripe webhook — authenticated by signature, not by client credentials. */
+  /** Stripe webhook — authenticated by signature, not by client credentials.
+   *  Never throttled: retries arrive in bursts and dropping one delays state. */
+  @SkipThrottle()
   @Post('webhook')
   @HttpCode(200)
   webhook(

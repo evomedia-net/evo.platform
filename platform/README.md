@@ -93,6 +93,23 @@ backfills existing tenants the same way, so turning this on locks nobody out. Ma
 it per app in the console ("Tenant access") or via the `/admin/tenants/:id/apps`
 endpoints.
 
+## Rate limiting & bootstrap
+
+Every route is rate limited per IP (`RATE_LIMIT_PER_MIN`, default 100/min), with a
+tighter budget on the public auth surface — login, signup, verification, reset,
+passkey login, invite accept (`RATE_LIMIT_AUTH_PER_MIN`, default 30/min). The Stripe
+webhook and JWKS are exempt. Behind nginx set `TRUST_PROXY=1` so the limiter sees
+real client IPs. This is the precondition for `SIGNUP_MODE=open`.
+
+First boot in production: set `BOOTSTRAP_ADMIN_EMAIL` + `BOOTSTRAP_ADMIN_PASSWORD`
+and a platform admin is created **only if none exists** (policy-checked, verified).
+Inert afterwards — and lost-admin recovery is: set the vars, restart. Registering an
+app then takes one command from the repo root:
+`evo register <app-name> --platform-url https://platform.example.com --email you@example.com --dir ./my-app`
+— it creates the registry entry and writes `PLATFORM_URL` / `EVO_CLIENT_ID` /
+`EVO_CLIENT_SECRET` into the app's `.env` (the secret is caught at its single
+reveal; the platform stores only its hash).
+
 ## Self-service signup
 
 A company creates its own workspace through an app's signup page: tenant + founder
@@ -192,4 +209,4 @@ ship the output off-box.
 
 ## Not yet built (MVP roadmap)
 
-Rate limiting, MFA/SSO.
+MFA/SSO.
