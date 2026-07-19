@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../core/password-policy';
 
 export class LoginDto {
@@ -47,4 +47,48 @@ export class ResetDto {
   @IsString()
   @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
   password!: string;
+}
+
+export class SignupDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  company!: string;
+
+  /** Workspace slug; derived from company when omitted. */
+  @IsOptional()
+  @Matches(/^[a-z0-9][a-z0-9-]*$/, { message: 'slug must be lowercase alphanumeric with dashes' })
+  @MaxLength(40)
+  slug?: string;
+
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  password!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  lastName?: string;
+
+  /** The app whose signup page the company arrived through; its trial starts. */
+  @IsString()
+  clientId!: string;
+
+  /** Required when SIGNUP_MODE=invite. */
+  @IsOptional()
+  @IsString()
+  inviteToken?: string;
+}
+
+export class SignupLinkDto {
+  @IsOptional()
+  expiresInHours?: number;
 }

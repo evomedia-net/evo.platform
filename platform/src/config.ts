@@ -4,6 +4,12 @@ export const config = {
   port: Number(process.env.PORT ?? 8200),
   /** Public URL of this service — used in email links (verify, reset). */
   publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? 'http://localhost:8200').replace(/\/+$/, ''),
+  signup: {
+    /** closed (default) | invite (platform-admin-issued links) | open */
+    mode: (process.env.SIGNUP_MODE ?? 'closed') as 'closed' | 'invite' | 'open',
+    /** Days of app trial a self-service signup starts with. */
+    trialDays: Number(process.env.SIGNUP_TRIAL_DAYS ?? 14),
+  },
   secretKey: process.env.SECRET_KEY ?? 'dev-only-secret-change-me',
   keysDir: process.env.KEYS_DIR ?? './keys',
   jwtIssuer: process.env.JWT_ISSUER ?? 'evoplatform',

@@ -14,6 +14,8 @@ import {
   PasskeyRegisterOptionsResult,
   PushEventParams,
   SendEmailParams,
+  SignupParams,
+  SignupResult,
   TenantAppRoles,
   TenantInvite,
   TenantMember,
@@ -62,6 +64,14 @@ export class EvoPlatform {
 
   refresh(refreshToken: string): Promise<LoginResult> {
     return this.post('/auth/refresh', { refreshToken });
+  }
+
+  /** Self-service signup through THIS app: creates the workspace, its first
+   *  tenant admin (unverified — they must click the verification email before
+   *  first login), and a trial of this app. Gated by the platform's
+   *  SIGNUP_MODE; carries no tokens. */
+  signup(params: SignupParams): Promise<SignupResult> {
+    return this.post('/auth/signup', { ...params, clientId: this.opts.clientId });
   }
 
   logout(refreshToken: string): Promise<{ ok: boolean }> {
