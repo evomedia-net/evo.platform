@@ -109,6 +109,25 @@ export interface TenantAppRoles {
   roles: { id: string; name: string; description: string | null }[];
 }
 
+export interface SignupParams {
+  company: string;
+  /** Workspace slug; derived from company when omitted. */
+  slug?: string;
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+  /** Required when the platform runs SIGNUP_MODE=invite. */
+  inviteToken?: string;
+}
+
+export interface SignupResult {
+  ok: boolean;
+  tenantSlug: string;
+  verificationRequired: boolean;
+  trialEndsAt: string;
+}
+
 /** A pending (or accepted) invitation into the caller's tenant. */
 export interface TenantInvite {
   id: string;

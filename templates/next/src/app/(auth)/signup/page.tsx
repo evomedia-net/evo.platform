@@ -3,11 +3,32 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { signup, type AuthFormState } from "../actions";
+import { ResendVerification } from "@/components/auth/ResendVerification";
 
 const initialState: AuthFormState = { error: null };
 
 export default function SignupPage() {
   const [state, formAction, pending] = useActionState(signup, initialState);
+
+  // Platform mode lands here after a successful signup: the account exists
+  // but can't sign in until the emailed verification link is clicked.
+  if (state.notice) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-zinc-900">Check your email</h2>
+        <p className="text-sm text-zinc-600">{state.notice}</p>
+        {state.canResend && state.resendEmail && (
+          <ResendVerification email={state.resendEmail} workspace={state.resendWorkspace} />
+        )}
+        <p className="text-sm text-zinc-500">
+          Verified already?{" "}
+          <Link href="/login" className="text-blue-600 hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction} className="space-y-4">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { login, type AuthFormState } from "../actions";
+import { ResendVerification } from "@/components/auth/ResendVerification";
 import { passkeysSupported, webauthnGet } from "@/lib/webauthn-browser";
 
 const initialState: AuthFormState = { error: null };
@@ -112,6 +113,10 @@ export default function LoginPage() {
         <p className="text-sm text-red-600" role="alert">
           {state.error ?? passkeyError}
         </p>
+      )}
+
+      {state.canResend && state.resendEmail && (
+        <ResendVerification email={state.resendEmail} workspace={state.resendWorkspace} />
       )}
 
       <button

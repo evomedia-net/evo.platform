@@ -1,9 +1,11 @@
 import { Body, Controller, Get, HttpCode, Ip, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AccountFlowsService } from './account-flows.service';
+import { SignupService } from './signup.service';
 import { resetFormPage, resetInvalidPage, verifyResultPage } from './auth-pages';
-import { EmailFlowDto, LoginDto, RefreshDto, ResetDto, VerifyDto } from './dto';
+import { EmailFlowDto, LoginDto, RefreshDto, ResetDto, SignupDto, SignupLinkDto, VerifyDto } from './dto';
 import { JwtAuthGuard } from './jwt.guard';
+import { PlatformAdminGuard } from './platform-admin.guard';
 import { KeysService } from '../core/keys.service';
 
 const JWT_SHAPE = /^[\w-]+\.[\w-]+\.[\w-]+$/;
@@ -20,7 +22,23 @@ export class AuthController {
   constructor(
     private auth: AuthService,
     private flows: AccountFlowsService,
+    private signup: SignupService,
   ) {}
+
+  /** Self-service signup (gated by SIGNUP_MODE). Login still requires the
+   *  emailed verification, so the response carries no tokens. */
+  @Post('signup')
+  @HttpCode(200)
+  signupPost(@Body() dto: SignupDto, @Ip() ip: string) {
+    return this.signup.signup(dto, ip);
+  }
+
+  /** Platform admin: shareable signup link for SIGNUP_MODE=invite. */
+  @Post('signup-links')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  signupLink(@Body() dto: SignupLinkDto) {
+    return this.signup.issueSignupLink(dto.expiresInHours ?? 72);
+  }
 
   @Post('login')
   @HttpCode(200)

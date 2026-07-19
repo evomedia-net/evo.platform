@@ -41,6 +41,8 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `DELETE /auth/passkeys/:id` | Bearer | Remove own passkey (owner-scoped) |
 | `POST /auth/passkeys/login/options` | — | `{tenantSlug?, email}` → options (`null` if user has none) + challenge token |
 | `POST /auth/passkeys/login/verify` | — | `{credential, challengeToken, clientId?}` → same session shape as password login |
+| `POST /auth/signup` | — (gated by `SIGNUP_MODE`) | `{company, slug?, email, password, clientId, inviteToken?}` → workspace + founder tenant-admin + app trial; verification email sent, no tokens |
+| `POST /auth/signup-links` | platform admin | Shareable signup link token for `SIGNUP_MODE=invite` |
 | `POST /auth/verify/send` | — | `{tenantSlug?, email}` → verification email; always `ok` (no enumeration) |
 | `POST /auth/verify` · `GET /auth/verify?token=` | — | Confirm a verification token (API / emailed-link page) |
 | `POST /auth/forgot` | — | `{tenantSlug?, email}` → reset email; always `ok` (no enumeration) |
@@ -90,6 +92,21 @@ only. Admin-created tenants start enabled on every registered app; the migration
 backfills existing tenants the same way, so turning this on locks nobody out. Manage
 it per app in the console ("Tenant access") or via the `/admin/tenants/:id/apps`
 endpoints.
+
+## Self-service signup
+
+A company creates its own workspace through an app's signup page: tenant + founder
+(automatically a tenant admin, **unverified** — the Phase 3 gate holds until they click
+the verification email) + a `SIGNUP_TRIAL_DAYS` (default 14) trial of the app they
+arrived through. Other apps stay un-enabled until subscribed or enabled by an admin.
+Gated by `SIGNUP_MODE`:
+
+- `closed` (default) — signups refused; nothing changes until you flip it.
+- `invite` — requires a link token issued by a platform admin (`POST /auth/signup-links`).
+- `open` — public. Turn on only after real rate limiting is deployed.
+
+Explicitly chosen slugs conflict with a 409; slugs derived from the company name get a
+random suffix on collision.
 
 ## Email verification & password reset
 
