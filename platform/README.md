@@ -52,6 +52,10 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `POST /tenant/users/:id/restore` | tenant admin | Restore a deactivated member |
 | `PUT /tenant/users/:id/roles` | tenant admin | Replace the member's roles (enabled apps only) |
 | `GET /tenant/roles` | tenant admin | Enabled apps with their assignable roles |
+| `GET/POST /tenant/invites` | tenant admin | List invites / email an accept link (24 h, single-use; replaces any pending invite for the address) |
+| `POST /tenant/invites/:id/resend` | tenant admin | Fresh token + email — the previously sent link dies |
+| `DELETE /tenant/invites/:id` | tenant admin | Revoke a pending invite |
+| `POST /auth/invites/accept` · `GET /auth/invites/accept-page?token=` | — | Create the account from an invite (API / emailed-link form); the account is born email-verified |
 | `GET/POST/PATCH/DELETE /admin/tenants[/:id]` | platform admin | Tenant CRUD (delete = soft) |
 | `POST /admin/tenants/:id/restore\|suspend\|activate` | platform admin | Lifecycle |
 | `GET /admin/tenants/:id/apps` | platform admin | Registered apps with this tenant's access state for each |
@@ -114,6 +118,14 @@ prevented (you cannot demote or deactivate yourself), role assignment is limited
 to apps enabled for the tenant, and `isPlatformAdmin` is not settable from this
 surface. Apps integrate via the SDK's `*TenantMember*` methods; the Next.js
 template ships a Members page behind a password-confirm (sudo) window.
+
+Members join by **invite**: the admin enters an email, the platform mails a
+24-hour single-use accept link (only its hash is stored), and the invitee
+chooses their own password on a self-contained accept page — no temporary
+passwords change hands, and following the link doubles as email verification.
+Re-sending rotates the token (the old link dies); revoking deletes it. Roles
+attached to an invite are granted at accept time, silently dropping any whose
+app has since been disabled for the tenant.
 
 ## Data lifecycle
 

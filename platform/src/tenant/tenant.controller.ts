@@ -13,7 +13,8 @@ import {
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { TenantAdminGuard } from './tenant-admin.guard';
 import { TenantService } from './tenant.service';
-import { CreateMemberDto, SetMemberRolesDto, UpdateMemberDto } from './dto';
+import { InvitesService } from './invites.service';
+import { CreateInviteDto, CreateMemberDto, SetMemberRolesDto, UpdateMemberDto } from './dto';
 
 interface TenantAdminRequest {
   user: { sub: string; tenant_id: string };
@@ -24,7 +25,10 @@ interface TenantAdminRequest {
 @Controller('tenant')
 @UseGuards(JwtAuthGuard, TenantAdminGuard)
 export class TenantController {
-  constructor(private tenant: TenantService) {}
+  constructor(
+    private tenant: TenantService,
+    private invites: InvitesService,
+  ) {}
 
   @Get('users')
   list(@Req() req: TenantAdminRequest) {
@@ -67,5 +71,27 @@ export class TenantController {
     @Body() dto: SetMemberRolesDto,
   ) {
     return this.tenant.setRoles(req.user.tenant_id, req.user.sub, id, dto.roleIds);
+  }
+
+  // ---- invites ----
+
+  @Get('invites')
+  listInvites(@Req() req: TenantAdminRequest) {
+    return this.invites.list(req.user.tenant_id);
+  }
+
+  @Post('invites')
+  createInvite(@Req() req: TenantAdminRequest, @Body() dto: CreateInviteDto) {
+    return this.invites.create(req.user.tenant_id, req.user.sub, dto);
+  }
+
+  @Post('invites/:id/resend')
+  resendInvite(@Req() req: TenantAdminRequest, @Param('id') id: string) {
+    return this.invites.resend(req.user.tenant_id, req.user.sub, id);
+  }
+
+  @Delete('invites/:id')
+  revokeInvite(@Req() req: TenantAdminRequest, @Param('id') id: string) {
+    return this.invites.revoke(req.user.tenant_id, req.user.sub, id);
   }
 }

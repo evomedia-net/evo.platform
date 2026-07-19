@@ -82,3 +82,55 @@ export function resetInvalidPage(): string {
     <p>Reset links work once and expire after 30 minutes. Request a new one
     from the sign-in screen.</p>`);
 }
+
+/** token must already be validated as base64url-shaped before being embedded. */
+export function inviteAcceptPage(token: string): string {
+  return page(`
+    <h1>Create your account</h1>
+    <p>Choose a password: at least 8 characters, including 2 numbers and 2 special characters.</p>
+    <form id="f">
+      <input id="fn" type="text" placeholder="First name" autocomplete="given-name" />
+      <input id="ln" type="text" placeholder="Last name" autocomplete="family-name" />
+      <input id="pw" type="password" placeholder="Password" autocomplete="new-password" required />
+      <input id="pw2" type="password" placeholder="Confirm password" autocomplete="new-password" required />
+      <p class="err" id="err"></p>
+      <button type="submit">Create account</button>
+    </form>
+    <script>
+      const token = ${JSON.stringify(token)};
+      const policy = /^(?=(?:.*\\d){2,})(?=(?:.*[^A-Za-z0-9]){2,}).{8,}$/;
+      document.getElementById('f').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const err = document.getElementById('err');
+        const pw = document.getElementById('pw').value;
+        if (pw !== document.getElementById('pw2').value) { err.textContent = 'Passwords do not match'; return; }
+        if (!policy.test(pw)) { err.textContent = 'Password does not meet the policy above'; return; }
+        err.textContent = '';
+        const res = await fetch('/auth/invites/accept', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            password: pw,
+            firstName: document.getElementById('fn').value.trim() || undefined,
+            lastName: document.getElementById('ln').value.trim() || undefined,
+          }),
+        });
+        if (res.ok) {
+          const out = await res.json().catch(() => null);
+          const where = out && out.tenantSlug ? ' to the "' + out.tenantSlug + '" workspace' : '';
+          document.querySelector('.card').innerHTML =
+            '<h1>Account created</h1><p>You can close this tab and sign in' + where + ' with your new password.</p>';
+        } else {
+          const body = await res.json().catch(() => null);
+          err.textContent = (body && body.message) || 'This invite no longer works — ask for a new one.';
+        }
+      });
+    </script>`);
+}
+
+export function inviteInvalidPage(): string {
+  return page(`<h1>Invite invalid or expired</h1>
+    <p>Invites work once and expire after 24 hours. Ask your workspace admin
+    to send a fresh one.</p>`);
+}

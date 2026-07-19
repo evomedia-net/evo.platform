@@ -19,6 +19,7 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
     auditEvent: { deleteMany: jest.fn().mockResolvedValue({ count: 4 }) },
     smtpConfig: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
     appTenant: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    invite: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     user: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
     tenant: { delete: jest.fn().mockResolvedValue({}) },
   };
