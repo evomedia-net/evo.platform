@@ -2,6 +2,8 @@ import 'dotenv/config';
 
 export const config = {
   port: Number(process.env.PORT ?? 8200),
+  /** Public URL of this service — used in email links (verify, reset). */
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? 'http://localhost:8200').replace(/\/+$/, ''),
   secretKey: process.env.SECRET_KEY ?? 'dev-only-secret-change-me',
   keysDir: process.env.KEYS_DIR ?? './keys',
   jwtIssuer: process.env.JWT_ISSUER ?? 'evoplatform',

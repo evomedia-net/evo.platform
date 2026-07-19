@@ -41,6 +41,10 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `DELETE /auth/passkeys/:id` | Bearer | Remove own passkey (owner-scoped) |
 | `POST /auth/passkeys/login/options` | — | `{tenantSlug?, email}` → options (`null` if user has none) + challenge token |
 | `POST /auth/passkeys/login/verify` | — | `{credential, challengeToken, clientId?}` → same session shape as password login |
+| `POST /auth/verify/send` | — | `{tenantSlug?, email}` → verification email; always `ok` (no enumeration) |
+| `POST /auth/verify` · `GET /auth/verify?token=` | — | Confirm a verification token (API / emailed-link page) |
+| `POST /auth/forgot` | — | `{tenantSlug?, email}` → reset email; always `ok` (no enumeration) |
+| `POST /auth/reset` · `GET /auth/reset-page?token=` | — | Set a new password (API / emailed-link form); revokes all sessions |
 | `GET /tenant/users` | tenant admin | List own tenant's members (deactivated included) |
 | `POST /tenant/users` | tenant admin | Create a member in own tenant |
 | `PATCH /tenant/users/:id` | tenant admin | Update profile / tenant-admin flag (self-demotion blocked) |
@@ -82,6 +86,23 @@ only. Admin-created tenants start enabled on every registered app; the migration
 backfills existing tenants the same way, so turning this on locks nobody out. Manage
 it per app in the console ("Tenant access") or via the `/admin/tenants/:id/apps`
 endpoints.
+
+## Email verification & password reset
+
+Login is refused until the user's mailbox is proven (`emailVerifiedAt`), with the
+distinct error `Email not verified` so apps can offer a re-send action. Users created
+by a platform or tenant admin are stamped verified at creation (the credentials were
+handed over directly); the migration backfills all existing users the same way, so
+enforcement switches on without locking anyone out. Self-service signups (Phase 5)
+will start unverified and use `POST /auth/verify/send`.
+
+Password reset is fully self-service: `POST /auth/forgot` emails a link to a minimal
+platform-hosted form. Reset tokens are HMAC-signed with a secret derived from the
+user's **current password hash** — the moment the password changes, every outstanding
+link dies, making tokens single-use with nothing stored. A successful reset revokes
+all of the user's refresh tokens and counts as mailbox proof. Both send endpoints
+answer `ok` regardless of account existence and are rate-limited in-process
+(5 per address / 15 min) until the Phase 7 throttler lands.
 
 ## Tenant admins
 

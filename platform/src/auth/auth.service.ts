@@ -54,6 +54,11 @@ export class AuthService {
     meta: { ip?: string; method: string },
   ) {
     if (user.deletedAt) throw new UnauthorizedException('Invalid credentials');
+    // Hard gate: a mailbox that was never proven cannot sign in. Distinct
+    // message so apps can offer a "re-send verification email" action.
+    if (!user.emailVerifiedAt) {
+      throw new ForbiddenException('Email not verified');
+    }
     if (tenant) {
       // PAST_DUE keeps working until the billing grace window closes
       const graceExpired =
@@ -91,6 +96,7 @@ export class AuthService {
     }
     const user = stored.user;
     if (user.deletedAt) throw new UnauthorizedException('Invalid refresh token');
+    if (!user.emailVerifiedAt) throw new ForbiddenException('Email not verified');
     const tenant = user.tenant;
     if (tenant && (tenant.deletedAt || tenant.status === 'SUSPENDED')) {
       throw new ForbiddenException('Tenant is suspended');

@@ -102,6 +102,8 @@ export class TenantService {
         passwordHash: await bcrypt.hash(dto.password, 10),
         isTenantAdmin: dto.isTenantAdmin ?? false,
         // isPlatformAdmin is deliberately not settable from this surface
+        // Tenant admin handed the credentials over directly — identity proven.
+        emailVerifiedAt: new Date(),
       },
       select: MEMBER_FIELDS,
     });
