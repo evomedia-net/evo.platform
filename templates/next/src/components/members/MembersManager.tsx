@@ -35,6 +35,13 @@ interface Invite {
   isTenantAdmin: boolean;
   expiresAt: string;
   acceptedAt: string | null;
+  /** Computed at fetch time (render must stay pure — no Date.now() there). */
+  expired: boolean;
+}
+
+function annotateInvites(list: Omit<Invite, "expired">[]): Invite[] {
+  const now = Date.now();
+  return list.map((i) => ({ ...i, expired: new Date(i.expiresAt).getTime() < now }));
 }
 
 async function jsonOrError(res: Response): Promise<{ ok: boolean; body: unknown }> {
@@ -75,7 +82,7 @@ export function MembersManager() {
         fetch("/api/platform/members/invites"),
       ]);
       if (rolesRes.ok) setAppRoles(await rolesRes.json());
-      if (invitesRes.ok) setInvites(await invitesRes.json());
+      if (invitesRes.ok) setInvites(annotateInvites(await invitesRes.json()));
     }
   }, []);
 
@@ -91,7 +98,7 @@ export function MembersManager() {
           fetch("/api/platform/members/invites"),
         ]);
         if (rolesRes.ok) setAppRoles(await rolesRes.json());
-        if (invitesRes.ok) setInvites(await invitesRes.json());
+        if (invitesRes.ok) setInvites(annotateInvites(await invitesRes.json()));
       } else if (res.status === 403) {
         setUnlocked(true);
         setNotAdmin(true);
@@ -257,7 +264,7 @@ export function MembersManager() {
             {invites
               .filter((i) => !i.acceptedAt)
               .map((i) => {
-                const expired = new Date(i.expiresAt).getTime() < Date.now();
+                const expired = i.expired;
                 return (
                   <li key={i.id} className="py-2 flex items-center gap-3">
                     <div className="min-w-0 flex-1">
