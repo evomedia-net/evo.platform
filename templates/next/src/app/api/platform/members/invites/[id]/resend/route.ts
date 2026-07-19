@@ -1,0 +1,18 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getPlatform } from "@/lib/platform";
+import { memberProxyGate, platformErrorResponse } from "@/lib/member-proxy";
+
+/** Re-send with a fresh token; the previously emailed link stops working. */
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const gate = await memberProxyGate(req);
+  if (gate.res) return gate.res;
+  const { id } = await params;
+  try {
+    return NextResponse.json(await getPlatform().resendTenantInvite(gate.token, id));
+  } catch (err) {
+    return platformErrorResponse(err);
+  }
+}

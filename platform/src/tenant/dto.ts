@@ -51,3 +51,26 @@ export class SetMemberRolesDto {
   @IsString({ each: true })
   roleIds!: string[];
 }
+
+export class CreateInviteDto {
+  @IsEmail()
+  email!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  roleIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  isTenantAdmin?: boolean;
+}
+
+export class AcceptInviteDto extends MemberProfileFields {
+  @IsString()
+  token!: string;
+
+  @IsString()
+  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  password!: string;
+}

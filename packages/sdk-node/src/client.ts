@@ -2,7 +2,9 @@ import jwt from 'jsonwebtoken';
 import { JwksCache } from './jwks';
 import { ConfigError, PlatformError, TokenError } from './errors';
 import {
+  AcceptInviteParams,
   Claims,
+  CreateInviteParams,
   CreateMemberParams,
   EvoPlatformOptions,
   LoginParams,
@@ -13,6 +15,7 @@ import {
   PushEventParams,
   SendEmailParams,
   TenantAppRoles,
+  TenantInvite,
   TenantMember,
   UpdateMemberParams,
 } from './types';
@@ -179,6 +182,33 @@ export class EvoPlatform {
     roleIds: string[],
   ): Promise<TenantMember> {
     return this.request('PUT', `/tenant/users/${id}/roles`, { roleIds }, bearer(accessToken));
+  }
+
+  // ---- invites (tenant-admin token; accept is public) ----
+
+  listTenantInvites(accessToken: string): Promise<TenantInvite[]> {
+    return this.request('GET', '/tenant/invites', undefined, bearer(accessToken));
+  }
+
+  /** Emails an accept link (24 h, single-use). Replaces any pending invite
+   *  for the same address. */
+  createTenantInvite(accessToken: string, params: CreateInviteParams): Promise<TenantInvite> {
+    return this.request('POST', '/tenant/invites', params, bearer(accessToken));
+  }
+
+  /** Re-send with a fresh token; the previously emailed link stops working. */
+  resendTenantInvite(accessToken: string, id: string): Promise<TenantInvite> {
+    return this.request('POST', `/tenant/invites/${id}/resend`, undefined, bearer(accessToken));
+  }
+
+  revokeTenantInvite(accessToken: string, id: string): Promise<{ ok: boolean }> {
+    return this.request('DELETE', `/tenant/invites/${id}`, undefined, bearer(accessToken));
+  }
+
+  /** Public: finish an invite — the token from the email is the credential.
+   *  The created account is email-verified by construction. */
+  acceptInvite(params: AcceptInviteParams): Promise<{ ok: boolean; tenantSlug: string; email: string }> {
+    return this.post('/auth/invites/accept', params);
   }
 
   // ---- client-credential services ----

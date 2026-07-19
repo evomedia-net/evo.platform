@@ -109,6 +109,32 @@ export interface TenantAppRoles {
   roles: { id: string; name: string; description: string | null }[];
 }
 
+/** A pending (or accepted) invitation into the caller's tenant. */
+export interface TenantInvite {
+  id: string;
+  email: string;
+  roleIds: string[];
+  isTenantAdmin: boolean;
+  invitedById: string | null;
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateInviteParams {
+  email: string;
+  roleIds?: string[];
+  isTenantAdmin?: boolean;
+}
+
+export interface AcceptInviteParams {
+  token: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+}
+
 export interface CreateMemberParams {
   email: string;
   password: string;

@@ -204,6 +204,7 @@ export class TenantsService {
       const auditEvents = await tx.auditEvent.deleteMany({ where: { tenantId: id } });
       await tx.smtpConfig.deleteMany({ where: { tenantId: id } });
       await tx.appTenant.deleteMany({ where: { tenantId: id } });
+      await tx.invite.deleteMany({ where: { tenantId: id } });
       const users = await tx.user.deleteMany({ where: { tenantId: id } });
       await tx.tenant.delete({ where: { id } });
       return { users: users.count, auditEvents: auditEvents.count };

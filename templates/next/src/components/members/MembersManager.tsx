@@ -29,6 +29,13 @@ interface AppRoles {
   clientId: string;
   roles: { id: string; name: string }[];
 }
+interface Invite {
+  id: string;
+  email: string;
+  isTenantAdmin: boolean;
+  expiresAt: string;
+  acceptedAt: string | null;
+}
 
 async function jsonOrError(res: Response): Promise<{ ok: boolean; body: unknown }> {
   const body = await res.json().catch(() => null);
@@ -45,10 +52,11 @@ export function MembersManager() {
   const [unlocked, setUnlocked] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [appRoles, setAppRoles] = useState<AppRoles[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
   const [notAdmin, setNotAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/platform/members");
@@ -62,8 +70,12 @@ export function MembersManager() {
     }
     if (res.ok) {
       setMembers(await res.json());
-      const rolesRes = await fetch("/api/platform/members/roles");
+      const [rolesRes, invitesRes] = await Promise.all([
+        fetch("/api/platform/members/roles"),
+        fetch("/api/platform/members/invites"),
+      ]);
       if (rolesRes.ok) setAppRoles(await rolesRes.json());
+      if (invitesRes.ok) setInvites(await invitesRes.json());
     }
   }, []);
 
@@ -74,8 +86,12 @@ export function MembersManager() {
       if (res.ok) {
         setUnlocked(true);
         setMembers(await res.json());
-        const rolesRes = await fetch("/api/platform/members/roles");
+        const [rolesRes, invitesRes] = await Promise.all([
+          fetch("/api/platform/members/roles"),
+          fetch("/api/platform/members/invites"),
+        ]);
         if (rolesRes.ok) setAppRoles(await rolesRes.json());
+        if (invitesRes.ok) setInvites(await invitesRes.json());
       } else if (res.status === 403) {
         setUnlocked(true);
         setNotAdmin(true);
@@ -121,26 +137,22 @@ export function MembersManager() {
     }
   }
 
-  async function createMember(e: React.FormEvent<HTMLFormElement>) {
+  async function sendInvite(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const created = await act(
-      "/api/platform/members",
+    const sent = await act(
+      "/api/platform/members/invites",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           email: String(f.get("email") ?? ""),
-          password: String(f.get("password") ?? ""),
-          firstName: String(f.get("firstName") ?? "") || undefined,
-          lastName: String(f.get("lastName") ?? "") || undefined,
-          phone: String(f.get("phone") ?? "") || undefined,
           isTenantAdmin: f.get("isTenantAdmin") === "on",
         }),
       },
-      "Could not create member",
+      "Could not send invite",
     );
-    if (created) setShowCreate(false);
+    if (sent) setShowInvite(false);
   }
 
   function setRoles(member: Member, appClientId: string, roleId: string) {
@@ -210,43 +222,91 @@ export function MembersManager() {
           <Users size={16} /> Members ({members.filter((m) => !m.deletedAt).length})
         </p>
         <button
-          onClick={() => setShowCreate((s) => !s)}
+          onClick={() => setShowInvite((s) => !s)}
           className="ml-auto bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
         >
-          {showCreate ? "Cancel" : "+ Add member"}
+          {showInvite ? "Cancel" : "+ Invite member"}
         </button>
       </div>
 
-      {showCreate && (
-        <form onSubmit={createMember} className="grid grid-cols-2 gap-3 border border-zinc-200 rounded-xl p-4">
-          <input name="firstName" placeholder="First name" className={inputCls} />
-          <input name="lastName" placeholder="Last name" className={inputCls} />
+      {showInvite && (
+        <form onSubmit={sendInvite} className="space-y-3 border border-zinc-200 rounded-xl p-4">
+          <p className="text-sm text-zinc-500">
+            They&rsquo;ll get an email link (valid 24 hours) to choose their own password.
+          </p>
           <input name="email" type="email" required placeholder="Email" className={inputCls} />
-          <input name="phone" placeholder="Phone" className={inputCls} />
-          <div className="col-span-2">
-            <PasswordInput
-              id="member-password"
-              name="password"
-              autoComplete="new-password"
-              placeholder="Temporary password (min 8 chars, 2 numbers, 2 special)"
-            />
-          </div>
-          <label className="col-span-2 flex items-center gap-2 text-sm text-zinc-700">
+          <label className="flex items-center gap-2 text-sm text-zinc-700">
             <input type="checkbox" name="isTenantAdmin" /> Tenant admin (can manage members)
           </label>
-          <div className="col-span-2">
-            <button
-              type="submit"
-              disabled={pending}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium"
-            >
-              {pending ? "Creating…" : "Create member"}
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={pending}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          >
+            {pending ? "Sending…" : "Send invite"}
+          </button>
         </form>
       )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {invites.some((i) => !i.acceptedAt) && (
+        <div>
+          <p className="text-sm font-medium text-zinc-700 mb-1">Pending invites</p>
+          <ul className="divide-y divide-zinc-100">
+            {invites
+              .filter((i) => !i.acceptedAt)
+              .map((i) => {
+                const expired = new Date(i.expiresAt).getTime() < Date.now();
+                return (
+                  <li key={i.id} className="py-2 flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-zinc-800 truncate">
+                        {i.email}
+                        {i.isTenantAdmin && (
+                          <span className="ml-2 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">
+                            tenant admin
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        {expired
+                          ? "Expired — re-send to issue a fresh link"
+                          : `Expires ${new Date(i.expiresAt).toLocaleString()}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        void act(
+                          `/api/platform/members/invites/${i.id}/resend`,
+                          { method: "POST" },
+                          "Could not re-send invite",
+                        )
+                      }
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      Re-send
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Revoke the invite for ${i.email}? The emailed link stops working.`)) {
+                          void act(
+                            `/api/platform/members/invites/${i.id}`,
+                            { method: "DELETE" },
+                            "Could not revoke invite",
+                          );
+                        }
+                      }}
+                      className="text-sm text-red-600 hover:underline"
+                    >
+                      Revoke
+                    </button>
+                  </li>
+                );
+              })}
+          </ul>
+        </div>
+      )}
 
       <ul className="divide-y divide-zinc-100">
         {members.map((m) => (
