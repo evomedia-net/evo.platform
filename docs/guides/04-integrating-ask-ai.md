@@ -62,9 +62,10 @@ Four fields deserve attention:
 - **`unconfigured`** — no usable AI model for this tenant. An administrator
   problem, not a user one; say so differently.
 
-**There is no SDK method for this yet.** The EvoPlatform SDK covers tenants,
-users, and tokens, not evo-ai — so this is a plain HTTP call today. Tracked in
-[EvoPlatform#20](https://github.com/kellymichels/EvoPlatform/issues/20).
+**Node applications do not have to write this call by hand** — the SDK has an
+`AskAi` client that handles both authentication modes, the timeout, and the
+error shapes. Examples below show it. **Python applications have no SDK**, so
+the raw HTTP call is shown alongside.
 
 ---
 
@@ -126,8 +127,26 @@ curl -X POST http://localhost:8000/admin/service-keys \
 
 ### 2. Call evo-ai from your server
 
-Two headers do the work: the key authenticates *your application*, and
-`X-Data-Tenant` states *which customer* this question is for.
+Two things identify the request: the key authenticates *your application*, and
+the tenant states *which customer* the question is for.
+
+**Node** — the SDK handles both:
+
+```ts
+import { AskAi } from '@evoplatform/sdk-node';
+
+const ai = new AskAi({
+  url: process.env.EVOAI_URL!,
+  serviceKey: process.env.EVOAI_SERVICE_KEY, // server-side only
+});
+
+const { answer, sources, gated } = await ai.ask({
+  question,
+  tenantId: session.tenantId,
+});
+```
+
+**Python** — there is no SDK, so the call is made directly:
 
 ```python
 import httpx
@@ -150,31 +169,45 @@ def ask(tenant_id: str, question: str, history=None, source_types=None):
     return response.json()
 ```
 
-> **Always pass the signed-in user's own tenant.** evo-ai trusts this header
+> **Always pass the signed-in user's own tenant.** evo-ai trusts this
 > completely — it is the mechanism by which your server, which already knows
 > who is logged in, tells evo-ai which data to search. Deriving it from
 > anything the browser sent would let a user read another customer's records.
 
 ### 3. Three details that are not obvious
 
+The SDK handles all three. Writing the call by hand means handling them
+yourself, and each one is a real bug when missed.
+
 **Use a long timeout.** 120 seconds. A language model composing an answer over
 retrieved records is not a fast API call, and a 30-second default will cut off
 answers that were about to succeed.
 
-**Return errors, do not raise them.** A failed question should render in the
-chat as a message the user can retry, not a stack trace or a blank panel.
-SmartPlantEHS returns a result object carrying either an answer or an error
-string.
+**Distinguish a refusal from a failure.** `gated` means the question was
+declined as unrelated to your data — the guardrail working correctly. Rendering
+that as an error teaches people to distrust the assistant. Same for
+`unconfigured`, which means an administrator has not finished setup.
 
 **Log the real cause, show a vague message.** The user gets *"Ask AI is
 unreachable right now"*; your logs get the exception type, the tenant, and the
 HTTP body. Without that split, a production failure is invisible — you will
 have unhappy users and nothing to debug from.
 
+The SDK throws `PlatformError` for genuine failures, carrying `.status`
+(`504` for a timeout, `0` for unreachable) and `.body`. Catch it, log the
+detail, and render something retryable.
+
 ### 4. Restrict what the assistant can draw on
 
-`source_types` limits which categories of data are searched. Pass the ones the
-signed-in user is allowed to see:
+Limit which categories of data are searched to the ones the signed-in user is
+allowed to see.
+
+```ts
+const allowed = ['permit', 'incident'];        // from your own permission checks
+if (user.canSeePeople) allowed.push('user');
+
+const result = await ai.ask({ question, tenantId: session.tenantId, sourceTypes: allowed });
+```
 
 ```python
 allowed = ["permit", "incident"]          # from your own permission checks
@@ -203,21 +236,19 @@ refusal wording.
 If your app is in platform mode, the user's login token already carries their
 tenant. Send it straight to evo-ai — no service key, no relay.
 
-```javascript
-const response = await fetch(`${EVOAI_URL}/query`, {
-  method: "POST",
-  headers: {
-    "Authorization": `Bearer ${accessToken}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ question, history }),
-});
-const { answer, sources, gated } = await response.json();
+```ts
+import { AskAi } from '@evoplatform/sdk-node';
+
+// No serviceKey — the user's own token authenticates each call
+const ai = new AskAi({ url: EVOAI_URL });
+
+const { answer, sources, gated } = await ai.ask({ question, history, accessToken });
 ```
 
 evo-ai verifies the token against your platform's public keys and reads the
 tenant from the verified claims. A user cannot ask about another customer's
-data because the tenant is not theirs to state.
+data because the tenant is not theirs to state — which is also why passing
+`tenantId` alongside a token is rejected rather than ignored.
 
 Requirements:
 
