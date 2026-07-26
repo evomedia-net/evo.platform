@@ -169,3 +169,72 @@ export interface UpdateMemberParams {
   phone?: string;
   isTenantAdmin?: boolean;
 }
+
+// ---- Ask AI (evo-ai) ----
+
+export interface AskAiOptions {
+  /** Base URL of the evo-ai service, e.g. https://ai.example.com */
+  url: string;
+  /**
+   * Service key (`svc_...`) minted from evo-ai's `POST /admin/service-keys`.
+   * SERVER-SIDE ONLY — a holder can name any tenant, so it must never reach a
+   * browser. Omit when every call passes a user `accessToken` instead.
+   */
+  serviceKey?: string;
+  /** Request timeout in ms. Default: 120000 — LLM answers are slow. */
+  timeoutMs?: number;
+  /** Injectable fetch for testing. Default: global fetch. */
+  fetchFn?: typeof fetch;
+}
+
+export interface AskMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AskParams {
+  question: string;
+  /**
+   * Which customer's data to search. Required with a service key; rejected
+   * with an `accessToken`, where the tenant comes from verified claims.
+   * Derive it from your own session — never from anything the browser sent.
+   */
+  tenantId?: string;
+  /** A platform-issued user token, as an alternative to the service key. */
+  accessToken?: string;
+  /** Prior turns, so follow-ups like "how many?" resolve. Keep it recent —
+   *  every message is processed on each call. */
+  history?: AskMessage[];
+  /** Restrict which categories of indexed data may be searched, e.g.
+   *  `['permit', 'incident']`. This is how the assistant inherits your app's
+   *  permission model. Omit for everything. */
+  sourceTypes?: string[];
+  /** Named index to search. Default: "default". */
+  collection?: string;
+  /** Allow the assistant to propose actions (it only ever proposes — your app
+   *  resolves, confirms with the user, and executes). Default: false. */
+  allowActions?: boolean;
+}
+
+export interface AskSource {
+  text: string;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface AskResult {
+  answer: string;
+  /** The question actually executed, after follow-up condensation. */
+  question: string;
+  /** The records behind the answer. Show these. */
+  sources: AskSource[];
+  /** A proposed action awaiting your app's resolution and the user's
+   *  confirmation, when `allowActions` was set. */
+  actionProposal: Record<string, unknown> | null;
+  /** Declined as unrelated to the indexed data, before any AI call. The
+   *  product working correctly — render your own wording, not an error. */
+  gated: boolean;
+  /** No usable AI model for this tenant. An administrator problem: point
+   *  them at setup rather than telling them to try again. */
+  unconfigured: boolean;
+}

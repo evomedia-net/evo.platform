@@ -71,11 +71,56 @@ await platform.sendEmail({ to, subject, html });          // tenant SMTP → def
 await platform.pushEvent({ action: 'thing.created', tenantId, detail });
 ```
 
+## Ask AI (evo-ai)
+
+evo-ai is a **separate service** with its own URL and credentials, so it has its own
+client rather than a method on `EvoPlatform`.
+
+```ts
+import { AskAi } from '@evoplatform/sdk-node';
+
+const ai = new AskAi({
+  url: process.env.EVOAI_URL!,
+  serviceKey: process.env.EVOAI_SERVICE_KEY, // server-side only
+});
+
+const { answer, sources, gated } = await ai.ask({
+  question: 'which permits expire this quarter?',
+  tenantId: session.tenantId,
+  sourceTypes: ['permit'],        // inherit your app's permissions
+  history: previousTurns,          // so "how many?" resolves
+});
+```
+
+Two auth modes, matching the two ways an app is built:
+
+| Your app | Pass | evo-ai gets the tenant from |
+|---|---|---|
+| Has its own login | `serviceKey` on the client + `tenantId` per call | your `X-Data-Tenant` header |
+| Is in platform mode | `accessToken` per call | the token's verified claims |
+
+The service key authenticates the **application**, not the customer — so `tenantId`
+is required with it, and must come from your own session. A holder of the key can
+name any tenant, which is why it must never reach a browser.
+
+**A refusal is not an error.** `ask()` resolves normally with `gated: true` when the
+question was declined as unrelated to the indexed data (the guardrail working), and
+`unconfigured: true` when the tenant has no usable model (an administrator problem).
+Render both differently from a failure.
+
+Timeout defaults to **120 s** — a model composing an answer over retrieved records is
+not a fast API call, and a shorter default cuts off answers that were about to
+succeed. Override with `timeoutMs`.
+
+Full walkthrough, including the two patterns that don't use this client:
+[Integrating Ask AI](../../docs/guides/04-integrating-ask-ai.md).
+
 ## Errors
 
 - `TokenError` — token failed local verification
-- `PlatformError` — non-2xx from the platform (`.status`, `.body`)
-- `ConfigError` — missing client credentials for a credentialed call
+- `PlatformError` — non-2xx from a service (`.status`, `.body`). Status `0` means
+  unreachable; `504` is a client-side timeout, not a response
+- `ConfigError` — missing or contradictory credentials for a call
 
 ## Tests
 

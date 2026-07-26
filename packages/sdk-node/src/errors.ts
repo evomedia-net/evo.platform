@@ -1,4 +1,6 @@
-/** A non-2xx response from the platform service. */
+/** A non-2xx response from a platform service (the platform itself, or evo-ai).
+ *  Status 0 means the service could not be reached at all; 504 is a client-side
+ *  timeout rather than a response. */
 export class PlatformError extends Error {
   constructor(
     public readonly status: number,
