@@ -3,6 +3,15 @@
 Complete path from a bare machine to a running platform with an app on it.
 Works on Windows, macOS, and Linux.
 
+> **Just want to run the platform on your own server?** Read
+> **[Self-hosting EvoPlatform](guides/01-self-hosting-evoplatform.md)**
+> instead — same steps, written for someone who has not used EvoPlatform
+> before, and it carries through to production, backups, and troubleshooting.
+>
+> This page is the **developer** path: it continues past installation into
+> scaffolding an app with `evo new` (section 5), flipping an app into platform
+> mode (section 6), and the SDK (section 7).
+
 ## Contents
 
 1. [Prerequisites](#1-prerequisites)
