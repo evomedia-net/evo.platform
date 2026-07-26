@@ -37,7 +37,12 @@ air-gapped install stalls.
 ## What you need
 
 **A connected machine** to assemble everything. Same CPU architecture as the
-target — images built for x86 will not run on ARM.
+target — images built for x86 will not run on ARM. This bites in a specific
+way: an Apple Silicon Mac builds ARM images by default, so assembling there for
+an x86 server needs `docker build --platform linux/amd64`.
+
+The commands below work in PowerShell, macOS Terminal, and a Linux shell
+unchanged.
 
 **Transfer media** approved by your security policy. The complete transfer is
 typically 10–30 GB, dominated by the AI model.
@@ -142,7 +147,7 @@ docker save -o images.tar postgres:16 qdrant/qdrant:latest ollama/ollama:latest 
 > them from the directory name, so yours may differ.
 
 ```bash
-docker run --rm -v ollama_models:/data -v "$PWD":/backup alpine tar czf /backup/ollama-models.tar.gz -C /data .
+docker run --rm -v ollama_models:/data -v "${PWD}":/backup alpine tar czf /backup/ollama-models.tar.gz -C /data .
 ```
 
 Your transfer set:
@@ -177,7 +182,7 @@ docker volume create ollama_models
 ```
 
 ```bash
-docker run --rm -v ollama_models:/data -v "$PWD":/backup alpine tar xzf /backup/ollama-models.tar.gz -C /data
+docker run --rm -v ollama_models:/data -v "${PWD}":/backup alpine tar xzf /backup/ollama-models.tar.gz -C /data
 ```
 
 ### 2.3 Install EvoPlatform

@@ -93,6 +93,43 @@ available RAM before committing.
 switch to local later. Changing the model is an environment-variable edit and a
 restart — the index is unaffected, so nothing needs rebuilding.
 
+### Where the local model runs matters as much as its size
+
+The stack below runs the model-runner (Ollama) in a container, which is the
+simplest thing that works everywhere. It is also, on some machines, much slower
+than it needs to be:
+
+| Your machine | Model in a container | Ollama installed natively |
+|---|---|---|
+| **macOS (Apple Silicon)** | **CPU only** — Docker Desktop cannot reach the GPU | Uses the GPU |
+| **Windows with an NVIDIA GPU** | Needs WSL2 and CUDA set up in Docker | Uses the GPU |
+| **Linux with an NVIDIA GPU** | Needs the NVIDIA container toolkit | Uses the GPU |
+
+The macOS row is the one that surprises people. On an Apple Silicon Mac the
+containerised model gets no GPU acceleration at all, and the same model run
+natively is dramatically faster — with nothing on screen to explain the
+difference.
+
+**If you have a GPU, or you are on a Mac,** install Ollama natively from
+[ollama.com](https://ollama.com), then point evo-ai at it instead of the
+bundled container by setting this in `.env`:
+
+```env
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+On Linux, `host.docker.internal` does not resolve by default — add this to the
+evo-ai service in `docker-compose.yml`:
+
+```yaml
+extra_hosts:
+  - "host.docker.internal:host-gateway"
+```
+
+Then stop the bundled runner with `docker compose stop ollama`.
+
+None of this affects indexing, which runs in-process on CPU on every platform.
+
 ---
 
 ## Before you start
@@ -141,11 +178,14 @@ JWT_ISSUER=evoplatform
 JWT_AUDIENCE=
 ```
 
-Generate the secret with:
+Generate the secret with Docker, which you already have, so the command is
+identical on Windows, macOS, and Linux:
 
 ```bash
-openssl rand -base64 32
+docker run --rm python:3.12-alpine python -c "import secrets;print(secrets.token_urlsafe(32))"
 ```
+
+On macOS or Linux, `openssl rand -base64 32` does the same thing.
 
 > **`DEV_MODE=true` accepts any password-shaped string as valid.** It exists so
 > developers can work without a login server. Never leave it on for anything
