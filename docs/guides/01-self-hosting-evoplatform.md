@@ -87,10 +87,13 @@ cp .env.example .env
 ```
 
 Now generate a secret and put it in that file. This value encrypts stored SMTP
-passwords, so it needs to be long and random:
+passwords, so it needs to be long and random.
+
+Node is already a prerequisite, so this works the same on Windows, macOS, and
+Linux:
 
 ```bash
-openssl rand -base64 32
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
 Open `.env` in an editor and replace the `SECRET_KEY=change-me` line with the
@@ -250,7 +253,7 @@ Fill in `.env` with real values:
 | Setting | What to put |
 |---|---|
 | `DB_PASSWORD` | A strong generated password, not one you invent |
-| `SECRET_KEY` | `openssl rand -base64 32` — a *different* value from your laptop |
+| `SECRET_KEY` | Generate it the same way as in A2 — a *different* value from your laptop |
 | `DATABASE_URL` | Must contain the same `DB_PASSWORD` you just set |
 | `SMTP_*` | Your real mail relay — Mailpit is for local use only |
 | `WEBAUTHN_BASE_DOMAINS` | Your base domain, e.g. `yourcompany.com` |
