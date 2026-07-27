@@ -112,8 +112,8 @@ Timeout defaults to **120 s** — a model composing an answer over retrieved rec
 not a fast API call, and a shorter default cuts off answers that were about to
 succeed. Override with `timeoutMs`.
 
-Full walkthrough, including the two patterns that don't use this client:
-[Integrating Ask AI](../../docs/guides/04-integrating-ask-ai.md).
+Full walkthrough, including the two patterns that don't use this client: see the
+**Integrating Ask AI** guide supplied with evo-ai.
 
 ## Errors
 

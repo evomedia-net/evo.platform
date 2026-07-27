@@ -26,7 +26,7 @@ It is one service, backed by one PostgreSQL database. Your applications talk
 to it over HTTPS and verify the tokens it issues.
 
 **It does not include an AI assistant.** That is a separate service called
-evo-ai — see [Adding Ask AI](02-adding-ask-ai.md) once this guide is done.
+evo-ai, a separate commercial product with its own guides.
 
 ---
 
@@ -420,7 +420,7 @@ exists wins.
 
 ## Next
 
-- **[Adding Ask AI](02-adding-ask-ai.md)** — the AI assistant, on your server
-  or fully offline
+- **evo-ai** — the AI assistant. A separate commercial product; it can
+  authenticate against this platform, but neither requires the other
 - **[Developer guide](../INSTALL.md)** — scaffolding an app with `evo new`,
   connecting an existing app, and the SDK
