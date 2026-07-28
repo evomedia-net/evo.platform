@@ -67,6 +67,44 @@ describe('EvoPlatform.verifyToken', () => {
     ).rejects.toBeInstanceOf(TokenError);
   });
 
+  it('rejects a token minted for a different app (audience check)', async () => {
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({
+      platformUrl: 'http://platform.test',
+      clientId: 'app_mine',
+      fetchFn,
+    });
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1', app: 'app_other' })),
+    ).rejects.toThrow(/issued for app "app_other"/);
+    // Unscoped tokens (platform-admin logins carry app: null) are foreign too.
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1', app: null })),
+    ).rejects.toBeInstanceOf(TokenError);
+  });
+
+  it('accepts a token minted for this app, and honors the opt-out', async () => {
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({
+      platformUrl: 'http://platform.test',
+      clientId: 'app_mine',
+      fetchFn,
+    });
+    const own = await platform.verifyToken(signToken({ sub: 'u1', app: 'app_mine' }));
+    expect(own.app).toBe('app_mine');
+    const foreign = await platform.verifyToken(signToken({ sub: 'u1', app: 'app_other' }), {
+      audience: false,
+    });
+    expect(foreign.app).toBe('app_other');
+  });
+
+  it('does not enforce audience when the client has no clientId', async () => {
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
+    const claims = await platform.verifyToken(signToken({ sub: 'u1', app: 'app_any' }));
+    expect(claims.app).toBe('app_any');
+  });
+
   it('rejects a token from another issuer', async () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });

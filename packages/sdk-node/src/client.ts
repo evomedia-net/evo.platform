@@ -39,21 +39,35 @@ export class EvoPlatform {
     );
   }
 
-  /** Verify a platform-issued access token locally (cached JWKS, no platform call). */
-  async verifyToken(token: string): Promise<Claims> {
+  /**
+   * Verify a platform-issued access token locally (cached JWKS, no platform
+   * call). When this client is configured with a `clientId`, the token's `app`
+   * claim must match it — a token minted for a different app, however
+   * obtained, is rejected (pass `{ audience: false }` to opt out for the rare
+   * case of deliberately inspecting foreign tokens).
+   */
+  async verifyToken(token: string, opts: { audience?: boolean } = {}): Promise<Claims> {
     const decoded = jwt.decode(token, { complete: true });
     if (!decoded || typeof decoded === 'string') throw new TokenError('Malformed token');
     const kid = decoded.header.kid;
     if (!kid) throw new TokenError('Token has no kid header');
     const pem = await this.jwks.getPem(kid);
+    let claims: Claims;
     try {
-      return jwt.verify(token, pem, {
+      claims = jwt.verify(token, pem, {
         algorithms: ['RS256'],
         issuer: this.issuer,
       }) as unknown as Claims;
     } catch (err) {
       throw new TokenError(err instanceof Error ? err.message : 'Token verification failed');
     }
+    // Audience check: this app only ever accepts tokens minted for it.
+    if (opts.audience !== false && this.opts.clientId && claims.app !== this.opts.clientId) {
+      throw new TokenError(
+        `Token was issued for app "${claims.app ?? 'none'}", not "${this.opts.clientId}"`,
+      );
+    }
+    return claims;
   }
 
   // ---- auth proxy (for apps that render their own login form) ----
