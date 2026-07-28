@@ -477,10 +477,69 @@ async function viewUsers() {
   });
 }
 
-/* Mirrors the server policy (src/core/password-policy.ts): ≥8 chars, ≥2 digits,
- * ≥2 special characters. The server is authoritative; this is just fast feedback. */
-const PW_POLICY_RE = /^(?=(?:.*\d){2,})(?=(?:.*[^A-Za-z0-9]){2,}).{8,}$/;
-const PW_POLICY_MSG = "At least 8 characters, including 2 numbers and 2 special characters.";
+/* Mirrors the server policy (src/core/password-policy.ts) — the NIST/OWASP
+ * Standard: length + a known-bad blocklist, no composition rules. The server
+ * is authoritative; this is just fast feedback. Keep the two in step. */
+const PW_MIN_LENGTH = 12;
+const PW_MAX_BYTES = 72;
+const PW_MAX_RUN = 4;
+const PW_POLICY_MSG =
+  "At least " + PW_MIN_LENGTH + " characters. Longer is stronger — a phrase of a few " +
+  "words works well, and spaces are allowed. No special-character requirements. " +
+  "Avoid common passwords and runs like abcde or 12345.";
+const PW_COMMON = new Set([
+  "password", "password1", "password123", "passw0rd", "letmein",
+  "welcome", "welcome1", "qwerty", "qwerty123", "iloveyou", "admin",
+  "administrator", "changeme", "abc123", "111111", "123456", "1234567",
+  "12345678", "123456789", "1234567890", "monkey", "dragon", "sunshine",
+  "princess", "football", "baseball", "trustno1", "evoplatform", "evomedia",
+]);
+/* Rows kept separate: concatenating them would flag row-crossing strings
+ * like "opasd" as a run, which they are not. */
+const PW_SEQUENCES = [
+  "0123456789", "abcdefghijklmnopqrstuvwxyz",
+  "qwertyuiop", "asdfghjkl", "zxcvbnm",
+];
+
+function pwIsSequential(candidate) {
+  const win = PW_MAX_RUN + 1;
+  if (candidate.length < win) return false;
+  for (const seq of PW_SEQUENCES) {
+    const rev = [...seq].reverse().join("");
+    for (let i = 0; i + win <= candidate.length; i++) {
+      const chunk = candidate.slice(i, i + win);
+      if (seq.includes(chunk) || rev.includes(chunk)) return true;
+    }
+  }
+  return false;
+}
+
+function pwIsCommon(pw) {
+  const c = pw.trim().toLowerCase();
+  if (PW_COMMON.has(c)) return true;
+  const trimmed = c.replace(/[0-9!@#$%^&*()\-_=+.,?/\|[\]{}<>;:'"`~ ]+$/, "");
+  if (trimmed && PW_COMMON.has(trimmed)) return true;
+  const unleet = trimmed
+    .replace(/@/g, "a").replace(/0/g, "o").replace(/1/g, "i")
+    .replace(/3/g, "e").replace(/\$/g, "s").replace(/5/g, "s")
+    .replace(/!/g, "i").replace(/4/g, "a").replace(/7/g, "t");
+  if (unleet && PW_COMMON.has(unleet)) return true;
+  return new Set(c).size === 1;
+}
+
+/* Returns an error string, or null when the password passes. */
+function pwPolicyError(pw) {
+  if (!pw) return "Password is required";
+  if (pw.length < PW_MIN_LENGTH) return "Password must be at least " + PW_MIN_LENGTH + " characters";
+  if (new TextEncoder().encode(pw).length > PW_MAX_BYTES) {
+    return "Password must be " + PW_MAX_BYTES + " characters or fewer";
+  }
+  if (pwIsSequential(pw.trim().toLowerCase())) {
+    return "Avoid runs of more than " + PW_MAX_RUN + " characters in a row (like abcde or 12345)";
+  }
+  if (pwIsCommon(pw)) return "That password is too common — choose something less guessable";
+  return null;
+}
 const EYE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
@@ -527,8 +586,9 @@ function setPasswordModal(userId, email) {
       err.hidden = false;
       return;
     }
-    if (!PW_POLICY_RE.test(password)) {
-      err.textContent = PW_POLICY_MSG;
+    const pwErr = pwPolicyError(password);
+    if (pwErr) {
+      err.textContent = pwErr;
       err.hidden = false;
       return;
     }

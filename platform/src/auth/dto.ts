@@ -1,5 +1,5 @@
 import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
-import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../core/password-policy';
+import { IsStrongPassword } from '../core/password-policy';
 
 export class LoginDto {
   /** Omit for platform-level (global admin) login. */
@@ -45,7 +45,7 @@ export class ResetDto {
   token!: string;
 
   @IsString()
-  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  @IsStrongPassword()
   password!: string;
 }
 
@@ -65,7 +65,7 @@ export class SignupDto {
   email!: string;
 
   @IsString()
-  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  @IsStrongPassword()
   password!: string;
 
   @IsOptional()

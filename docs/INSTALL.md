@@ -84,6 +84,31 @@ with a user, and a demo app — passwords and the app secret are printed once.
 Set `SEED_ADMIN_PASSWORD` / `SEED_OWNER_PASSWORD` in `.env` first if you want
 fixed values.
 
+### Password policy (NIST/OWASP Standard)
+
+Any password you set — seed passwords, `BOOTSTRAP_ADMIN_PASSWORD`, and every
+user password created through the API or admin console — must meet the
+platform policy:
+
+- **At least 12 characters.** Longer is stronger; a phrase of a few words works
+  well, and spaces are allowed.
+- **No composition requirements.** No forced uppercase, digits, or symbols.
+- **No common passwords**, and no runs of more than 4 characters in a row
+  (`abcde`, `12345`, `qwerty`). Padding a blocked word to reach the length
+  floor doesn't help — `Password123!` and `p@ssw0rd!!` are both rejected.
+- **72 bytes maximum**, which is bcrypt's limit; longer input is rejected
+  rather than silently truncated.
+
+This follows NIST SP 800-63B and OWASP ASVS, which call for length and
+screening against known-bad passwords instead of composition rules — those
+push people toward predictable padding while rejecting strong passphrases.
+Passwords are **never** re-validated at login, so tightening the policy cannot
+lock out an existing account.
+
+Bootstrap refuses to run with a weak `BOOTSTRAP_ADMIN_PASSWORD` and logs
+`admin bootstrap refused: BOOTSTRAP_ADMIN_PASSWORD does not meet the password
+policy`.
+
 On first boot the service generates an RSA signing keypair into `./keys/`
 (gitignored). Delete the folder to rotate keys in dev.
 
