@@ -34,3 +34,6 @@ Thumbs.db
 
 # Example env files are documentation, not secrets
 !.env.prod.example
+
+# vim swap files (a .env swap once nearly leaked into a commit)
+*.swp

@@ -116,10 +116,16 @@ describe('TenantsService.exportTenant', () => {
 });
 
 describe('TenantsService app access', () => {
-  it('create() enables every registered app for the new tenant', async () => {
+  it('create() enables only auto-enroll apps for the new tenant', async () => {
     const prisma = makePrisma();
     prisma.tenant.findUnique.mockResolvedValue(null); // slug is free
     await makeSvc(prisma).create({ slug: 'acme', name: 'Acme' });
+    // Opt-out apps (autoEnroll=false) are excluded at the query, so access to
+    // them exists only when granted specifically.
+    expect(prisma.app.findMany).toHaveBeenCalledWith({
+      where: { autoEnroll: true },
+      select: { id: true },
+    });
     expect(prisma.appTenant.createMany).toHaveBeenCalledWith({
       data: [
         { tenantId: 't1', appId: 'a1', plan: 'free' },

@@ -11,6 +11,7 @@ const PUBLIC_FIELDS = {
   name: true,
   callbackUrls: true,
   stripePriceId: true,
+  autoEnroll: true,
   createdAt: true,
   roles: { select: { id: true, name: true, description: true } },
 } as const;
@@ -45,6 +46,7 @@ export class AppsService {
         clientId,
         clientSecretHash: await bcrypt.hash(clientSecret, 10),
         callbackUrls: dto.callbackUrls ?? [],
+        autoEnroll: dto.autoEnroll ?? true,
       },
       select: PUBLIC_FIELDS,
     });
@@ -59,6 +61,7 @@ export class AppsService {
       data: {
         name: dto.name,
         callbackUrls: dto.callbackUrls,
+        autoEnroll: dto.autoEnroll,
         // Empty string clears the price (app becomes non-sellable).
         ...(dto.stripePriceId !== undefined
           ? { stripePriceId: dto.stripePriceId || null }

@@ -88,10 +88,12 @@ Tenants are granted access **per app** (`app_tenants`): a login or refresh scope
 `trialEndsAt`, or `PAST_DUE` until `graceUntil`; `SUSPENDED` or no row refuses the
 login. One app's suspension never touches the tenant's other apps. Platform-admin
 logins and tenant logins without an app scope are governed by the tenant-level checks
-only. Admin-created tenants start enabled on every registered app; the migration
-backfills existing tenants the same way, so turning this on locks nobody out. Manage
-it per app in the console ("Tenant access") or via the `/admin/tenants/:id/apps`
-endpoints.
+only. Admin-created tenants start enabled on every **auto-enroll** app; apps with
+"Auto-enroll new tenants" unchecked (`autoEnroll: false`) are skipped, so access to
+them exists only when granted specifically — in the console, by signup through the
+app, or by subscription. The migration backfills existing tenants as enabled, so
+turning this on locks nobody out. Manage it per app in the console ("Tenant
+access") or via the `/admin/tenants/:id/apps` endpoints.
 
 ## Rate limiting & bootstrap
 

@@ -598,6 +598,9 @@ async function viewApps() {
         <label style="flex:0 0 280px" data-tip="Stripe Price id (price_...) sold as this app's subscription. Checkout uses it; webhook events then drive each workspace's access to this app. Leave empty while the app isn't sellable.">Stripe price <input name="priceId" placeholder="price_..." value="${esc(a.stripePriceId ?? "")}" /></label>
         <button class="btn sm grow0">Save</button>
       </form>
+      <label class="check" style="display:block;margin-top:10px" data-tip="Checked: workspaces you create in this console start enabled on this app. Unchecked: access must be granted specifically — here, by signup through the app, or by subscription. Self-service signup is unaffected (it only ever enables the app arrived through).">
+        <input type="checkbox" data-auto-enroll="${a.id}"${a.autoEnroll ? " checked" : ""} /> Auto-enroll new tenants
+      </label>
       <h3 data-tip="Which workspaces may sign in to this app. Logins scoped to an app are refused unless the workspace is enabled here.">Tenant access</h3>
       <table><tr><th>Slug</th><th>Name</th><th>Access</th><th class="col-actions"></th></tr>${accessRows(a)}</table>
     </div>`).join("");
@@ -672,8 +675,20 @@ async function viewApps() {
     } catch (err) { toast(err.message, true); }
   });
 
-  // Access dropdowns save on change; on error re-render to server truth.
+  // Access dropdowns and the auto-enroll toggle save on change; on error
+  // re-render to server truth.
   $("#content").addEventListener("change", async (e) => {
+    const auto = e.target.closest("input[data-auto-enroll]");
+    if (auto) {
+      try {
+        await api("PATCH", `/admin/apps/${auto.dataset.autoEnroll}`, { autoEnroll: auto.checked });
+        toast(auto.checked ? "New tenants will be auto-enrolled" : "Auto-enroll off — access now needs a specific grant");
+      } catch (err) {
+        toast(err.message, true);
+        route();
+      }
+      return;
+    }
     const sel = e.target.closest("select[data-access-app]");
     if (!sel) return;
     try {
