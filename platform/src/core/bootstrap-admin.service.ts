@@ -2,7 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from './prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { PASSWORD_POLICY_REGEX } from './password-policy';
+import { validatePassword } from './password-policy';
 import { config } from '../config';
 
 /**
@@ -42,7 +42,7 @@ export class BootstrapAdminService implements OnApplicationBootstrap {
       this.log.log(`admin bootstrap skipped: ${existing} platform admin(s) already exist`);
       return { created: false, reason: 'admin exists' };
     }
-    if (!PASSWORD_POLICY_REGEX.test(password)) {
+    if (validatePassword(password) !== null) {
       this.log.error(
         'admin bootstrap refused: BOOTSTRAP_ADMIN_PASSWORD does not meet the password policy',
       );

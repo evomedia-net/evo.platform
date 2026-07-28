@@ -4,10 +4,9 @@ import {
   IsEmail,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
 } from 'class-validator';
-import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../core/password-policy';
+import { IsStrongPassword } from '../core/password-policy';
 
 /** Same person-profile shape as the admin users API. */
 class MemberProfileFields {
@@ -32,7 +31,7 @@ export class CreateMemberDto extends MemberProfileFields {
   email!: string;
 
   @IsString()
-  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  @IsStrongPassword()
   password!: string;
 
   @IsOptional()
@@ -71,6 +70,6 @@ export class AcceptInviteDto extends MemberProfileFields {
   token!: string;
 
   @IsString()
-  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  @IsStrongPassword()
   password!: string;
 }

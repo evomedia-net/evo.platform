@@ -4,10 +4,9 @@ import {
   IsEmail,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
 } from 'class-validator';
-import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../core/password-policy';
+import { IsStrongPassword } from '../core/password-policy';
 
 /** Simple person profile shared by create and update. Address/company details
  *  live on the Tenant, not the user. */
@@ -44,7 +43,7 @@ export class CreateUserDto extends ProfileFields {
   email!: string;
 
   @IsString()
-  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  @IsStrongPassword()
   password!: string;
 
   @IsOptional()
@@ -59,7 +58,7 @@ export class CreateUserDto extends ProfileFields {
 export class UpdateUserDto extends ProfileFields {
   @IsOptional()
   @IsString()
-  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
+  @IsStrongPassword()
   password?: string;
 
   @IsOptional()
