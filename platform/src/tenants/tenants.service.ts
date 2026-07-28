@@ -30,9 +30,14 @@ export class TenantsService {
     const tenant = await this.prisma.tenant.create({
       data: { slug, name, plan: plan ?? 'free', ...profile },
     });
-    // Admin-created tenants get every registered app, so manual onboarding
-    // stays one step. Self-service signup enables only the app arrived through.
-    const apps = await this.prisma.app.findMany({ select: { id: true } });
+    // Admin-created tenants get every auto-enroll app, so manual onboarding
+    // stays one step. Apps with autoEnroll=false require a specific grant
+    // (console, signup-through, or subscription); self-service signup enables
+    // only the app arrived through.
+    const apps = await this.prisma.app.findMany({
+      where: { autoEnroll: true },
+      select: { id: true },
+    });
     if (apps.length > 0) {
       await this.prisma.appTenant.createMany({
         data: apps.map((a) => ({ tenantId: tenant.id, appId: a.id, plan: tenant.plan })),

@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateAppDto {
   @IsString()
@@ -8,6 +8,11 @@ export class CreateAppDto {
   @IsArray()
   @IsString({ each: true })
   callbackUrls?: string[];
+
+  /** false = admin-created tenants are not auto-enabled on this app. */
+  @IsOptional()
+  @IsBoolean()
+  autoEnroll?: boolean;
 }
 
 export class UpdateAppDto {
@@ -24,6 +29,11 @@ export class UpdateAppDto {
   @IsOptional()
   @IsString()
   stripePriceId?: string;
+
+  /** false = admin-created tenants are not auto-enabled on this app. */
+  @IsOptional()
+  @IsBoolean()
+  autoEnroll?: boolean;
 }
 
 export class CreateRoleDto {
