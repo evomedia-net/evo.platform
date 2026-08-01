@@ -31,9 +31,14 @@
 }
 /* Light = the same navy theme, ~50% lighter: airy blue-tinted surfaces that
    still read as the dark theme's sibling, not a generic white theme. */
+/* --muted must clear WCAG AA (4.5:1) on every surface .muted lands on. The
+   binding one is --panel, not --panel2: --panel is the *darkest* light surface,
+   so it is the closest in luminance to the dark muted text. It is also the most
+   common — header, .card and every table use it. #3f5670 gives 5.15:1 on
+   --panel, 5.61:1 on --bg, 6.45:1 on --panel2 (was #556f8a: 3.55 / 3.87 / 4.44). */
 :root[data-theme="light"] {
   --bg: #cfe0f0; --panel: #c3d7f0; --panel2: #e4eef9; --border: #a9c6e2;
-  --text: #14304a; --muted: #556f8a; --accent: #3574b8; --danger: #d05a51;
+  --text: #14304a; --muted: #3f5670; --accent: #3574b8; --danger: #d05a51;
   --ok: #2ea457; --warn: #c98f2e;
   --tip-bg: #14304a; --tip-text: #eaf1f8;
   --mesh-1: rgba(51, 102, 153, 0.16); --mesh-2: rgba(51, 102, 153, 0.09);
