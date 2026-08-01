@@ -40,6 +40,11 @@
     </div>
   </div>
 
+  <!-- Sits outside both views so it renders on the login screen and every hash route. -->
+  <footer class="site-footer">
+    &copy; <span id="copyright-year">2026</span> Evomedia.net LLC. All rights reserved.
+  </footer>
+
   <!-- Modal -->
   <div id="modal" class="modal-overlay" hidden>
     <div class="card modal-card">
@@ -49,6 +54,7 @@
   </div>
 
   <div id="toast" hidden></div>
+  <script>document.getElementById('copyright-year').textContent = new Date().getFullYear()</script>
   <script src="/admin-ui.js"></script>
 </body>
 </html>
