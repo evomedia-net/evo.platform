@@ -19,7 +19,7 @@ What it does:
 The generated app starts in **standalone mode** (own login, own Postgres, works
 offline). Flipping it onto the platform later is env-only — see the checklist.
 
-Stacks: `next` today; `nicegui` lands with the SmartPlant migration.
+Stacks: `next` today; `nicegui` is planned but not built yet.
 
 ## Dev
 

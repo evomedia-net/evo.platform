@@ -18,14 +18,15 @@ login, roles, billing, email, admin tooling. EvoPlatform splits that into:
 
 - **A shared platform service** (Node.js/NestJS + Prisma + PostgreSQL) that owns tenants,
   users, auth (JWT/JWKS), billing, and SMTP — one service serving many apps.
-- **Mirrored SDKs** — `@evoplatform/sdk-node` and `evoplatform-sdk` (Python) — with the same
-  surface area, so apps can be written in whatever stack fits the problem.
-- **Starter templates** that conform to a single template contract:
-  - `templates/next` — Next.js + Prisma + PostgreSQL, with an offline-first browser layer
-    (IndexedDB mutation queue, last-write-wins sync)
-  - `templates/nicegui` — Python + NiceGUI + SQLAlchemy + PostgreSQL, server-rendered
-- **A scaffold CLI** — `evo new <app-name> --stack next|nicegui` — clone, rename, generate
-  secrets, done.
+- **An SDK** — `@evoplatform/sdk-node` — wrapping auth, tenancy, members, invites, and
+  billing, so apps talk to the platform without hand-rolling HTTP calls.
+- **A starter template** conforming to a single template contract:
+  `templates/next` — Next.js + Prisma + PostgreSQL, with an offline-first browser layer
+  (IndexedDB mutation queue, last-write-wins sync).
+- **A scaffold CLI** — `evo new <app-name>` — clone, rename, generate secrets, done.
+
+A Python SDK and a NiceGUI template are planned to mirror the Node ones; both are
+currently placeholder directories, and the CLI accepts `--stack next` only.
 
 ## Standalone mode
 
@@ -39,9 +40,9 @@ email over to the platform SDK. Apps can start standalone today and join the pla
 ```
 platform/            Shared platform service (NestJS)
 packages/sdk-node/   Node SDK
-packages/sdk-python/ Python SDK
+packages/sdk-python/ Python SDK          — placeholder, not built yet
 templates/next/      Next.js starter template
-templates/nicegui/   NiceGUI starter template
+templates/nicegui/   NiceGUI template    — placeholder, not built yet
 cli/                 `evo new` scaffolding tool
 docs/                Architecture and design docs
 ```
