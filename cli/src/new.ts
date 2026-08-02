@@ -58,7 +58,7 @@ export function scaffold(opts: NewOptions): string {
   if (opts.stack !== "next") {
     throw new Error(
       opts.stack === "nicegui"
-        ? "The nicegui template is not available yet — it lands with the SmartPlant migration"
+        ? "The nicegui template is not built yet — only --stack next is available"
         : `Unknown stack "${opts.stack}" (available: next)`,
     );
   }

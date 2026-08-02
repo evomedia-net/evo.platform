@@ -65,5 +65,5 @@ is exercised end-to-end by the app; add DB-backed tests as your domain grows.
 
 ## Not included (yet)
 
-Password reset / invites (port from SWAG's tokens.ts + mailer flows when needed),
-tombstone GC script, tenant settings admin UI (model exists).
+Standalone-mode password reset and invites (in platform mode the platform provides
+both), tombstone GC script, tenant settings admin UI (model exists).
