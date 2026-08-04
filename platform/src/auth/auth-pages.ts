@@ -3,7 +3,14 @@
  * external assets of any kind (fonts are system-stack per project rule);
  * brand palette inlined. Apps can host richer pages later — these make the
  * flows complete with nothing but the platform.
+ *
+ * Password rules are read from PASSWORD_RULES_TEXT rather than written out
+ * here. These pages are where someone actually chooses a password, so text
+ * that drifts from the enforcement contradicts itself on the same screen —
+ * which is exactly what happened when the policy moved to the NIST/OWASP
+ * Standard and these strings kept describing the deleted composition rule.
  */
+import { PASSWORD_RULES_TEXT } from '../core/password-policy';
 
 const SHELL_STYLE = `
   :root { color-scheme: light; }
@@ -44,7 +51,7 @@ export function verifyResultPage(ok: boolean): string {
 export function resetFormPage(token: string): string {
   return page(`
     <h1>Set a new password</h1>
-    <p>At least 8 characters, including 2 numbers and 2 special characters.</p>
+    <p>${PASSWORD_RULES_TEXT}</p>
     <form id="f">
       <input id="pw" type="password" placeholder="New password" autocomplete="new-password" required />
       <input id="pw2" type="password" placeholder="Confirm new password" autocomplete="new-password" required />
@@ -87,7 +94,7 @@ export function resetInvalidPage(): string {
 export function inviteAcceptPage(token: string): string {
   return page(`
     <h1>Create your account</h1>
-    <p>Choose a password: at least 8 characters, including 2 numbers and 2 special characters.</p>
+    <p>Choose a password. ${PASSWORD_RULES_TEXT}</p>
     <form id="f">
       <input id="fn" type="text" placeholder="First name" autocomplete="given-name" />
       <input id="ln" type="text" placeholder="Last name" autocomplete="family-name" />
