@@ -97,3 +97,73 @@ describe('UsersService.purge', () => {
     expect(audit.record).toHaveBeenCalledWith('user.purged', { tenantId: 't1' });
   });
 });
+
+// -- email change (admin-editable identity) ----------------------------------
+//
+// Email is what a user signs in with, so these guard the two ways this can go
+// wrong: silently colliding with another account, and locking someone out.
+
+function makeEmailPrisma(existing: Record<string, unknown>, clash: unknown = null) {
+  return {
+    user: {
+      findUnique: jest.fn().mockResolvedValue(existing),
+      findFirst: jest.fn().mockResolvedValue(clash),
+      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => data),
+    },
+  };
+}
+
+const EXISTING = { id: "u1", tenantId: null, email: "old@example.com" };
+
+describe("UsersService.update email", () => {
+  it("changes the address and lowercases it", async () => {
+    const prisma = makeEmailPrisma(EXISTING);
+    await makeSvc(prisma).update("u1", { email: "New@Evomedia.NET" });
+    expect(prisma.user.update.mock.calls[0][0].data.email).toBe("new@evomedia.net");
+  });
+
+  it("rejects an address already used in the same tenant", async () => {
+    const prisma = makeEmailPrisma(EXISTING, { id: "u2" });
+    await expect(makeSvc(prisma).update("u1", { email: "taken@example.com" })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it("excludes the user itself, so re-saving an unchanged form is not a conflict", async () => {
+    const prisma = makeEmailPrisma(EXISTING);
+    await makeSvc(prisma).update("u1", { email: "old@example.com" });
+    // Same address: no lookup needed at all, and certainly no conflict.
+    expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(prisma.user.update).toHaveBeenCalled();
+  });
+
+  it("does NOT clear emailVerifiedAt", async () => {
+    // Sign-in is refused for an unverified mailbox, so clearing this would lock
+    // the account out - including a platform admin renaming their own account.
+    const prisma = makeEmailPrisma(EXISTING);
+    await makeSvc(prisma).update("u1", { email: "new@example.com" });
+    expect(prisma.user.update.mock.calls[0][0].data).not.toHaveProperty("emailVerifiedAt");
+  });
+
+  it("audits the change with both addresses", async () => {
+    const prisma = makeEmailPrisma(EXISTING);
+    await makeSvc(prisma).update("u1", { email: "new@example.com" });
+    expect(audit.record).toHaveBeenCalledWith(
+      "user.email_changed",
+      expect.objectContaining({ detail: { from: "old@example.com", to: "new@example.com" } }),
+    );
+  });
+
+  it("does not audit when the address is unchanged", async () => {
+    const prisma = makeEmailPrisma(EXISTING);
+    await makeSvc(prisma).update("u1", { email: "old@example.com" });
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it("leaves the address alone when the field is omitted", async () => {
+    const prisma = makeEmailPrisma(EXISTING);
+    await makeSvc(prisma).update("u1", { firstName: "Ada" });
+    expect(prisma.user.update.mock.calls[0][0].data).not.toHaveProperty("email");
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+});

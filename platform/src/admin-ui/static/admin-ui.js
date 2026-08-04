@@ -325,8 +325,8 @@ function collectProfile(f, all = false) {
 
 function editUserModal(u) {
   modal(`<h2>Edit user</h2>
-    <p class="muted">${esc(u.email)}</p>
     <form class="userform" id="user-edit">
+      <label>Email <input name="email" type="email" required value="${esc(u.email)}" data-tip="The sign-in identity. Changing it changes the address this person signs in with, and is recorded in the audit log." /></label>
       ${profileFields(u)}
       <label class="full check" data-tip="Lets this user manage their own tenant's members (invite, edit, deactivate, roles) from inside the apps — without platform access."><input type="checkbox" name="isTenantAdmin"${u.isTenantAdmin ? " checked" : ""} /> Tenant admin</label>
       <div class="actions"><button class="btn primary">Save changes</button></div>
@@ -336,6 +336,7 @@ function editUserModal(u) {
     try {
       const f = new FormData(e.target);
       await api("PATCH", `/admin/users/${u.id}`, {
+        email: f.get("email"),
         ...collectProfile(f, true),
         isTenantAdmin: f.get("isTenantAdmin") === "on",
       });

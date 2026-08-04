@@ -95,6 +95,22 @@ export class UsersService {
 
   async update(id: string, dto: UpdateUserDto) {
     const existing = await this.get(id);
+
+    // Email is the login identity, so a change here changes who can sign in.
+    // Same manual uniqueness check as create(): Postgres treats NULLs as
+    // distinct in unique constraints, so platform-level users (tenantId null)
+    // are not covered by the schema constraint. `not: { id }` so saving the
+    // form without touching the address is not a conflict with yourself.
+    let email: string | undefined;
+    if (dto.email !== undefined) {
+      email = dto.email.toLowerCase();
+      if (email !== existing.email) {
+        const clash = await this.prisma.user.findFirst({
+          where: { tenantId: existing.tenantId, email, id: { not: id } },
+        });
+        if (clash) throw new ConflictException('A user with that email already exists');
+      }
+    }
     // Recompute the display name when either name part changes, merging with
     // whatever's already stored so a single-field edit keeps the other half.
     let name: string | null | undefined;
@@ -106,17 +122,35 @@ export class UsersService {
     } else if (dto.name !== undefined) {
       name = dto.name;
     }
-    return this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id },
       data: {
         ...profileData(dto),
         ...(name !== undefined ? { name } : {}),
+        // emailVerifiedAt is deliberately NOT cleared. Sign-in is refused for
+        // an unverified mailbox, so clearing it would lock the account out
+        // until someone clicked a link — including the platform admin renaming
+        // their own account, who would then have no way back in. An admin
+        // typing the address is the same identity proof create() relies on.
+        ...(email !== undefined ? { email } : {}),
         isPlatformAdmin: dto.isPlatformAdmin,
         isTenantAdmin: dto.isTenantAdmin,
         ...(dto.password ? { passwordHash: await bcrypt.hash(dto.password, 10) } : {}),
       },
       select: PUBLIC_FIELDS,
     });
+
+    if (email !== undefined && email !== existing.email) {
+      // Recorded because it changes who can sign in. Both addresses are kept:
+      // the old one is what makes an unexpected change traceable afterwards.
+      await this.audit.record('user.email_changed', {
+        tenantId: existing.tenantId ?? undefined,
+        userId: id,
+        detail: { from: existing.email, to: email },
+      });
+    }
+
+    return user;
   }
 
   async remove(id: string) {
