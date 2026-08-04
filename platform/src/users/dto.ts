@@ -56,6 +56,14 @@ export class CreateUserDto extends ProfileFields {
 }
 
 export class UpdateUserDto extends ProfileFields {
+  /** Changing this changes who can sign in, so it is platform-admin only and
+   *  audited. Uniqueness within the tenant is enforced in the service, not
+   *  here — Postgres treats NULLs as distinct, so platform-level users need a
+   *  manual check. */
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
   @IsOptional()
   @IsString()
   @IsStrongPassword()
