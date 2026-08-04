@@ -18,7 +18,7 @@ function makePrisma() {
   };
   return {
     tx,
-    app: { findUnique: jest.fn().mockResolvedValue({ id: 'a1', clientId: 'app_demo' }) },
+    app: { findFirst: jest.fn().mockResolvedValue({ id: 'a1', clientId: 'app_demo' }) },
     tenant: { findUnique: jest.fn().mockResolvedValue(null) },
     $transaction: jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
   };
@@ -95,7 +95,7 @@ describe('SignupService', () => {
 
   it('rejects an unknown clientId — signups happen through an app', async () => {
     const prisma = makePrisma();
-    prisma.app.findUnique.mockResolvedValue(null);
+    prisma.app.findFirst.mockResolvedValue(null);
     await expect(makeSvc(prisma).signup(dto)).rejects.toBeInstanceOf(BadRequestException);
   });
 

@@ -13,6 +13,7 @@ const PUBLIC_FIELDS = {
   stripePriceId: true,
   autoEnroll: true,
   createdAt: true,
+  deletedAt: true,
   roles: { select: { id: true, name: true, description: true } },
 } as const;
 
@@ -23,14 +24,68 @@ export class AppsService {
     private audit: AuditService,
   ) {}
 
-  list() {
-    return this.prisma.app.findMany({ select: PUBLIC_FIELDS, orderBy: { createdAt: 'asc' } });
+  /** Soft-deleted apps are hidden unless asked for, matching tenants and users.
+   *  The console passes includeDeleted so it can offer Restore. */
+  list(includeDeleted = false) {
+    return this.prisma.app.findMany({
+      where: includeDeleted ? {} : { deletedAt: null },
+      select: PUBLIC_FIELDS,
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
+  /** Finds deleted apps too: restore and purge both need to load one. */
   async get(id: string) {
     const app = await this.prisma.app.findUnique({ where: { id }, select: PUBLIC_FIELDS });
     if (!app) throw new NotFoundException('App not found');
     return app;
+  }
+
+  /** Reversible. Sign-in through this app stops, but nothing is destroyed and
+   *  the clientId stays reserved so it cannot be re-registered underneath. */
+  async remove(id: string) {
+    const existing = await this.get(id);
+    if (existing.deletedAt) throw new ConflictException('App is already deleted');
+    const app = await this.prisma.app.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+      select: PUBLIC_FIELDS,
+    });
+    await this.audit.record('app.deleted', { appClientId: existing.clientId });
+    return app;
+  }
+
+  async restore(id: string) {
+    const existing = await this.get(id);
+    if (!existing.deletedAt) throw new ConflictException('App is not deleted');
+    const app = await this.prisma.app.update({
+      where: { id },
+      data: { deletedAt: null },
+      select: PUBLIC_FIELDS,
+    });
+    await this.audit.record('app.restored', { appClientId: existing.clientId });
+    return app;
+  }
+
+  /** Hard delete (erasure). Two-step like the tenant purge: the app must already
+   *  be soft-deleted, so one mistaken click can never destroy credentials and
+   *  every tenant's access to them. Roles, role assignments and tenant grants go
+   *  with it via the schema's onDelete: Cascade — counted first so the audit
+   *  record says what was actually destroyed. */
+  async purge(id: string) {
+    const app = await this.get(id);
+    if (!app.deletedAt) {
+      throw new ConflictException('Purge requires the app to be soft-deleted first');
+    }
+    const [roles, tenants] = await Promise.all([
+      this.prisma.role.count({ where: { appId: id } }),
+      this.prisma.appTenant.count({ where: { appId: id } }),
+    ]);
+    await this.prisma.app.delete({ where: { id } });
+    await this.audit.record('app.purged', {
+      detail: { name: app.name, clientId: app.clientId, roles, tenants },
+    });
+    return { ok: true, roles, tenants };
   }
 
   /** Returns the client secret exactly once; only its hash is stored. */

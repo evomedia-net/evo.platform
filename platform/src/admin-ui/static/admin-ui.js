@@ -59,6 +59,15 @@ $("#modal-close").addEventListener("click", () => ($("#modal").hidden = true));
  * No, and Escape all resolve false. Focus starts on No so a stray Enter
  * never confirms a destructive action.
  */
+/** Two dialogs, both of which must be answered Yes, for anything that erases
+ *  data permanently. Purge is not undoable — there is no recycle bin behind it
+ *  — so the second prompt exists to break the rhythm of clicking Yes. Anything
+ *  reversible (soft delete, restore) keeps a single confirm. */
+async function confirmDestructive(message) {
+  if (!(await confirmDialog(message))) return false;
+  return confirmDialog("Are you, like, really sure?");
+}
+
 function confirmDialog(message) {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
@@ -225,7 +234,9 @@ async function route() {
 window.addEventListener("hashchange", route);
 
 async function loadTenants() { S.tenants = await api("GET", "/admin/tenants?includeDeleted=true"); }
-async function loadApps() { S.apps = await api("GET", "/admin/apps"); }
+/* includeDeleted, matching tenants and users: the console is where you restore
+   or purge something, so it has to be able to see it. */
+async function loadApps() { S.apps = await api("GET", "/admin/apps?includeDeleted=true"); }
 const tenantName = (id) => S.tenants.find((t) => t.id === id)?.slug || (id ? id.slice(0, 8) : "platform");
 const fmt = (d) => (d ? new Date(d).toLocaleString() : "");
 
@@ -294,7 +305,9 @@ async function viewTenants() {
           ? `<span class="badge warn"${t.graceUntil ? ` data-tip="Payment failed — logins keep working until the grace window closes on ${esc(fmt(t.graceUntil))}, then this tenant is blocked."` : ""}>past due</span>`
           : `<span class="badge bad">suspended</span>`;
     const actions = t.deletedAt
-      ? `<button class="btn sm" data-act="restore" data-id="${t.id}" data-tip="Bring this soft-deleted tenant back; its data is intact.">Restore</button>`
+      ? `<button class="btn sm" data-act="restore" data-id="${t.id}" data-tip="Bring this soft-deleted tenant back; its data is intact.">Restore</button>
+         <button class="btn sm" data-act="export" data-id="${t.id}" data-slug="${esc(t.slug)}" data-tip="Download this tenant's data as JSON. Worth doing before you purge — purge cannot be undone.">Export</button>
+         <button class="btn sm danger" data-act="purge" data-id="${t.id}" data-slug="${esc(t.slug)}" data-tip="Erase permanently: users, audit history, SMTP config and app access. This cannot be undone.">Purge</button>`
       : `${t.status === "SUSPENDED"
           ? `<button class="btn sm" data-act="activate" data-id="${t.id}" data-tip="Re-enable logins for this tenant.">Activate</button>`
           : `<button class="btn sm" data-act="suspend" data-id="${t.id}" data-tip="Block all logins to this tenant. Reversible — data is kept.">Suspend</button>`}
@@ -319,12 +332,24 @@ async function viewTenants() {
   $("#content").addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-act]");
     if (!btn) return;
-    const { act: a, id } = btn.dataset;
+    const { act: a, id, slug } = btn.dataset;
     if (a === "delete" && !(await confirmDialog("Soft-delete this tenant? It can be restored."))) return;
+    if (a === "purge" && !(await confirmDestructive(
+      `Permanently erase "${slug}" and everything it owns — users, audit history, SMTP config and app access? This cannot be undone.`,
+    ))) return;
     try {
+      if (a === "export") {
+        // Straight to a file: the payload is a whole tenant, so rendering it
+        // in a toast or a modal would be useless at any real size.
+        const r = await api("GET", `/admin/tenants/${id}/export`);
+        download(`tenant-${slug}.json`, "application/json", JSON.stringify(r, null, 2));
+        toast("Export downloaded");
+        return;
+      }
       if (a === "delete") await api("DELETE", `/admin/tenants/${id}`);
+      else if (a === "purge") await api("DELETE", `/admin/tenants/${id}/purge`);
       else await api("POST", `/admin/tenants/${id}/${a}`);
-      toast(`Tenant ${a}d`);
+      toast(a === "purge" ? `Tenant "${slug}" permanently erased` : `Tenant ${a}d`);
       route();
     } catch (err) { toast(err.message, true); }
   });
@@ -451,7 +476,8 @@ async function viewUsers() {
       <td>${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}${u.isTenantAdmin ? ' <span class="badge ok" data-tip="Manages their own tenant\'s members from inside the apps.">tenant admin</span>' : ""}${u.emailVerifiedAt ? "" : ' <span class="badge warn" data-tip="Mailbox not yet proven — sign-in is refused until the user clicks their verification email.">unverified</span>'}</td>
       <td>${roleCell(u)}</td>
       <td>${u.deletedAt
-        ? `<button class="btn sm" data-act="restore" data-id="${u.id}" data-tip="Bring this soft-deleted user back.">Restore</button>`
+        ? `<button class="btn sm" data-act="restore" data-id="${u.id}" data-tip="Bring this soft-deleted user back.">Restore</button>
+           <button class="btn sm danger" data-act="purge" data-id="${u.id}" data-email="${esc(u.email)}" data-tip="Erase this user permanently, including sessions, passkeys and role assignments. This cannot be undone.">Purge</button>`
         : `<button class="btn sm" data-act="edit" data-id="${u.id}" data-tip="Edit this user's name, phone, and address.">Edit</button>
            <button class="btn sm" data-act="password" data-id="${u.id}" data-email="${esc(u.email)}" data-tip="Set a new password for this user. In platform mode this is the reset path for delegated apps too.">Password</button>
            <button class="btn sm danger" data-act="delete" data-id="${u.id}" data-email="${esc(u.email)}" data-tip="Soft-delete this user; restorable.">Delete</button>`}
@@ -488,6 +514,14 @@ async function viewUsers() {
         await api("DELETE", `/admin/users/${id}`); toast("User deleted"); route();
       }
       else if (a === "restore") { await api("POST", `/admin/users/${id}/restore`); toast("User restored"); route(); }
+      else if (a === "purge") {
+        if (!(await confirmDestructive(
+          `Permanently erase "${btn.dataset.email}", including their sessions, passkeys and role assignments? This cannot be undone.`,
+        ))) return;
+        await api("DELETE", `/admin/users/${id}/purge`);
+        toast(`User "${btn.dataset.email}" permanently erased`);
+        route();
+      }
     } catch (err) { toast(err.message, true); }
   });
 
@@ -685,9 +719,13 @@ async function viewApps() {
 
   const cards = S.apps.map((a) => `
     <div class="card">
-      <h2>${esc(a.name)}</h2>
+      <h2>${esc(a.name)}${a.deletedAt ? ' <span class="badge bad">deleted</span>' : ""}</h2>
       <p>Client id: <code>${esc(a.clientId)}</code>
-        <button class="btn sm" data-act="rotate" data-id="${a.id}" data-tip="Replace this app's client secret — do it if the secret may have leaked, when someone with access leaves, or on a rotation schedule. The old secret stops working immediately, so update the app's config right away.">Rotate secret</button></p>
+        ${a.deletedAt
+          ? `<button class="btn sm" data-act="app-restore" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Bring this app back. Its client id, roles and tenant grants are intact, and sign-in through it starts working again.">Restore</button>
+             <button class="btn sm danger" data-act="app-purge" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Erase this app permanently, with its roles, every user's assignments to them, and every tenant's access. This cannot be undone.">Purge</button>`
+          : `<button class="btn sm" data-act="rotate" data-id="${a.id}" data-tip="Replace this app's client secret — do it if the secret may have leaked, when someone with access leaves, or on a rotation schedule. The old secret stops working immediately, so update the app's config right away.">Rotate secret</button>
+             <button class="btn sm danger" data-act="app-delete" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Soft-delete: sign-in through this app stops immediately, but nothing is destroyed and it can be restored. The client id stays reserved so it cannot be re-registered underneath.">Delete</button>`}</p>
       <p class="muted">Callbacks: ${a.callbackUrls.map((u) => `<code>${esc(u)}</code>`).join(" ") || "—"}</p>
       <div class="chips">${a.roles.map((r) => `<span class="chip">${esc(r.name)}
         <button data-role-act="rename" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" data-tip="Rename this role. Tokens carry role names, so it applies at next login/refresh.">&#9998;</button>
@@ -763,6 +801,31 @@ async function viewApps() {
         } else {
           await api("PUT", `/admin/tenants/${tenantId}/apps/${appId}`, {});
           toast("App enabled for workspace");
+        }
+        route();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+
+    const life = e.target.closest("button[data-act^=app-]");
+    if (life) {
+      const { act, id, name } = life.dataset;
+      try {
+        if (act === "app-delete") {
+          if (!(await confirmDialog(
+            `Soft-delete "${name}"? Sign-in through this app stops immediately, but nothing is destroyed and it can be restored.`,
+          ))) return;
+          await api("DELETE", `/admin/apps/${id}`);
+          toast(`App "${name}" deleted`);
+        } else if (act === "app-restore") {
+          await api("POST", `/admin/apps/${id}/restore`);
+          toast(`App "${name}" restored`);
+        } else if (act === "app-purge") {
+          if (!(await confirmDestructive(
+            `Permanently erase "${name}", its roles, every user's assignments to them, and every tenant's access to it? This cannot be undone.`,
+          ))) return;
+          await api("DELETE", `/admin/apps/${id}/purge`);
+          toast(`App "${name}" permanently erased`);
         }
         route();
       } catch (err) { toast(err.message, true); }

@@ -126,6 +126,10 @@ model App {
   autoEnroll       Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  // Soft delete, matching Tenant and User. Keeps clientId and name
+  // reserved while deleted, so a re-registration cannot silently inherit
+  // an old app's tenant grants.
+  deletedAt        DateTime?
   roles            Role[]
   appTenants       AppTenant[]
 

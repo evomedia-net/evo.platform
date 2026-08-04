@@ -69,7 +69,11 @@ export class SignupService {
     this.assertSignupAllowed(dto.inviteToken);
 
     // Signups happen THROUGH an app; the trial is scoped to it.
-    const app = await this.prisma.app.findUnique({ where: { clientId: dto.clientId } });
+    // A soft-deleted app must not accept new signups; findFirst because
+    // deletedAt is not part of a unique index.
+    const app = await this.prisma.app.findFirst({
+      where: { clientId: dto.clientId, deletedAt: null },
+    });
     if (!app) throw new BadRequestException('Unknown app');
 
     const email = dto.email.toLowerCase();

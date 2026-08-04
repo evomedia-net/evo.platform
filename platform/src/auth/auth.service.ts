@@ -126,7 +126,10 @@ export class AuthService {
    */
   private async assertAppEnabled(tenant: Tenant | null, clientId?: string) {
     if (!tenant || !clientId) return;
-    const app = await this.prisma.app.findUnique({ where: { clientId } });
+    // A soft-deleted app is not enabled for anyone. findFirst because deletedAt
+    // is not part of a unique index; a null result falls through to the same
+    // "not enabled" branch an unknown clientId already took.
+    const app = await this.prisma.app.findFirst({ where: { clientId, deletedAt: null } });
     const enablement = app
       ? await this.prisma.appTenant.findUnique({
           where: { tenantId_appId: { tenantId: tenant.id, appId: app.id } },

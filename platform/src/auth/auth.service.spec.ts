@@ -38,7 +38,7 @@ describe('AuthService.login', () => {
     tenant: { findFirst: jest.Mock };
     user: { findFirst: jest.Mock };
     refreshToken: { create: jest.Mock };
-    app: { findUnique: jest.Mock };
+    app: { findFirst: jest.Mock };
     appTenant: { findUnique: jest.Mock };
   };
   let svc: AuthService;
@@ -50,7 +50,7 @@ describe('AuthService.login', () => {
       tenant: { findFirst: jest.fn().mockResolvedValue(tenant) },
       user: { findFirst: jest.fn().mockResolvedValue(user) },
       refreshToken: { create: jest.fn().mockResolvedValue({}) },
-      app: { findUnique: jest.fn().mockResolvedValue({ id: 'a1', clientId: 'app_demo' }) },
+      app: { findFirst: jest.fn().mockResolvedValue({ id: 'a1', clientId: 'app_demo' }) },
       appTenant: { findUnique: jest.fn().mockResolvedValue(enabledAccess) },
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,7 +138,7 @@ describe('AuthService.login', () => {
   });
 
   it('rejects an app-scoped login for an unknown clientId', async () => {
-    prisma.app.findUnique.mockResolvedValue(null);
+    prisma.app.findFirst.mockResolvedValue(null);
     await expect(svc.login(appLogin)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
