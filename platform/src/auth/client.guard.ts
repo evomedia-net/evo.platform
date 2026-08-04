@@ -14,7 +14,11 @@ export class ClientGuard implements CanActivate {
     if (typeof clientId !== 'string' || typeof clientSecret !== 'string') {
       throw new UnauthorizedException('Missing client credentials');
     }
-    const app = await this.prisma.app.findUnique({ where: { clientId } });
+    // findFirst, not findUnique: a soft-deleted app must stop authenticating,
+    // and deletedAt is not part of a unique index. Answering "invalid client
+    // credentials" rather than "deleted" is deliberate - an unauthenticated
+    // caller learns nothing about which client ids exist.
+    const app = await this.prisma.app.findFirst({ where: { clientId, deletedAt: null } });
     if (!app || !(await bcrypt.compare(clientSecret, app.clientSecretHash))) {
       throw new UnauthorizedException('Invalid client credentials');
     }

@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { AppsService } from './apps.service';
@@ -10,8 +20,8 @@ export class AppsController {
   constructor(private apps: AppsService) {}
 
   @Get()
-  list() {
-    return this.apps.list();
+  list(@Query('includeDeleted') includeDeleted?: string) {
+    return this.apps.list(includeDeleted === 'true');
   }
 
   @Get(':id')
@@ -27,6 +37,23 @@ export class AppsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateAppDto) {
     return this.apps.update(id, dto);
+  }
+
+  /** Soft delete — reversible, nothing destroyed. */
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.apps.remove(id);
+  }
+
+  @Post(':id/restore')
+  restore(@Param('id') id: string) {
+    return this.apps.restore(id);
+  }
+
+  /** Erasure. Refuses unless the app is already soft-deleted. */
+  @Delete(':id/purge')
+  purge(@Param('id') id: string) {
+    return this.apps.purge(id);
   }
 
   @Post(':id/rotate-secret')

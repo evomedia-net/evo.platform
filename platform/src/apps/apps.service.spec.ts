@@ -59,3 +59,92 @@ describe('AppsService.removeRole', () => {
     });
   });
 });
+
+// -- lifecycle: soft delete, restore, purge ---------------------------------
+//
+// Mirrors tenants and users: delete is reversible, purge refuses unless the
+// app is already soft-deleted, so one mistaken click can never destroy client
+// credentials and every tenant grant that depends on them.
+
+const LIVE = { id: "a1", clientId: "app_x", name: "swag", deletedAt: null };
+const DELETED = { ...LIVE, deletedAt: new Date("2026-08-01") };
+
+function makeLifecyclePrisma(current: Record<string, unknown>) {
+  return {
+    app: {
+      findUnique: jest.fn().mockResolvedValue(current),
+      findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...current, ...data })),
+      delete: jest.fn().mockResolvedValue(current),
+    },
+    role: { count: jest.fn().mockResolvedValue(2) },
+    appTenant: { count: jest.fn().mockResolvedValue(5) },
+  };
+}
+
+describe("AppsService lifecycle", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("soft delete stamps deletedAt rather than removing the row", async () => {
+    const prisma = makeLifecyclePrisma(LIVE);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await new AppsService(prisma as any, audit as any).remove("a1");
+    expect(prisma.app.delete).not.toHaveBeenCalled();
+    expect(prisma.app.update.mock.calls[0][0].data.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it("refuses to soft delete twice", async () => {
+    const prisma = makeLifecyclePrisma(DELETED);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect(new AppsService(prisma as any, audit as any).remove("a1")).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it("restore clears deletedAt", async () => {
+    const prisma = makeLifecyclePrisma(DELETED);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await new AppsService(prisma as any, audit as any).restore("a1");
+    expect(prisma.app.update.mock.calls[0][0].data.deletedAt).toBeNull();
+  });
+
+  it("refuses to restore an app that is not deleted", async () => {
+    const prisma = makeLifecyclePrisma(LIVE);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect(new AppsService(prisma as any, audit as any).restore("a1")).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it("purge REFUSES unless the app is already soft-deleted", async () => {
+    // The whole point of the two-step: a live app can never be erased in one go.
+    const prisma = makeLifecyclePrisma(LIVE);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect(new AppsService(prisma as any, audit as any).purge("a1")).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(prisma.app.delete).not.toHaveBeenCalled();
+  });
+
+  it("purge deletes the row and audits what went with it", async () => {
+    const prisma = makeLifecyclePrisma(DELETED);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await new AppsService(prisma as any, audit as any).purge("a1");
+    expect(prisma.app.delete).toHaveBeenCalledWith({ where: { id: "a1" } });
+    expect(res).toEqual({ ok: true, roles: 2, tenants: 5 });
+    expect(audit.record).toHaveBeenCalledWith(
+      "app.purged",
+      expect.objectContaining({ detail: expect.objectContaining({ roles: 2, tenants: 5 }) }),
+    );
+  });
+
+  it("list hides deleted apps by default and includes them on request", async () => {
+    const prisma = makeLifecyclePrisma(LIVE);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const svc = new AppsService(prisma as any, audit as any);
+    await svc.list();
+    expect(prisma.app.findMany.mock.calls[0][0].where).toEqual({ deletedAt: null });
+    await svc.list(true);
+    expect(prisma.app.findMany.mock.calls[1][0].where).toEqual({});
+  });
+});
