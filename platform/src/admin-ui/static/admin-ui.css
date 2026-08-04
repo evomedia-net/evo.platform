@@ -209,3 +209,14 @@ th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
   bottom: auto; top: calc(100% + 2px);
   border-top-color: transparent; border-bottom-color: var(--tip-bg);
 }
+
+/* A button that reads as a link. A <button>, not an <a>: it fires a request
+   rather than navigating, so this keeps keyboard and screen-reader behaviour
+   correct while looking like the link people expect next to a sign-in form. */
+.linklike {
+  display: inline; width: auto; margin-top: 10px; padding: 0;
+  background: none; border: 0; color: var(--accent);
+  font-size: 13px; cursor: pointer; text-decoration: underline;
+}
+.linklike:hover { color: var(--text); }
+.small { font-size: 12px; margin-top: 8px; }

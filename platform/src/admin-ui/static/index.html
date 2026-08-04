@@ -13,9 +13,22 @@
       <h1>EvoPlatform</h1>
       <p class="muted">Platform admin console</p>
       <label>Email <input id="login-email" type="email" autocomplete="username" required /></label>
-      <label>Password <input id="login-password" type="password" autocomplete="current-password" required /></label>
+      <label>Password</label>
+      <!-- Same .pw-field / data-pw-toggle markup the set-password modal uses;
+           the reveal handler is delegated from document, so this needs no
+           dedicated script. The icon is injected on load so the eye SVG stays
+           defined once, in admin-ui.js. -->
+      <div class="pw-field">
+        <input id="login-password" type="password" autocomplete="current-password" required />
+        <button type="button" class="pw-toggle" data-pw-toggle aria-label="Show password"></button>
+      </div>
       <p id="login-error" class="error" hidden></p>
       <button type="submit" class="btn primary">Sign in</button>
+      <!-- The reset flow already exists server-side (POST /auth/forgot); this is
+           the only entry point to it. Without it a platform admin who forgets
+           their password has no route back in short of editing the database. -->
+      <button type="button" id="forgot-link" class="linklike">Forgot password?</button>
+      <p id="forgot-note" class="muted small" hidden></p>
     </form>
   </div>
 

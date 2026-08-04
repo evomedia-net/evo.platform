@@ -168,6 +168,38 @@ $("#login-form").addEventListener("submit", async (e) => {
   showApp();
 });
 
+/* Reset request. POST /auth/forgot already exists and is documented as
+   single-use, 30-minute, and deliberately identical whether or not an account
+   exists — so the console must not reveal more than the API does. The note
+   below says the same thing on success and on failure for that reason. */
+$("#forgot-link").addEventListener("click", async () => {
+  const email = $("#login-email").value.trim();
+  const note = $("#forgot-note");
+  const err = $("#login-error");
+  err.hidden = true;
+  if (!email) {
+    // Not a privacy leak: this is about the empty box, not about the account.
+    note.textContent = "Enter your email address above first, then click again.";
+    note.hidden = false;
+    return;
+  }
+  const r = await raw("POST", "/auth/forgot", { email });
+  if (!r.ok) {
+    // Distinguishing a failed request from an unknown account leaks nothing —
+    // the server said nothing about the account either way. Claiming a link is
+    // "on its way" when the request never succeeded just makes someone wait for
+    // an email that will never arrive.
+    note.hidden = true;
+    err.textContent = r.data?.message || "Could not send a reset link — try again shortly.";
+    err.hidden = false;
+    return;
+  }
+  note.textContent =
+    "If an account exists for that address, a reset link is on its way. " +
+    "It is valid for 30 minutes and works once.";
+  note.hidden = false;
+});
+
 $("#logout").addEventListener("click", async () => {
   if (S.refresh) await raw("POST", "/auth/logout", { refreshToken: S.refresh });
   showLogin();
@@ -544,6 +576,26 @@ function pwPolicyError(pw) {
 const EYE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
+/* Reveal toggles, delegated from document rather than per-form. The set-password
+   modal used to bind its own click handler, which meant the login field - static
+   markup in index.html, not built by a modal - had no way to get one. One
+   listener covers every [data-pw-toggle] on the page, including markup that did
+   not exist when it was registered. */
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-pw-toggle]");
+  if (!btn) return;
+  const input = btn.parentElement.querySelector("input");
+  if (!input) return;
+  const reveal = input.type === "password";
+  input.type = reveal ? "text" : "password";
+  btn.innerHTML = reveal ? EYE_OFF : EYE;
+  btn.setAttribute("aria-label", reveal ? "Hide password" : "Show password");
+});
+
+/* index.html cannot inline the icon without duplicating the SVG, so the static
+   login toggle is filled in here — the eye stays defined in exactly one place. */
+document.querySelectorAll("[data-pw-toggle]:empty").forEach((b) => (b.innerHTML = EYE));
+
 function pwField(name, label) {
   return `<label>${label}</label>
     <div class="pw-field">
@@ -564,16 +616,6 @@ function setPasswordModal(userId, email) {
       <button class="btn primary" style="margin-top:12px">Save password</button>
     </form>`);
   const form = $("#set-pw-form");
-
-  form.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-pw-toggle]");
-    if (!btn) return;
-    const input = btn.parentElement.querySelector("input");
-    const reveal = input.type === "password";
-    input.type = reveal ? "text" : "password";
-    btn.innerHTML = reveal ? EYE_OFF : EYE;
-    btn.setAttribute("aria-label", reveal ? "Hide password" : "Show password");
-  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
