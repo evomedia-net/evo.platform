@@ -417,7 +417,7 @@ function newUserModal() {
       </select></label>
       <label>Email <input name="email" type="email" required /></label>
       ${profileFields()}
-      <label class="full" data-tip="At least 8 characters, including 2 numbers and 2 special characters.">Password <input name="password" type="text" required /></label>
+      <label class="full" data-tip="${PW_POLICY_MSG}">Password <input name="password" type="text" required /></label>
       <label class="full check"><input type="checkbox" name="isPlatformAdmin" /> Platform admin</label>
       <label class="full check" data-tip="Lets this user manage their own tenant's members (invite, edit, deactivate, roles) from inside the apps — without platform access."><input type="checkbox" name="isTenantAdmin" /> Tenant admin</label>
       <div class="actions"><button class="btn primary">Create user</button></div>
