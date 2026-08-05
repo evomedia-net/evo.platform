@@ -30,6 +30,12 @@ async function main() {
         name: 'Platform Admin',
         passwordHash: bcrypt.hashSync(adminPw.value, 10),
         isPlatformAdmin: true,
+        // Login refuses an unverified mailbox, and a fresh dev stack has no
+        // mail server to click a link from — so a seeded account without this
+        // cannot sign in at all, which is the first thing the quickstart asks
+        // you to do. The seed handing over the credentials is the same
+        // identity proof UsersService.create relies on.
+        emailVerifiedAt: new Date(),
       },
     });
     out.push(`platform admin: ${adminEmail} / ${adminPw.value}`);
@@ -83,6 +89,7 @@ async function main() {
         email: ownerEmail,
         name: 'Demo Owner',
         passwordHash: bcrypt.hashSync(ownerPw.value, 10),
+        emailVerifiedAt: new Date(), // see the platform admin above
       },
     });
     out.push(`tenant user: ${ownerEmail} / ${ownerPw.value} (tenant: acme)`);
