@@ -1,0 +1,178 @@
+import Stripe from 'stripe';
+import { RevenueService } from './revenue.service';
+
+/**
+ * The properties that are silent if wrong: a failed pull must serve the cache
+ * *marked stale* rather than a blank or a fresh-looking copy; currencies must
+ * never be summed together; refunds must subtract in the right currency; and
+ * "canceled during trial" must mean during, not after.
+ */
+
+function asList<T>(items: T[]) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield* items;
+    },
+  };
+}
+
+function sub(over: Partial<Record<string, unknown>> = {}, price: Record<string, unknown> = {}) {
+  return {
+    status: 'active',
+    trial_end: null,
+    canceled_at: null,
+    items: {
+      data: [
+        {
+          price: {
+            id: 'price_basic_m',
+            nickname: 'Basic',
+            recurring: { interval: 'month' },
+            ...price,
+          },
+        },
+      ],
+    },
+    ...over,
+  };
+}
+
+function invoice(cents: number, currency = 'usd', paidAtSec = 1_754_000_000, tax: number | null = null) {
+  return {
+    currency,
+    amount_paid: cents,
+    tax,
+    created: paidAtSec,
+    status_transitions: { paid_at: paidAtSec },
+  };
+}
+
+function makeStripe({
+  subs = [] as unknown[],
+  invoices = [] as unknown[],
+  refunds = [] as unknown[],
+  failPull = false,
+} = {}) {
+  return {
+    subscriptions: {
+      list: failPull
+        ? jest.fn(() => {
+            throw new Error('api down');
+          })
+        : jest.fn(() => asList(subs)),
+    },
+    invoices: { list: jest.fn(() => asList(invoices)) },
+    refunds: { list: jest.fn(() => asList(refunds)) },
+  } as unknown as Stripe;
+}
+
+function makePrisma(apps: { name: string; stripePriceId: string }[] = []) {
+  return { app: { findMany: jest.fn().mockResolvedValue(apps) } };
+}
+
+function makeHealth(state = 'ok') {
+  return { check: jest.fn().mockResolvedValue({ state, stripeStatusUrl: 'https://status.stripe.com/' }) };
+}
+
+function service(stripe: Stripe, apps: { name: string; stripePriceId: string }[] = [], health = makeHealth()) {
+  return new RevenueService(makePrisma(apps) as never, health as never, stripe);
+}
+
+describe('RevenueService', () => {
+  it('counts plans by app, plan and interval, and totals', async () => {
+    const svc = service(
+      makeStripe({
+        subs: [
+          sub(),
+          sub({}, { id: 'price_pro_y', nickname: 'Pro', recurring: { interval: 'year' } }),
+          sub({ status: 'past_due' }),
+        ],
+      }),
+      [{ name: 'SmartPlant EHS', stripePriceId: 'price_basic_m' }],
+    );
+    const report = await svc.report();
+    const s = report.snapshot!.subscriptions;
+    expect(s.total).toBe(3);
+    expect(s.byStatus).toEqual({ active: 2, past_due: 1 });
+    expect(s.byPlan['SmartPlant EHS|Basic|month']).toBe(2);
+    expect(s.byPlan['unmapped|Pro|year']).toBe(1);
+    expect(s.byInterval).toEqual({ month: 2, year: 1 });
+  });
+
+  it('canceled during trial means during, not after', async () => {
+    const svc = service(
+      makeStripe({
+        subs: [
+          sub({ status: 'canceled', trial_end: 1000, canceled_at: 999 }), // drop-out
+          sub({ status: 'canceled', trial_end: 1000, canceled_at: 1000 }), // boundary: drop-out
+          sub({ status: 'canceled', trial_end: 1000, canceled_at: 5000 }), // paid a while, then left
+          sub({ status: 'canceled', trial_end: null, canceled_at: 5000 }), // never trialed
+        ],
+      }),
+    );
+    const report = await svc.report();
+    expect(report.snapshot!.subscriptions.canceledDuringTrial).toBe(2);
+  });
+
+  it('never sums across currencies, and nets refunds per currency', async () => {
+    const svc = service(
+      makeStripe({
+        invoices: [invoice(10_000, 'usd'), invoice(5_000, 'eur'), invoice(2_000, 'usd', 1_756_700_000)],
+        refunds: [
+          { status: 'succeeded', amount: 1_500, currency: 'usd', created: 1_756_700_100 },
+          { status: 'failed', amount: 9_999, currency: 'usd', created: 1_756_700_100 },
+          { status: 'succeeded', amount: 700, currency: 'gbp', created: 1_756_700_100 },
+        ],
+      }),
+    );
+    const b = (await svc.report()).snapshot!.billed;
+    expect(b.grossYtd).toEqual({ usd: 12_000, eur: 5_000 });
+    expect(b.refundsYtd).toEqual({ usd: 1_500, gbp: 700 });
+    // A refund in a currency with no gross still shows, negative — hiding it
+    // would overstate net.
+    expect(b.netYtd).toEqual({ usd: 10_500, eur: 5_000, gbp: -700 });
+  });
+
+  it('tax is recorded as Stripe reported it, never computed', async () => {
+    const svc = service(makeStripe({ invoices: [invoice(10_000, 'usd', 1_754_000_000, 825)] }));
+    const b = (await svc.report()).snapshot!.billed;
+    expect(b.taxYtd).toEqual({ usd: 825 });
+    expect(b.refundTreatment).toBe('refund-month');
+  });
+
+  it('a failed pull serves the last good snapshot, marked stale', async () => {
+    const good = makeStripe({ subs: [sub()] });
+    const prisma = makePrisma();
+    const health = makeHealth();
+    const svc = new RevenueService(prisma as never, health as never, good);
+    const first = await svc.report();
+    expect(first.stale).toBe(false);
+
+    // Same service instance, Stripe now failing.
+    (good.subscriptions.list as jest.Mock).mockImplementation(() => {
+      throw new Error('api down');
+    });
+    const second = await svc.report();
+    expect(second.stale).toBe(true);
+    expect(second.snapshot).toBe(first.snapshot); // yesterday's figures, labelled
+    expect(second.health).toBeDefined(); // and whose fault it is
+  });
+
+  it('with no cache and no Stripe, the report says stale with nothing to show', async () => {
+    const svc = service(makeStripe({ failPull: true }));
+    const report = await svc.report();
+    expect(report.stale).toBe(true);
+    expect(report.snapshot).toBeNull();
+  });
+
+  it('csv flattens without corrupting keys that carry commas or quotes', async () => {
+    const svc = service(
+      makeStripe({
+        subs: [sub({}, { nickname: 'Basic, "Legacy"', id: 'price_x' })],
+      }),
+    );
+    const csv = svc.toCsv(await svc.report());
+    expect(csv.split('\n')[0]).toBe('section,key,currency,value');
+    expect(csv).toContain('"unmapped|Basic, ""Legacy""|month"');
+  });
+});

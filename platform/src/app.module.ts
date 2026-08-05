@@ -13,6 +13,7 @@ import { AppsModule } from './apps/apps.module';
 import { AuditModule } from './audit/audit.module';
 import { BillingModule } from './billing/billing.module';
 import { EmailModule } from './email/email.module';
+import { RevenueModule } from './revenue/revenue.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { EmailModule } from './email/email.module';
     AuditModule,
     BillingModule,
     EmailModule,
+    RevenueModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

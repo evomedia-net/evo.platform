@@ -49,6 +49,11 @@ export const config = {
       .filter(Boolean),
     challengeTtlSec: Number(process.env.WEBAUTHN_CHALLENGE_TTL_SEC ?? 300),
   },
+  alerts: {
+    /** Operational alerts (Stripe connectivity, billing failures). Unset =
+     *  no emails; the health endpoint still reports. */
+    email: process.env.ALERT_EMAIL,
+  },
   smtpFallback: {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT ?? 587),
