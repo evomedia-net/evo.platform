@@ -54,6 +54,28 @@ export class BillingService {
     return this.stripe;
   }
 
+  /**
+   * Confirm a Price exists and is active before it is saved on an app.
+   * Without this a mistyped id is stored happily and only fails at checkout —
+   * in front of a paying customer, which is the worst place to discover it.
+   *
+   * Deliberately a no-op when Stripe is unconfigured: a deployment without
+   * keys can still record the id it intends to sell on, and checkout already
+   * refuses separately when billing isn't set up.
+   */
+  async assertPriceUsable(priceId: string): Promise<void> {
+    if (!this.stripe) return;
+    let price: Stripe.Price;
+    try {
+      price = await this.stripe.prices.retrieve(priceId);
+    } catch {
+      throw new BadRequestException(`Stripe has no price "${priceId}"`);
+    }
+    if (!price.active) {
+      throw new BadRequestException(`Stripe price "${priceId}" is archived, so checkout would fail`);
+    }
+  }
+
   async ensureCustomer(tenantId: string): Promise<string> {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant || tenant.deletedAt) throw new NotFoundException('Tenant not found');

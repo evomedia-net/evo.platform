@@ -417,7 +417,10 @@ function newUserModal() {
       </select></label>
       <label>Email <input name="email" type="email" required /></label>
       ${profileFields()}
-      <label class="full" data-tip="${PW_POLICY_MSG}">Password <input name="password" type="text" required /></label>
+      ${pwField("password", "Password", { cls: "full" })}
+      ${pwField("confirm", "Confirm password", { cls: "full" })}
+      <p class="muted full">${PW_POLICY_MSG}</p>
+      <p id="pw-err" class="error full" hidden></p>
       <label class="full check"><input type="checkbox" name="isPlatformAdmin" /> Platform admin</label>
       <label class="full check" data-tip="Lets this user manage their own tenant's members (invite, edit, deactivate, roles) from inside the apps — without platform access."><input type="checkbox" name="isTenantAdmin" /> Tenant admin</label>
       <div class="actions"><button class="btn primary">Create user</button></div>
@@ -425,10 +428,15 @@ function newUserModal() {
   $("#user-create").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
+    const password = f.get("password");
+    const err = $("#pw-err");
+    // Checked before the request so the problem lands next to the field, and
+    // so a rejected password never costs the admin the rest of the form.
+    if (pwFormError(err, password, f.get("confirm"))) return;
     try {
       await api("POST", "/admin/users", {
         ...(f.get("tenantId") ? { tenantId: f.get("tenantId") } : {}),
-        email: f.get("email"), password: f.get("password"),
+        email: f.get("email"), password,
         ...collectProfile(f),
         isPlatformAdmin: f.get("isPlatformAdmin") === "on",
         isTenantAdmin: f.get("isTenantAdmin") === "on",
@@ -436,8 +444,10 @@ function newUserModal() {
       $("#modal").hidden = true;
       toast("User created");
       route();
-    } catch (err) {
-      toast(err.message, true);
+    } catch (e2) {
+      // Keep the overlay open with everything the admin typed still there.
+      err.textContent = e2.message;
+      err.hidden = false;
     }
   });
 }
@@ -630,12 +640,33 @@ document.addEventListener("click", (e) => {
    login toggle is filled in here — the eye stays defined in exactly one place. */
 document.querySelectorAll("[data-pw-toggle]:empty").forEach((b) => (b.innerHTML = EYE));
 
-function pwField(name, label) {
-  return `<label>${label}</label>
-    <div class="pw-field">
-      <input name="${name}" type="password" required autocomplete="new-password" />
+function pwField(name, label, opts = {}) {
+  const { required = true, placeholder = "", cls = "" } = opts;
+  // The toggle must stay a SIBLING of the input (the delegated handler walks
+  // parentElement), so the label is tied by for/id rather than by wrapping —
+  // wrapping would put the button inside the label as well.
+  const id = `pw-${name}`;
+  return `<label class="${cls}" for="${id}">${label}</label>
+    <div class="pw-field ${cls}">
+      <input id="${id}" name="${name}" type="password"${required ? " required" : ""} autocomplete="new-password"${
+        placeholder ? ` placeholder="${placeholder}"` : ""
+      } />
       <button type="button" class="pw-toggle" data-pw-toggle aria-label="Show password">${EYE}</button>
     </div>`;
+}
+
+/* Shared by every form that SETS a password: confirm must match, and the
+   policy is checked client-side so the user is told what is wrong next to the
+   field instead of via a toast from the server. Returns true when it handled
+   an error (caller should stop). */
+function pwFormError(errEl, password, confirm) {
+  errEl.hidden = true;
+  const problem =
+    password !== confirm ? "Passwords don't match." : pwPolicyError(password);
+  if (!problem) return false;
+  errEl.textContent = problem;
+  errEl.hidden = false;
+  return true;
 }
 
 /** Admin-set a user's password. In platform mode the platform owns passwords,
@@ -657,18 +688,7 @@ function setPasswordModal(userId, email) {
     const password = f.get("password");
     const confirm = f.get("confirm");
     const err = $("#pw-err");
-    err.hidden = true;
-    if (password !== confirm) {
-      err.textContent = "Passwords don't match.";
-      err.hidden = false;
-      return;
-    }
-    const pwErr = pwPolicyError(password);
-    if (pwErr) {
-      err.textContent = pwErr;
-      err.hidden = false;
-      return;
-    }
+    if (pwFormError(err, password, confirm)) return;
     try {
       await api("PATCH", `/admin/users/${userId}`, { password });
       $("#modal").hidden = true;
@@ -732,7 +752,7 @@ async function viewApps() {
         <button data-role-act="delete" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" data-tip="Delete this role and remove it from every user that has it.">&times;</button>
       </span>`).join("")}</div>
       <form class="inline" data-app="${a.id}" style="margin-top:10px">
-        <label style="flex:0 0 200px">Add role <input name="role" placeholder="admin" required /></label>
+        <label style="flex:0 0 200px">Add role <input name="role" list="role-suggestions" placeholder="admin" required /></label>
         <button class="btn sm grow0">Add</button>
       </form>
       <form class="inline" data-app-price="${a.id}" style="margin-top:10px">
@@ -746,7 +766,17 @@ async function viewApps() {
       <table><tr><th>Slug</th><th>Name</th><th>Access</th><th class="col-actions"></th></tr>${accessRows(a)}</table>
     </div>`).join("");
 
+  // Role names are app-defined, so this can't be a fixed dropdown — an app may
+  // legitimately need "estimator" or "dispatcher". Suggesting the names already
+  // in use keeps the common cases one click away and stops the same role being
+  // spelled three ways across apps, which matters because role names travel in
+  // JWT claims and apps string-match them.
+  const roleSuggestions = [...new Set(S.apps.flatMap((a) => a.roles.map((r) => r.name)))].sort();
+
   $("#content").innerHTML = `
+    <datalist id="role-suggestions">
+      ${roleSuggestions.map((n) => `<option value="${esc(n)}"></option>`).join("")}
+    </datalist>
     <div class="card">
       <h2>Register app</h2>
       <form class="inline" id="app-create">
@@ -872,10 +902,16 @@ async function viewApps() {
     const priceForm = e.target.closest("form[data-app-price]");
     if (priceForm) {
       e.preventDefault();
+      const priceId = String(new FormData(priceForm).get("priceId") || "").trim();
+      // Shape check before the request; the server additionally asks Stripe
+      // whether the price actually exists. A wrong id used to be accepted
+      // silently and only surfaced at checkout, in front of a paying customer.
+      if (priceId && !/^price_[A-Za-z0-9]+$/.test(priceId)) {
+        toast("A Stripe price id looks like price_1A2b3C… (empty clears it)", true);
+        return;
+      }
       try {
-        await api("PATCH", `/admin/apps/${priceForm.dataset.appPrice}`, {
-          stripePriceId: String(new FormData(priceForm).get("priceId") || "").trim(),
-        });
+        await api("PATCH", `/admin/apps/${priceForm.dataset.appPrice}`, { stripePriceId: priceId });
         toast("Stripe price saved"); route();
       } catch (err) { toast(err.message, true); }
       return;
@@ -1008,7 +1044,10 @@ async function viewSmtp() {
         <label>Port <input name="port" type="number" required value="${esc(cfg?.port ?? 587)}" /></label>
         <label style="display:block;margin:8px 0"><input type="checkbox" name="secure"${cfg?.secure ? " checked" : ""}/>implicit TLS (port 465)</label>
         <label>Username <input name="username" value="${esc(cfg?.username ?? "")}" /></label>
-        <label>Password <input name="password" type="password" placeholder="leave blank for none / to clear" /></label>
+        ${pwField("password", "Password", {
+          required: false,
+          placeholder: "leave blank for none / to clear",
+        })}
         <label>From address <input name="fromAddress" required value="${esc(cfg?.fromAddress ?? "")}" /></label>
         <p class="muted">Resolution per send: tenant config → platform default → env fallback.</p>
         <button class="btn primary">Save</button>

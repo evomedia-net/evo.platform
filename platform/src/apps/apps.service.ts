@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../core/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { BillingService } from '../billing/billing.service';
 import { CreateAppDto, CreateRoleDto, UpdateAppDto, UpdateRoleDto } from './dto';
 
 const PUBLIC_FIELDS = {
@@ -22,6 +23,7 @@ export class AppsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private billing: BillingService,
   ) {}
 
   /** Soft-deleted apps are hidden unless asked for, matching tenants and users.
@@ -111,6 +113,9 @@ export class AppsService {
 
   async update(id: string, dto: UpdateAppDto) {
     await this.get(id);
+    // A price that doesn't exist is only discovered at checkout otherwise.
+    // Empty string means "clear it", so only a non-empty value is checked.
+    if (dto.stripePriceId) await this.billing.assertPriceUsable(dto.stripePriceId);
     return this.prisma.app.update({
       where: { id },
       data: {

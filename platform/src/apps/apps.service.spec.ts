@@ -16,10 +16,55 @@ function makePrisma() {
   };
 }
 
+const billing = { assertPriceUsable: jest.fn().mockResolvedValue(undefined) };
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const makeSvc = (prisma: any) => new AppsService(prisma, audit as any);
+const makeSvc = (prisma: any) => new AppsService(prisma, audit as any, billing as any);
 
 beforeEach(() => jest.clearAllMocks());
+
+// ── Stripe price is verified before it is stored ─────────────────────────────
+//
+// A price id that doesn't exist used to be saved happily and only failed at
+// checkout — in front of a paying customer.
+
+describe('AppsService.update stripePriceId', () => {
+  const appRow = { id: 'a1', clientId: 'app_1', name: 'demo', deletedAt: null, roles: [] };
+  const makeAppPrisma = () => ({
+    app: {
+      findUnique: jest.fn().mockResolvedValue(appRow),
+      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...appRow, ...data })),
+    },
+  });
+
+  it('verifies a new price with Stripe before saving', async () => {
+    const prisma = makeAppPrisma();
+    await makeSvc(prisma).update('a1', { stripePriceId: 'price_live123' });
+    expect(billing.assertPriceUsable).toHaveBeenCalledWith('price_live123');
+    expect(prisma.app.update).toHaveBeenCalled();
+  });
+
+  it('does not save when Stripe rejects the price', async () => {
+    const prisma = makeAppPrisma();
+    billing.assertPriceUsable.mockRejectedValueOnce(new Error('no such price'));
+    await expect(makeSvc(prisma).update('a1', { stripePriceId: 'price_typo' })).rejects.toThrow();
+    expect(prisma.app.update).not.toHaveBeenCalled();
+  });
+
+  it('clearing the price needs no Stripe round-trip', async () => {
+    const prisma = makeAppPrisma();
+    await makeSvc(prisma).update('a1', { stripePriceId: '' });
+    expect(billing.assertPriceUsable).not.toHaveBeenCalled();
+    expect(prisma.app.update.mock.calls[0][0].data.stripePriceId).toBeNull();
+  });
+
+  it('leaves the price alone when the field is omitted', async () => {
+    const prisma = makeAppPrisma();
+    await makeSvc(prisma).update('a1', { autoEnroll: false });
+    expect(billing.assertPriceUsable).not.toHaveBeenCalled();
+    expect(prisma.app.update.mock.calls[0][0].data).not.toHaveProperty('stripePriceId');
+  });
+});
 
 describe('AppsService.updateRole', () => {
   it('renames a role', async () => {
@@ -88,7 +133,7 @@ describe("AppsService lifecycle", () => {
   it("soft delete stamps deletedAt rather than removing the row", async () => {
     const prisma = makeLifecyclePrisma(LIVE);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await new AppsService(prisma as any, audit as any).remove("a1");
+    await makeSvc(prisma).remove("a1");
     expect(prisma.app.delete).not.toHaveBeenCalled();
     expect(prisma.app.update.mock.calls[0][0].data.deletedAt).toBeInstanceOf(Date);
   });
@@ -96,7 +141,7 @@ describe("AppsService lifecycle", () => {
   it("refuses to soft delete twice", async () => {
     const prisma = makeLifecyclePrisma(DELETED);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await expect(new AppsService(prisma as any, audit as any).remove("a1")).rejects.toBeInstanceOf(
+    await expect(makeSvc(prisma).remove("a1")).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -104,14 +149,14 @@ describe("AppsService lifecycle", () => {
   it("restore clears deletedAt", async () => {
     const prisma = makeLifecyclePrisma(DELETED);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await new AppsService(prisma as any, audit as any).restore("a1");
+    await makeSvc(prisma).restore("a1");
     expect(prisma.app.update.mock.calls[0][0].data.deletedAt).toBeNull();
   });
 
   it("refuses to restore an app that is not deleted", async () => {
     const prisma = makeLifecyclePrisma(LIVE);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await expect(new AppsService(prisma as any, audit as any).restore("a1")).rejects.toBeInstanceOf(
+    await expect(makeSvc(prisma).restore("a1")).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -120,7 +165,7 @@ describe("AppsService lifecycle", () => {
     // The whole point of the two-step: a live app can never be erased in one go.
     const prisma = makeLifecyclePrisma(LIVE);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await expect(new AppsService(prisma as any, audit as any).purge("a1")).rejects.toBeInstanceOf(
+    await expect(makeSvc(prisma).purge("a1")).rejects.toBeInstanceOf(
       ConflictException,
     );
     expect(prisma.app.delete).not.toHaveBeenCalled();
@@ -129,7 +174,7 @@ describe("AppsService lifecycle", () => {
   it("purge deletes the row and audits what went with it", async () => {
     const prisma = makeLifecyclePrisma(DELETED);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await new AppsService(prisma as any, audit as any).purge("a1");
+    const res = await makeSvc(prisma).purge("a1");
     expect(prisma.app.delete).toHaveBeenCalledWith({ where: { id: "a1" } });
     expect(res).toEqual({ ok: true, roles: 2, tenants: 5 });
     expect(audit.record).toHaveBeenCalledWith(
@@ -141,7 +186,7 @@ describe("AppsService lifecycle", () => {
   it("list hides deleted apps by default and includes them on request", async () => {
     const prisma = makeLifecyclePrisma(LIVE);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const svc = new AppsService(prisma as any, audit as any);
+    const svc = makeSvc(prisma);
     await svc.list();
     expect(prisma.app.findMany.mock.calls[0][0].where).toEqual({ deletedAt: null });
     await svc.list(true);
