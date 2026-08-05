@@ -111,6 +111,10 @@ export class UsersService {
         if (clash) throw new ConflictException('A user with that email already exists');
       }
     }
+    // Demoting the last platform admin locks the console exactly as deleting
+    // them would, so it fails the same way.
+    if (dto.isPlatformAdmin === false) await this.assertNotLastPlatformAdmin(existing);
+
     // Recompute the display name when either name part changes, merging with
     // whatever's already stored so a single-field edit keeps the other half.
     let name: string | null | undefined;
@@ -153,8 +157,30 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * Refuse an action that would leave the platform with no way in. The admin
+   * console has no recovery path: with the last platform admin gone, tenants,
+   * apps and users can only be reached by editing the database directly.
+   */
+  private async assertNotLastPlatformAdmin(user: {
+    id: string;
+    isPlatformAdmin: boolean;
+    deletedAt: Date | null;
+  }) {
+    if (!user.isPlatformAdmin || user.deletedAt) return;
+    const others = await this.prisma.user.count({
+      where: { isPlatformAdmin: true, deletedAt: null, id: { not: user.id } },
+    });
+    if (others === 0) {
+      throw new ConflictException(
+        'This is the last platform admin — promote another account before removing this one',
+      );
+    }
+  }
+
   async remove(id: string) {
-    await this.get(id);
+    const existing = await this.get(id);
+    await this.assertNotLastPlatformAdmin(existing);
     const user = await this.prisma.user.update({
       where: { id },
       data: { deletedAt: new Date() },

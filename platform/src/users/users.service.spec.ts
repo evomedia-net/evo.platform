@@ -20,6 +20,65 @@ function makeProfilePrisma(existing: Record<string, unknown> | null = null) {
   };
 }
 
+// ── last-platform-admin lockout guard ────────────────────────────────────────
+//
+// The console has no recovery path: with the last platform admin gone,
+// tenants, apps and users are reachable only by editing the database.
+
+function makeAdminPrisma(user: Record<string, unknown>, otherAdmins: number) {
+  return {
+    user: {
+      findUnique: jest.fn().mockResolvedValue(user),
+      findFirst: jest.fn().mockResolvedValue(null),
+      count: jest.fn().mockResolvedValue(otherAdmins),
+      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => data),
+    },
+  };
+}
+
+const lastAdmin = { id: 'u1', isPlatformAdmin: true, deletedAt: null, email: 'a@b.co' };
+
+describe('UsersService last-platform-admin guard', () => {
+  it('refuses to soft-delete the only platform admin', async () => {
+    const prisma = makeAdminPrisma(lastAdmin, 0);
+    await expect(makeSvc(prisma).remove('u1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('allows deleting a platform admin when another one remains', async () => {
+    const prisma = makeAdminPrisma(lastAdmin, 1);
+    await makeSvc(prisma).remove('u1');
+    expect(prisma.user.update.mock.calls[0][0].data.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('refuses to demote the only platform admin', async () => {
+    const prisma = makeAdminPrisma(lastAdmin, 0);
+    await expect(
+      makeSvc(prisma).update('u1', { isPlatformAdmin: false }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('leaves ordinary users alone', async () => {
+    const prisma = makeAdminPrisma(
+      { id: 'u2', isPlatformAdmin: false, deletedAt: null, email: 'c@d.co' },
+      0,
+    );
+    await makeSvc(prisma).remove('u2');
+    expect(prisma.user.update).toHaveBeenCalled();
+    expect(prisma.user.count).not.toHaveBeenCalled();
+  });
+
+  it('does not count an already-deleted admin as the last one', async () => {
+    const prisma = makeAdminPrisma(
+      { id: 'u3', isPlatformAdmin: true, deletedAt: new Date(), email: 'e@f.co' },
+      0,
+    );
+    await makeSvc(prisma).remove('u3');
+    expect(prisma.user.update).toHaveBeenCalled();
+  });
+});
+
 describe('UsersService.create name derivation', () => {
   it('derives the display name from first + last', async () => {
     const prisma = makeProfilePrisma();

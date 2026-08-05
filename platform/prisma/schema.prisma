@@ -64,6 +64,12 @@ model Invite {
   @@map("invites")
 }
 
+/// Email is unique per tenant. Platform-level users (tenantId null) are NOT
+/// covered by that constraint — Postgres treats NULLs as distinct — so a
+/// partial unique index `users_platform_email_key` on (email) WHERE tenantId
+/// IS NULL is declared in migration 20260731120000_platform_user_email_unique.
+/// Prisma cannot express partial indexes here; do not drop it if a future
+/// `prisma migrate dev` offers to.
 model User {
   id              String    @id @default(uuid())
   tenantId        String?   // null = platform-level user (global admin)
