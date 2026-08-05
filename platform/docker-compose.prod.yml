@@ -43,7 +43,8 @@ services:
     ports:
       - "127.0.0.1:8200:8200"
     # Apply migrations before serving (prisma CLI ships in the image's node_modules).
-    command: sh -c "npx prisma migrate deploy && node dist/main.js"
+    # Migration now runs from the image CMD, so every compose file gets it
+    # — including deploy/docker-compose.yml, which is not in git.
 
 volumes:
   evoplatform_pgdata:
