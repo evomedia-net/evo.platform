@@ -112,11 +112,11 @@ export class AppsService {
   }
 
   async update(id: string, dto: UpdateAppDto) {
-    await this.get(id);
+    const before = await this.get(id);
     // A price that doesn't exist is only discovered at checkout otherwise.
     // Empty string means "clear it", so only a non-empty value is checked.
     if (dto.stripePriceId) await this.billing.assertPriceUsable(dto.stripePriceId);
-    return this.prisma.app.update({
+    const updated = await this.prisma.app.update({
       where: { id },
       data: {
         name: dto.name,
@@ -129,6 +129,31 @@ export class AppsService {
       },
       select: PUBLIC_FIELDS,
     });
+
+    // Update was the one mutation here with no audit event, and it is the one
+    // that changes autoEnroll — whether every new workspace is automatically
+    // granted this app — plus callbackUrls (where auth codes may go) and
+    // stripePriceId (what a customer is billed). An unexplained autoEnroll
+    // flip on a production app is what surfaced this (#54): the change could
+    // not be reconstructed because nothing recorded it. from/to per changed
+    // field, in the user.email_changed style — the old value is what makes an
+    // unexpected change traceable afterwards.
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    for (const field of ['name', 'callbackUrls', 'autoEnroll', 'stripePriceId'] as const) {
+      const prev = before[field];
+      const next = updated[field];
+      if (JSON.stringify(prev) !== JSON.stringify(next)) {
+        changes[field] = { from: prev, to: next };
+      }
+    }
+    if (Object.keys(changes).length > 0) {
+      await this.audit.record('app.updated', {
+        appClientId: before.clientId,
+        detail: changes,
+      });
+    }
+
+    return updated;
   }
 
   async rotateSecret(id: string) {

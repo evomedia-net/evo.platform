@@ -193,3 +193,59 @@ describe("AppsService lifecycle", () => {
     expect(prisma.app.findMany.mock.calls[1][0].where).toEqual({});
   });
 });
+
+// ── update() leaves a trace (#54) ────────────────────────────────────────────
+//
+// update() was the one mutation here with no audit event, and it is the one
+// that changes autoEnroll — whether every new workspace automatically gets
+// the app. An unexplained autoEnroll flip on a production app could not be
+// reconstructed afterwards, because nothing had recorded it.
+
+describe('AppsService.update auditing', () => {
+  const appRow = {
+    id: 'a1',
+    clientId: 'app_1',
+    name: 'demo',
+    callbackUrls: ['https://a.example/cb'],
+    autoEnroll: false,
+    stripePriceId: null,
+    deletedAt: null,
+    roles: [],
+  };
+  const makeAppPrisma = (updated: Record<string, unknown>) => ({
+    app: {
+      findUnique: jest.fn().mockResolvedValue(appRow),
+      update: jest.fn(async () => ({ ...appRow, ...updated })),
+    },
+  });
+
+  it('records app.updated with from/to for the fields that changed', async () => {
+    const prisma = makeAppPrisma({ autoEnroll: true });
+    await makeSvc(prisma).update('a1', { autoEnroll: true });
+    expect(audit.record).toHaveBeenCalledWith('app.updated', {
+      appClientId: 'app_1',
+      detail: { autoEnroll: { from: false, to: true } },
+    });
+  });
+
+  it('keeps the old value, which is what makes a change traceable', async () => {
+    const prisma = makeAppPrisma({ name: 'renamed', stripePriceId: 'price_x' });
+    await makeSvc(prisma).update('a1', { name: 'renamed', stripePriceId: 'price_x' });
+    const detail = audit.record.mock.calls.find(([a]) => a === 'app.updated')![1].detail;
+    expect(detail.name).toEqual({ from: 'demo', to: 'renamed' });
+    expect(detail.stripePriceId).toEqual({ from: null, to: 'price_x' });
+    expect(detail.autoEnroll).toBeUndefined(); // unchanged fields stay out
+  });
+
+  it('a no-op update records nothing — noise buries the flip that matters', async () => {
+    const prisma = makeAppPrisma({});
+    await makeSvc(prisma).update('a1', { name: 'demo' });
+    expect(audit.record).not.toHaveBeenCalledWith('app.updated', expect.anything());
+  });
+
+  it('callbackUrls changes are compared by content, not identity', async () => {
+    const prisma = makeAppPrisma({ callbackUrls: ['https://a.example/cb'] });
+    await makeSvc(prisma).update('a1', { callbackUrls: ['https://a.example/cb'] });
+    expect(audit.record).not.toHaveBeenCalledWith('app.updated', expect.anything());
+  });
+});
