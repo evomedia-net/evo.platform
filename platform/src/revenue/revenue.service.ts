@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, Optional, ServiceUnavailableException } from '@nestjs/common';
 import Stripe from 'stripe';
 import { PrismaService } from '../core/prisma.service';
 import { config } from '../config';
@@ -85,7 +85,11 @@ export class RevenueService {
   constructor(
     private prisma: PrismaService,
     private health: StripeHealthService,
-    stripeClient?: Stripe,
+    // @Optional() is what makes the "?" real to Nest: without it, DI tries to
+    // resolve a Stripe provider that is registered nowhere and the WHOLE APP
+    // fails to boot — with green unit tests, because specs construct this
+    // service by hand. Same pattern as BillingService.
+    @Optional() stripeClient?: Stripe,
   ) {
     this.stripe =
       stripeClient ?? (config.stripe.secretKey ? new Stripe(config.stripe.secretKey) : null);

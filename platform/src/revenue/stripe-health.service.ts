@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import Stripe from 'stripe';
 import { config } from '../config';
 import { EmailService } from '../email/email.service';
@@ -41,7 +41,9 @@ export class StripeHealthService {
 
   constructor(
     private email: EmailService,
-    stripeClient?: Stripe,
+    // @Optional() makes the "?" real to Nest — see RevenueService for the
+    // full story; without it the whole app fails DI at boot.
+    @Optional() stripeClient?: Stripe,
   ) {
     this.stripe =
       stripeClient ?? (config.stripe.secretKey ? new Stripe(config.stripe.secretKey) : null);
