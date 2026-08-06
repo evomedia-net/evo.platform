@@ -3,11 +3,16 @@
  * or identifiers (template contract rule).
  */
 import 'dotenv/config';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 
-const prisma = new PrismaClient();
+// Prisma 7 requires a driver adapter; dotenv/config above supplies
+// DATABASE_URL when this runs outside the container.
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+});
 
 function password(envVar: string): { value: string; generated: boolean } {
   const fromEnv = process.env[envVar];
