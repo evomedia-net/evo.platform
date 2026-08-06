@@ -11,6 +11,9 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+# Prisma 7 reads the datasource URL and migrations path from this file; the
+# `migrate deploy` in CMD crash-loops without it.
+COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 COPY package*.json ./
 # Apply schema migrations before serving, in the IMAGE rather than in a
 # compose file. The deployed compose (deploy/docker-compose.yml) is not in
