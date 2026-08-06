@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="fig" width="920" height="620" viewBox="0 0 920 620" role="img"
+         aria-label="Ask AI sequence: the browser asks the app, the app server calls evo-ai with a service key and tenant header, evo-ai plans the route, expands the query, retrieves tenant-filtered chunks from Qdrant, applies the relevance gate which can refuse before the LLM, otherwise calls the LLM with a grounded prompt, and the answer returns with cited sources.">
+<style>
+  /* Self-contained: light by default, dark via media query (GitHub + docs site). */
+  svg { font: 12px ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .bg { fill: #FFFFFF; }
+  text { fill: #16283C; }
+  .actor rect { fill: #EAF1F8; stroke: #003366; stroke-width: 1.2; }
+  .actor text { font-weight: 600; fill: #003366; text-anchor: middle; }
+  .life { stroke: #B7C7D8; stroke-width: 1; stroke-dasharray: 2 5; }
+  .req  { stroke: #16283C; stroke-width: 1.5; fill: none; }
+  .resp { stroke: #5A6B7E; stroke-width: 1.4; fill: none; stroke-dasharray: 6 4; }
+  .push { stroke: #C77D28; stroke-width: 1.7; fill: none; }
+  .hi   { stroke: #2E6DA8; stroke-width: 1.8; fill: none; }
+  .lbl { text-anchor: middle; } .lbl.dim { fill: #5A6B7E; }
+  .lbl.hue { fill: #C77D28; } .lbl.blue { fill: #2E6DA8; }
+  .selfbox rect { fill: #EAF1F8; stroke: #C9D6E4; }
+  .selfbox text { text-anchor: middle; fill: #16283C; }
+  .selfbox.hib rect { stroke: #2E6DA8; stroke-width: 1.4; }
+  .num circle { fill: #003366; }
+  .num text { fill: #F6F9FC; font-weight: 700; font-size: 10.5px; text-anchor: middle; }
+  .ah { fill: #16283C; } .ah-r { fill: #5A6B7E; }
+  .ah-p { fill: #C77D28; } .ah-h { fill: #2E6DA8; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #14293F; }
+    text { fill: #E8F0F8; }
+    .actor rect { fill: #1B3450; stroke: #A9C8E8; }
+    .actor text { fill: #A9C8E8; }
+    .life { stroke: #3A5878; }
+    .req { stroke: #E8F0F8; } .resp { stroke: #93A7BC; }
+    .push { stroke: #E5A455; } .hi { stroke: #6FA8DC; }
+    .lbl.dim { fill: #93A7BC; } .lbl.hue { fill: #E5A455; } .lbl.blue { fill: #6FA8DC; }
+    .selfbox rect { fill: #1B3450; stroke: #2C4966; }
+    .selfbox text { fill: #E8F0F8; }
+    .selfbox.hib rect { stroke: #6FA8DC; }
+    .num circle { fill: #A9C8E8; }
+    .num text { fill: #0E1F33; }
+    .ah { fill: #E8F0F8; } .ah-r { fill: #93A7BC; }
+    .ah-p { fill: #E5A455; } .ah-h { fill: #6FA8DC; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="920" height="620"/>
+      <defs>
+        <marker id="a3" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7" orient="auto"><path class="ah" d="M0 0 L10 4 L0 8 z"/></marker>
+        <marker id="a3r" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7" orient="auto"><path class="ah-r" d="M0 0 L10 4 L0 8 z"/></marker>
+        <marker id="a3h" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7" orient="auto"><path class="ah-h" d="M0 0 L10 4 L0 8 z"/></marker>
+      </defs>
+
+      <!-- actors: Browser 75, App server 265, evo-ai 490, Qdrant 700, LLM 855 -->
+      <g class="actor"><rect x="25"  y="16" width="100" height="32" rx="7"/><text x="75"  y="37">Browser</text></g>
+      <g class="actor"><rect x="210" y="16" width="110" height="32" rx="7"/><text x="265" y="37">App server</text></g>
+      <g class="actor"><rect x="428" y="16" width="124" height="32" rx="7"/><text x="490" y="37">evo-ai</text></g>
+      <g class="actor"><rect x="650" y="16" width="100" height="32" rx="7"/><text x="700" y="37">Qdrant</text></g>
+      <g class="actor"><rect x="810" y="16" width="90"  height="32" rx="7"/><text x="855" y="37">LLM</text></g>
+
+      <line class="life" x1="75"  y1="48" x2="75"  y2="600"/>
+      <line class="life" x1="265" y1="48" x2="265" y2="600"/>
+      <line class="life" x1="490" y1="48" x2="490" y2="600"/>
+      <line class="life" x1="700" y1="48" x2="700" y2="600"/>
+      <line class="life" x1="855" y1="48" x2="855" y2="600"/>
+
+      <!-- 1 browser -> app -->
+      <g class="num"><circle cx="89" cy="88" r="10"/><text x="89" y="91.5">1</text></g>
+      <text class="lbl" x="170" y="77">asks a question · session cookie</text>
+      <line class="req" x1="79" y1="88" x2="257" y2="88" marker-end="url(#a3)"/>
+
+      <!-- 2 app -> evo-ai -->
+      <g class="num"><circle cx="279" cy="136" r="10"/><text x="279" y="139.5">2</text></g>
+      <text class="lbl" x="378" y="125">POST /query · svc key + X-Data-Tenant</text>
+      <line class="req" x1="269" y1="136" x2="482" y2="136" marker-end="url(#a3)"/>
+
+      <!-- 3 evo-ai self: plan -->
+      <g class="num"><circle cx="333" cy="196" r="10"/><text x="333" y="199.5">3</text></g>
+      <g class="selfbox">
+        <rect x="348" y="172" width="286" height="48" rx="6"/>
+        <text x="491" y="192">planner: analytics SQL must touch</text>
+        <text x="491" y="208">tenant views — else vector path below</text>
+      </g>
+
+      <!-- 4 evo-ai self: expansion -->
+      <g class="num"><circle cx="333" cy="256" r="10"/><text x="333" y="259.5">4</text></g>
+      <g class="selfbox">
+        <rect x="348" y="234" width="286" height="42" rx="6"/>
+        <text x="491" y="252">query expansion — lay wording</text>
+        <text x="491" y="268">becomes “custody” → “conservatorship”</text>
+      </g>
+
+      <!-- 5 evo-ai <-> qdrant -->
+      <g class="num"><circle cx="504" cy="314" r="10"/><text x="504" y="317.5">5</text></g>
+      <text class="lbl" x="596" y="303">hybrid search · tenant_id + source_type</text>
+      <line class="req" x1="494" y1="314" x2="692" y2="314" marker-end="url(#a3)"/>
+      <text class="lbl dim" x="596" y="341">top-k chunks + scores</text>
+      <line class="resp" x1="692" y1="352" x2="498" y2="352" marker-end="url(#a3r)"/>
+
+      <!-- 6 gate -->
+      <g class="num"><circle cx="333" cy="412" r="10"/><text x="333" y="415.5">6</text></g>
+      <g class="selfbox hib">
+        <rect x="348" y="388" width="286" height="48" rx="6"/>
+        <text x="491" y="408">RELEVANCE GATE — best score under</text>
+        <text x="491" y="424">threshold → refuse — LLM never called</text>
+      </g>
+
+      <!-- 7 evo-ai <-> llm -->
+      <g class="num"><circle cx="504" cy="470" r="10"/><text x="504" y="473.5">7</text></g>
+      <text class="lbl" x="672" y="459">grounded prompt · tenant key / allowed default</text>
+      <line class="req" x1="494" y1="470" x2="847" y2="470" marker-end="url(#a3)"/>
+      <text class="lbl dim" x="672" y="497">answer, from the supplied context only</text>
+      <line class="resp" x1="847" y1="508" x2="498" y2="508" marker-end="url(#a3r)"/>
+
+      <!-- 8 back to app -->
+      <g class="num"><circle cx="475" cy="548" r="10"/><text x="475" y="551.5">8</text></g>
+      <text class="lbl dim" x="378" y="537">answer + cited sources · gated/unconfigured flags</text>
+      <line class="resp" x1="486" y1="548" x2="269" y2="548" marker-end="url(#a3r)"/>
+
+      <!-- 9 back to browser -->
+      <text class="lbl dim" x="170" y="569">rendered with citations</text>
+      <line class="resp" x1="261" y1="580" x2="79" y2="580" marker-end="url(#a3r)"/>
+    </svg>
