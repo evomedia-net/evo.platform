@@ -28,6 +28,9 @@
   --text: #eaf1f8; --muted: #9fb6cd; --accent: #5b9bd5; --danger: #e5736b;
   --ok: #46c06a; --warn: #e0a53a;
   --tip-bg: #0a1f33; --tip-text: #eaf1f8;
+  /* Chart series (validated: OKLCH dark band L 0.48-0.67, CVD-safe pair,
+     >=3:1 on --panel). 1 = gross revenue, 2 = refunds. */
+  --chart-1: #4d8cc4; --chart-2: #b98b2b;
   --mesh-1: rgba(51, 102, 153, 0.20); --mesh-2: rgba(10, 30, 55, 0.45);
 }
 /* Light = the same navy theme, ~50% lighter: airy blue-tinted surfaces that
@@ -42,6 +45,8 @@
   --text: #14304a; --muted: #3f5670; --accent: #3574b8; --danger: #d05a51;
   --ok: #2ea457; --warn: #c98f2e;
   --tip-bg: #14304a; --tip-text: #eaf1f8;
+  /* Same pair re-stepped for the light surface (validated on --panel). */
+  --chart-1: #3574b8; --chart-2: #8a5f13;
   --mesh-1: rgba(51, 102, 153, 0.16); --mesh-2: rgba(51, 102, 153, 0.09);
 }
 * { box-sizing: border-box; }
@@ -220,3 +225,26 @@ th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
 }
 .linklike:hover { color: var(--text); }
 .small { font-size: 12px; margin-top: 8px; }
+
+/* ── Revenue view ────────────────────────────────────────────────────── */
+.stat-tiles { display: flex; flex-wrap: wrap; gap: 12px; }
+.stat { flex: 1 1 140px; background: var(--panel2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px; }
+.stat .v { font: 600 22px/1.2 var(--font-display); }
+.stat .l { color: var(--muted); font-size: 12px; }
+.legend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }
+/* Monthly columns: thin marks, 2px gaps, rounded data ends at the top. */
+.cols { display: flex; align-items: flex-end; gap: 10px; height: 140px; margin-top: 10px; }
+.cols .m { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.cols .bars { display: flex; align-items: flex-end; gap: 2px; height: 110px; }
+.cols .bar { width: 14px; border-radius: 4px 4px 0 0; min-height: 2px; }
+.cols .ml { font-size: 11px; color: var(--muted); white-space: nowrap; }
+/* Horizontal plan bars: the value wears text ink, never the series color. */
+.hbar { display: grid; grid-template-columns: minmax(120px, 1fr) 3fr auto; gap: 8px;
+  align-items: center; padding: 3px 0; }
+.hbar .track { background: var(--panel2); border-radius: 4px; height: 14px; }
+.hbar .fill { background: var(--chart-1); height: 100%; border-radius: 4px; min-width: 2px; }
+.hbar .n { font-variant-numeric: tabular-nums; }
+.banner-warn { border-color: var(--warn); }
+.banner-warn h2 { color: var(--warn); }
