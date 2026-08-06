@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https:#github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Capture the platform-hosted pages that email links land on.
 
 Reads real URLs (produced by get_link_urls.ps1 from actual Mailpit messages)

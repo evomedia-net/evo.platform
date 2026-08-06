@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Shared plumbing for the /api/platform/members proxies. Member management
  * runs under a GitHub-style sudo window like passkey management: the tenant

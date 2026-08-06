@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 export { EvoPlatform } from './client';
 export { AskAi } from './askai';
 export { JwksCache } from './jwks';

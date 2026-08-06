@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Minimal in-memory sliding-window rate limiter. Per-process (fine for a
  * single-container deployment; swap for Redis if the app ever scales out).

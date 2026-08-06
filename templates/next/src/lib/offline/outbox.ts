@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Append-only outbox. Every local write enqueues a mutation; the sync client
  * drains it. Enqueue never mutates existing rows (a row may be in flight) —

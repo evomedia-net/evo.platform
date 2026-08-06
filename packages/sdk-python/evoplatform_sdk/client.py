@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https:#github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """The EvoPlatform client, mirrored method-for-method with sdk-node.
 
 Same surface, same wire: the platform speaks camelCase JSON, so parameters

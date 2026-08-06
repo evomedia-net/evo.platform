@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https:#github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Python SDK for EvoPlatform, mirrored with @evoplatform/sdk-node.
 
 Local JWT verification (cached JWKS), the auth proxy, tenant member and

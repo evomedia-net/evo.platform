@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Data Access Layer for auth enforcement. The proxy only does optimistic
  * cookie-presence redirects — every server component and route handler that

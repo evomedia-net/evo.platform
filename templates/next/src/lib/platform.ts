@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * EvoPlatform integration. When PLATFORM_URL is set the app runs in
  * "platform mode": logins are delegated to the platform service (password or

@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import bcrypt from "bcryptjs";
 
 /** bcrypt cost 12 — ~250ms on current hardware, standard for password auth. */

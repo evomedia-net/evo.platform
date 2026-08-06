@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https:#github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Capture app-side member/billing screenshots (SWAG in platform mode).
 
 Runs against local dev with the platform's fictional seed data (Acme demo
