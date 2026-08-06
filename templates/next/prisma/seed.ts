@@ -3,16 +3,11 @@
  * or identifiers (template contract rule).
  */
 import "dotenv/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 
-// Prisma 7 requires a driver adapter; dotenv/config above supplies
-// DATABASE_URL when this runs outside a container.
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
-});
+const prisma = new PrismaClient();
 
 async function main() {
   const tenant = await prisma.tenant.upsert({
