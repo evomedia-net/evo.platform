@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { KeysService } from '../core/keys.service';
 

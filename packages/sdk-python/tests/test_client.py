@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """The wire contract: what this SDK actually sends.
 
 The platform's DTOs validate camelCase keys, so the renaming at the boundary

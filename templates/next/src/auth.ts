@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";

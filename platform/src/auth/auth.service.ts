@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Prisma, Tenant } from '@prisma/client';
 import bcrypt from 'bcryptjs';

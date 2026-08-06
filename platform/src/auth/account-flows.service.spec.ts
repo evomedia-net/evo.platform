@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import { BadRequestException } from '@nestjs/common';
 import jwt from 'jsonwebtoken';
 import { createHmac } from 'crypto';

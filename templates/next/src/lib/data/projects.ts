@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Local-first data layer for the example domain. Every write lands in Dexie
  * (instant UI) and enqueues an outbox mutation (eventual server sync). Reads

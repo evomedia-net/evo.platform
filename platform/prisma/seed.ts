@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Development seed. ALL DATA IS FICTIONAL — never seed real names, companies,
  * or identifiers (template contract rule).

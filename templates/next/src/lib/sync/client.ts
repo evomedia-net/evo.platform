@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Sync v2 client: drains the outbox, applies server changes, advances the
  * cursor. Multi-tab safe via the Web Locks API (one drain at a time per

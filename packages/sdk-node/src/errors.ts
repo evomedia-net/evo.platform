@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /** A non-2xx response from a platform service (the platform itself, or evo-ai).
  *  Status 0 means the service could not be reached at all; 504 is a client-side
  *  timeout rather than a response. */

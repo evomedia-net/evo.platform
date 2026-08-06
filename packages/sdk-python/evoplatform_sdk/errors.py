@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """The three ways a call goes wrong, mirrored from sdk-node.
 
 The taxonomy is the API: callers branch on *which* of these they caught, so

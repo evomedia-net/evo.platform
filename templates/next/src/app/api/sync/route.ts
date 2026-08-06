@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Sync v2 endpoint. See src/lib/sync/protocol.ts for the wire format and
  * src/lib/sync/server.ts for semantics (advisory lock, arrival-order LWW,

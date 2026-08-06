@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import { IsEmail, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class RegisterVerifyDto {

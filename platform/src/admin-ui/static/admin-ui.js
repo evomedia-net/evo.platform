@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /* EvoPlatform admin console. Vanilla JS on purpose: no build step, no deps,
  * three static files. All authorization lives in the API guards — this is a
  * thin client over /admin/* with the admin's own JWT (15-min access token,

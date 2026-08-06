@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Client for evo-ai, the Ask AI service. Mirrored with sdk-node's AskAi.
 
 evo-ai is a SEPARATE service from the platform, with its own URL and its own

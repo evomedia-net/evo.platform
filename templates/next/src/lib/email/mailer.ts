@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Transactional email. Platform mode: sent through the platform service
  * (tenant SMTP → platform default → its fallback). Standalone: local SMTP_*

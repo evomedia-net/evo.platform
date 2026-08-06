@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Sync v2 wire protocol — shared between the client (src/lib/sync/client.ts)
  * and the server (src/lib/sync/server.ts, /api/sync).

@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Cached JWKS, so token verification is local.
 
 No per-request platform call: the key set is fetched once and kept for a TTL.

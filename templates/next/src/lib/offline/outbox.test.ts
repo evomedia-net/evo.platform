@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { TenantDatabase } from "./tenantDb";

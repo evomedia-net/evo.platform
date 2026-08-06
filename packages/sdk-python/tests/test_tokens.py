@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Token verification: the security half of the SDK.
 
 Every test signs real RS256 tokens against a real generated key and serves a

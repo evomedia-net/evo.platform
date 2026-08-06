@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Minimal self-contained HTML for the two pages email links land on. No
  * external assets of any kind (fonts are system-stack per project rule);

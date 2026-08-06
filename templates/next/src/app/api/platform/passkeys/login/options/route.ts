@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Pre-auth proxy: passkey login options from the platform. The browser's
  * Origin header is forwarded so the platform derives the WebAuthn RP from

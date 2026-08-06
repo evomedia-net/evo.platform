@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Lazy PrismaClient — only instantiated on first use. This matters because
  * Next.js builds collect page data by *executing* server modules; constructing

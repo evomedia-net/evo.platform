@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Next 16 proxy (successor to middleware). Optimistic auth UX only:
  * cookie-presence redirects. Deliberately imports nothing from next-auth —

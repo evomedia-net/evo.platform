@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { createHash, createPublicKey, generateKeyPairSync } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';

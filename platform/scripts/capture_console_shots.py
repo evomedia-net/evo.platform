@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Capture admin-console screenshots via headless Chrome + CDP.
 
 Feeds the documentation site's EvoPlatform pages. Runs against the LOCAL DEV

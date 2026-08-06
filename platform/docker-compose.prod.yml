@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 # Production stack for the EvoPlatform service. Differs from docker-compose.yml
 # (dev): runs the built image, persists BOTH the database and the signing keys,
 # drops the Mailpit dev sink (uses real SMTP from .env), does not expose Postgres

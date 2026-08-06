@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getPlatform } from "@/lib/platform";

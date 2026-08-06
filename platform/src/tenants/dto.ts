@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 import { IsEnum, IsISO8601, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { AppTenantStatus } from '@prisma/client';
 

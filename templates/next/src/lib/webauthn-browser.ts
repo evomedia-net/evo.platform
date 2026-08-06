@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Browser-side WebAuthn glue: base64url <-> bytes conversion around
  * navigator.credentials. The platform's options are JSON (base64url fields,
