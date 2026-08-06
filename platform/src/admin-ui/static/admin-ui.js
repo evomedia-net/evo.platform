@@ -216,7 +216,7 @@ $("#logout").addEventListener("click", async () => {
 
 // ── routing ─────────────────────────────────────────────────────────────────
 
-const VIEWS = { tenants: viewTenants, users: viewUsers, apps: viewApps, audit: viewAudit, smtp: viewSmtp };
+const VIEWS = { tenants: viewTenants, users: viewUsers, apps: viewApps, revenue: viewRevenue, audit: viewAudit, smtp: viewSmtp };
 
 async function route() {
   const name = (location.hash.replace("#/", "") || "tenants").split("?")[0];
@@ -927,6 +927,152 @@ async function viewApps() {
 }
 
 // ── audit ───────────────────────────────────────────────────────────────────
+
+// ── revenue ─────────────────────────────────────────────────────────────────
+//
+// Figures are PULLED from Stripe at read time (see the platform's
+// RevenueService): Stripe is the system of record, so this page presents its
+// numbers rather than authoring any. When Stripe is unreachable the API
+// serves the last good pull marked stale, and this view says so plainly —
+// whose fault it is, and how old the figures are — instead of passing cached
+// numbers off as current.
+
+function money(cents, ccy) {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: ccy.toUpperCase() })
+      .format(cents / 100);
+  } catch { return `${(cents / 100).toFixed(2)} ${ccy.toUpperCase()}`; }
+}
+
+function healthBanner(r) {
+  if (!r.stale) return "";
+  const h = r.health || {};
+  const asOf = r.snapshot ? fmt(r.snapshot.fetchedAt) : null;
+  const cause = h.state === "stripe_down"
+    ? `The problem is on <strong>Stripe's side</strong>${h.stripeStatusIndicator ? ` (their status page reports “${esc(h.stripeStatusIndicator)}”)` : ""} —
+       <a href="https://status.stripe.com/" target="_blank" rel="noopener">status.stripe.com</a>`
+    : `Neither Stripe nor its status page is reachable — the problem is most likely
+       on <strong>our side</strong> (network/egress), not Stripe`;
+  const figures = asOf
+    ? `Showing the last figures pulled at <strong>${esc(asOf)}</strong> — they are not current.`
+    : `No earlier figures are available to show.`;
+  return `<div class="card banner-warn">
+    <h2>Stripe is unreachable</h2>
+    <p>${cause}.</p>
+    <p>${figures}</p>
+  </div>`;
+}
+
+async function viewRevenue() {
+  const r = await api("GET", "/revenue/summary");
+  const s = r.snapshot;
+
+  if (!s) {
+    $("#content").innerHTML = healthBanner(r) || `<p class="error">No revenue data.</p>`;
+    return;
+  }
+
+  const sub = s.subscriptions;
+  const currencies = [...new Set([
+    ...Object.keys(s.billed.grossYtd), ...Object.keys(s.billed.refundsYtd),
+  ])].sort();
+
+  // Status tiles: text carries the state — status colors stay reserved.
+  const statusTiles = Object.entries(sub.byStatus).sort()
+    .map(([k, v]) => `<div class="stat"><div class="v">${v}</div><div class="l">${esc(k)}</div></div>`)
+    .join("");
+  const netTiles = currencies.map((c) => `
+    <div class="stat"><div class="v">${esc(money(s.billed.netYtd[c] ?? 0, c))}</div>
+    <div class="l">net YTD (${esc(c.toUpperCase())}) · gross ${esc(money(s.billed.grossYtd[c] ?? 0, c))}
+      · refunds ${esc(money(s.billed.refundsYtd[c] ?? 0, c))}
+      · tax ${esc(money(s.billed.taxYtd[c] ?? 0, c))}</div></div>`).join("");
+
+  // By plan: single series, sorted by count, value in text ink at the row end.
+  const plans = Object.entries(sub.byPlan).sort((a, b) => b[1] - a[1]);
+  const maxPlan = Math.max(1, ...plans.map(([, v]) => v));
+  const planRows = plans.map(([key, v]) => {
+    const [app, plan, interval] = key.split("|");
+    return `<div class="hbar" data-tip="${esc(app)} — ${esc(plan)}, billed ${esc(interval)}ly">
+      <span>${esc(app)} · ${esc(plan)} <span class="muted">(${esc(interval)})</span></span>
+      <span class="track"><span class="fill" style="width:${(v / maxPlan) * 100}%"></span></span>
+      <span class="n">${v}</span>
+    </div>`;
+  }).join("") || `<p class="muted">No subscriptions yet.</p>`;
+
+  // Monthly gross vs refunds, one chart per currency — never summed across.
+  const monthCharts = currencies.map((ccy) => {
+    const months = [...new Set([
+      ...Object.keys(s.billed.grossByMonth), ...Object.keys(s.billed.refundsByMonth),
+    ])].sort();
+    if (!months.length) return "";
+    const gross = months.map((m) => s.billed.grossByMonth[m]?.[ccy] ?? 0);
+    const refunds = months.map((m) => s.billed.refundsByMonth[m]?.[ccy] ?? 0);
+    const peak = Math.max(1, ...gross, ...refunds);
+    const cols = months.map((m, i) => `
+      <div class="m" data-tip="${esc(m)}: gross ${esc(money(gross[i], ccy))}, refunds ${esc(money(refunds[i], ccy))}">
+        <div class="bars">
+          <div class="bar" style="height:${(gross[i] / peak) * 100}%;background:var(--chart-1)"></div>
+          <div class="bar" style="height:${(refunds[i] / peak) * 100}%;background:var(--chart-2)"></div>
+        </div>
+        <span class="ml">${esc(m.slice(5))}</span>
+      </div>`).join("");
+    return `<div class="card">
+      <div class="cardhead"><h2>Billed by month (${esc(ccy.toUpperCase())})</h2>
+        <span class="spacer"></span>
+        <span class="legend"><span><i style="background:var(--chart-1)"></i>Gross</span>
+        <span><i style="background:var(--chart-2)"></i>Refunds</span></span>
+      </div>
+      <div class="cols">${cols}</div>
+    </div>`;
+  }).join("");
+
+  // The table view: every number on the page, readable without color.
+  const months = [...new Set([
+    ...Object.keys(s.billed.grossByMonth), ...Object.keys(s.billed.refundsByMonth),
+  ])].sort();
+  const tableRows = months.flatMap((m) => currencies.map((ccy) => {
+    const g = s.billed.grossByMonth[m]?.[ccy] ?? 0;
+    const rf = s.billed.refundsByMonth[m]?.[ccy] ?? 0;
+    if (!g && !rf) return "";
+    return `<tr><td>${esc(m)}</td><td>${esc(ccy.toUpperCase())}</td>
+      <td class="n">${esc(money(g, ccy))}</td><td class="n">${esc(money(rf, ccy))}</td>
+      <td class="n">${esc(money(g - rf, ccy))}</td></tr>`;
+  })).join("");
+
+  const pulled = r.stale
+    ? ""
+    : `<span class="muted">Pulled live from Stripe · ${esc(fmt(s.fetchedAt))} · refunds counted in the month they were issued</span>`;
+
+  $("#content").innerHTML = `
+    ${healthBanner(r)}
+    <div class="card">
+      <div class="cardhead"><h2>Revenue</h2><span class="spacer"></span>
+        ${pulled}
+        <button class="btn sm grow0" id="rev-export-csv"
+          data-tip="Download every figure on this page as CSV." data-tip-pos="bottom">Save CSV</button>
+      </div>
+      <div class="stat-tiles">
+        <div class="stat"><div class="v">${sub.total}</div><div class="l">subscriptions</div></div>
+        ${statusTiles}
+        <div class="stat"><div class="v">${sub.canceledDuringTrial}</div><div class="l">canceled during trial</div></div>
+        ${netTiles}
+      </div>
+    </div>
+    <div class="card"><div class="cardhead"><h2>Subscriptions by plan</h2></div>${planRows}</div>
+    ${monthCharts}
+    ${tableRows ? `<div class="card"><div class="cardhead"><h2>Monthly detail</h2></div>
+      <table><tr><th>Month</th><th>Currency</th><th>Gross</th><th>Refunds</th><th>Net</th></tr>${tableRows}</table></div>` : ""}
+  `;
+
+  $("#rev-export-csv").addEventListener("click", async () => {
+    try {
+      const res = await fetch("/revenue/export.csv", { headers: { Authorization: `Bearer ${S.access}` } });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      download(`revenue-${new Date().toISOString().slice(0, 10)}.csv`, "text/csv", await res.text());
+      toast("Revenue exported");
+    } catch (err) { toast(err.message, true); }
+  });
+}
 
 async function viewAudit() {
   await loadTenants();
