@@ -9,7 +9,8 @@ cloning a starter template — tenancy, auth, RBAC, audit logging, and deploymen
 > template, and `evo new` CLI all run and are tested. Not yet built: Python SDK, NiceGUI
 > template. **Setup: [docs/INSTALL.md](docs/INSTALL.md)** · deploy:
 > [docs/DEPLOY.md](docs/DEPLOY.md) · design:
-> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/TEMPLATE_CONTRACT.md](docs/TEMPLATE_CONTRACT.md).
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/TEMPLATE_CONTRACT.md](docs/TEMPLATE_CONTRACT.md) · flows:
+> [docs/FLOWS.md](docs/FLOWS.md).
 
 ## The idea
 

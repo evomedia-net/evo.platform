@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="fig" width="920" height="600" viewBox="0 0 920 600" role="img"
+         aria-label="Tenant site sequence: browser reaches the edge proxy over HTTPS, the edge proxies to the app container, the app delegates login to the platform, receives JWTs, verifies them locally against pulled JWKS keys, provisions local rows, and serves tenant-scoped data from its own database. Stripe webhooks arrive at the platform out of band.">
+<style>
+  /* Self-contained: light by default, dark via media query (GitHub + docs site). */
+  svg { font: 12px ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .bg { fill: #FFFFFF; }
+  text { fill: #16283C; }
+  .actor rect { fill: #EAF1F8; stroke: #003366; stroke-width: 1.2; }
+  .actor text { font-weight: 600; fill: #003366; text-anchor: middle; }
+  .life { stroke: #B7C7D8; stroke-width: 1; stroke-dasharray: 2 5; }
+  .req  { stroke: #16283C; stroke-width: 1.5; fill: none; }
+  .resp { stroke: #5A6B7E; stroke-width: 1.4; fill: none; stroke-dasharray: 6 4; }
+  .push { stroke: #C77D28; stroke-width: 1.7; fill: none; }
+  .hi   { stroke: #2E6DA8; stroke-width: 1.8; fill: none; }
+  .lbl { text-anchor: middle; } .lbl.dim { fill: #5A6B7E; }
+  .lbl.hue { fill: #C77D28; } .lbl.blue { fill: #2E6DA8; }
+  .selfbox rect { fill: #EAF1F8; stroke: #C9D6E4; }
+  .selfbox text { text-anchor: middle; fill: #16283C; }
+  .selfbox.hib rect { stroke: #2E6DA8; stroke-width: 1.4; }
+  .num circle { fill: #003366; }
+  .num text { fill: #F6F9FC; font-weight: 700; font-size: 10.5px; text-anchor: middle; }
+  .ah { fill: #16283C; } .ah-r { fill: #5A6B7E; }
+  .ah-p { fill: #C77D28; } .ah-h { fill: #2E6DA8; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #14293F; }
+    text { fill: #E8F0F8; }
+    .actor rect { fill: #1B3450; stroke: #A9C8E8; }
+    .actor text { fill: #A9C8E8; }
+    .life { stroke: #3A5878; }
+    .req { stroke: #E8F0F8; } .resp { stroke: #93A7BC; }
+    .push { stroke: #E5A455; } .hi { stroke: #6FA8DC; }
+    .lbl.dim { fill: #93A7BC; } .lbl.hue { fill: #E5A455; } .lbl.blue { fill: #6FA8DC; }
+    .selfbox rect { fill: #1B3450; stroke: #2C4966; }
+    .selfbox text { fill: #E8F0F8; }
+    .selfbox.hib rect { stroke: #6FA8DC; }
+    .num circle { fill: #A9C8E8; }
+    .num text { fill: #0E1F33; }
+    .ah { fill: #E8F0F8; } .ah-r { fill: #93A7BC; }
+    .ah-p { fill: #E5A455; } .ah-h { fill: #6FA8DC; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="920" height="600"/>
+      <defs>
+        <marker id="a2" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7" orient="auto"><path class="ah" d="M0 0 L10 4 L0 8 z"/></marker>
+        <marker id="a2r" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7" orient="auto"><path class="ah-r" d="M0 0 L10 4 L0 8 z"/></marker>
+        <marker id="a2p" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7" orient="auto"><path class="ah-p" d="M0 0 L10 4 L0 8 z"/></marker>
+        <marker id="a2h" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7" orient="auto"><path class="ah-h" d="M0 0 L10 4 L0 8 z"/></marker>
+      </defs>
+
+      <!-- actors: Browser 70, Edge 225, App 385, App DB 545, Platform 715, Stripe 860 -->
+      <g class="actor"><rect x="20"  y="16" width="100" height="32" rx="7"/><text x="70"  y="37">Browser</text></g>
+      <g class="actor"><rect x="172" y="16" width="106" height="32" rx="7"/><text x="225" y="37">Edge nginx</text></g>
+      <g class="actor"><rect x="336" y="16" width="98"  height="32" rx="7"/><text x="385" y="37">App</text></g>
+      <g class="actor"><rect x="496" y="16" width="98"  height="32" rx="7"/><text x="545" y="37">App DB</text></g>
+      <g class="actor"><rect x="662" y="16" width="106" height="32" rx="7"/><text x="715" y="37">Platform</text></g>
+      <g class="actor"><rect x="815" y="16" width="90"  height="32" rx="7"/><text x="860" y="37">Stripe</text></g>
+
+      <line class="life" x1="70"  y1="48" x2="70"  y2="580"/>
+      <line class="life" x1="225" y1="48" x2="225" y2="580"/>
+      <line class="life" x1="385" y1="48" x2="385" y2="580"/>
+      <line class="life" x1="545" y1="48" x2="545" y2="580"/>
+      <line class="life" x1="715" y1="48" x2="715" y2="580"/>
+      <line class="life" x1="860" y1="48" x2="860" y2="580"/>
+
+      <!-- 1 browser -> edge -->
+      <g class="num"><circle cx="84" cy="88" r="10"/><text x="84" y="91.5">1</text></g>
+      <text class="lbl" x="148" y="77">HTTPS · TLS ends here</text>
+      <line class="req" x1="74" y1="88" x2="217" y2="88" marker-end="url(#a2)"/>
+
+      <!-- 2 edge -> app -->
+      <g class="num"><circle cx="239" cy="132" r="10"/><text x="239" y="135.5">2</text></g>
+      <text class="lbl" x="305" y="121">proxy by container name</text>
+      <line class="req" x1="229" y1="132" x2="377" y2="132" marker-end="url(#a2)"/>
+
+      <!-- 3 app -> platform login -->
+      <g class="num"><circle cx="399" cy="180" r="10"/><text x="399" y="183.5">3</text></g>
+      <text class="lbl" x="550" y="169">POST /auth/login {tenantSlug, email, password, clientId}</text>
+      <line class="req" x1="389" y1="180" x2="707" y2="180" marker-end="url(#a2)"/>
+
+      <!-- 4 platform self checks -->
+      <g class="num"><circle cx="561" cy="238" r="10"/><text x="561" y="241.5">4</text></g>
+      <g class="selfbox">
+        <rect x="576" y="214" width="280" height="48" rx="6"/>
+        <text x="716" y="234">tenant ACTIVE? password ok? verified?</text>
+        <text x="716" y="250">· is THIS app enabled for the workspace?</text>
+      </g>
+
+      <!-- 5 tokens back -->
+      <g class="num"><circle cx="700" cy="296" r="10"/><text x="700" y="299.5">5</text></g>
+      <text class="lbl dim" x="550" y="285">access JWT (RS256 · 15 min) + rotating refresh</text>
+      <line class="resp" x1="711" y1="296" x2="393" y2="296" marker-end="url(#a2r)"/>
+
+      <!-- 6 jwks pull -->
+      <g class="num"><circle cx="399" cy="344" r="10"/><text x="399" y="347.5">6</text></g>
+      <text class="lbl blue" x="550" y="333">pulls /.well-known/jwks.json · cached</text>
+      <line class="hi" x1="389" y1="344" x2="707" y2="344" marker-end="url(#a2h)"/>
+
+      <!-- 7 app self verify -->
+      <g class="num"><circle cx="226" cy="402" r="10"/><text x="226" y="405.5">7</text></g>
+      <g class="selfbox hib">
+        <rect x="245" y="378" width="282" height="48" rx="6"/>
+        <text x="386" y="398">verifies tokens LOCALLY (no network),</text>
+        <text x="386" y="414">JIT-provisions local rows from claims</text>
+      </g>
+
+      <!-- 8 app <-> db -->
+      <g class="num"><circle cx="399" cy="462" r="10"/><text x="399" y="465.5">8</text></g>
+      <text class="lbl" x="465" y="451">tenant-scoped queries</text>
+      <line class="req" x1="389" y1="462" x2="537" y2="462" marker-end="url(#a2)"/>
+      <line class="resp" x1="537" y1="486" x2="393" y2="486" marker-end="url(#a2r)"/>
+      <text class="lbl dim" x="465" y="503">rows · then page → browser</text>
+
+      <!-- 9 stripe webhook -->
+      <g class="num"><circle cx="846" cy="540" r="10"/><text x="846" y="543.5">9</text></g>
+      <text class="lbl hue" x="788" y="529">webhook: subscription events</text>
+      <line class="push" x1="856" y1="540" x2="723" y2="540" marker-end="url(#a2p)"/>
+      <text class="lbl dim" x="756" y="565">flips access · next login/refresh enforces it</text>
+    </svg>
