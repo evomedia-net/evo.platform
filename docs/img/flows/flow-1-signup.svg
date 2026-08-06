@@ -60,17 +60,14 @@
       <line class="life" x1="840" y1="48" x2="840" y2="540"/>
 
       <!-- 1 person -> app -->
-      <g class="num"><circle cx="104" cy="86" r="10"/><text x="104" y="89.5">1</text></g>
       <text class="lbl" x="205" y="75">submits the /signup form</text>
       <line class="req" x1="94" y1="86" x2="312" y2="86" marker-end="url(#a1)"/>
 
       <!-- 2 app -> platform -->
-      <g class="num"><circle cx="334" cy="134" r="10"/><text x="334" y="137.5">2</text></g>
       <text class="lbl" x="460" y="123">POST /auth/signup {…, clientId}</text>
       <line class="req" x1="324" y1="134" x2="592" y2="134" marker-end="url(#a1)"/>
 
       <!-- 3 platform self -->
-      <g class="num"><circle cx="443" cy="196" r="10"/><text x="443" y="199.5">3</text></g>
       <g class="selfbox">
         <rect x="458" y="172" width="286" height="48" rx="6"/>
         <text x="601" y="192">Tenant + founder admin (unverified)</text>
@@ -78,24 +75,20 @@
       </g>
 
       <!-- 4 platform -> mailbox (push) -->
-      <g class="num"><circle cx="614" cy="258" r="10"/><text x="614" y="261.5">4</text></g>
       <text class="lbl hue" x="720" y="247">verification email · single-use link</text>
       <line class="push" x1="604" y1="258" x2="832" y2="258" marker-end="url(#a1p)"/>
 
       <!-- 5 responses back -->
-      <g class="num"><circle cx="585" cy="306" r="10"/><text x="585" y="309.5">5</text></g>
       <text class="lbl dim" x="460" y="295">201 created</text>
       <line class="resp" x1="596" y1="306" x2="328" y2="306" marker-end="url(#a1r)"/>
       <text class="lbl dim" x="205" y="337">“check your email” — login refused until verified</text>
       <line class="resp" x1="316" y1="348" x2="98" y2="348" marker-end="url(#a1r)"/>
 
       <!-- 6 person -> platform via link -->
-      <g class="num"><circle cx="104" cy="404" r="10"/><text x="104" y="407.5">6</text></g>
       <text class="lbl" x="345" y="393">clicks emailed link → GET /auth/verify?token=…</text>
       <line class="req" x1="94" y1="404" x2="592" y2="404" marker-end="url(#a1)"/>
 
       <!-- 7 platform self -->
-      <g class="num"><circle cx="443" cy="462" r="10"/><text x="443" y="465.5">7</text></g>
       <g class="selfbox">
         <rect x="458" y="440" width="286" height="44" rx="6"/>
         <text x="601" y="458">emailVerifiedAt stamped —</text>
@@ -105,4 +98,13 @@
       <!-- 8 response person -->
       <text class="lbl dim" x="345" y="509">“email verified — sign in”</text>
       <line class="resp" x1="592" y1="520" x2="98" y2="520" marker-end="url(#a1r)"/>
+
+      <!-- step badges last: painted over lifelines and arrows -->
+      <g class="num"><circle cx="104" cy="86" r="10"/><text x="104" y="89.5">1</text></g>
+      <g class="num"><circle cx="334" cy="134" r="10"/><text x="334" y="137.5">2</text></g>
+      <g class="num"><circle cx="443" cy="196" r="10"/><text x="443" y="199.5">3</text></g>
+      <g class="num"><circle cx="614" cy="258" r="10"/><text x="614" y="261.5">4</text></g>
+      <g class="num"><circle cx="585" cy="306" r="10"/><text x="585" y="309.5">5</text></g>
+      <g class="num"><circle cx="104" cy="404" r="10"/><text x="104" y="407.5">6</text></g>
+      <g class="num"><circle cx="443" cy="462" r="10"/><text x="443" y="465.5">7</text></g>
     </svg>

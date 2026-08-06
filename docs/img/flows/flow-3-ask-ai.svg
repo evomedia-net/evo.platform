@@ -61,17 +61,14 @@
       <line class="life" x1="855" y1="48" x2="855" y2="600"/>
 
       <!-- 1 browser -> app -->
-      <g class="num"><circle cx="89" cy="88" r="10"/><text x="89" y="91.5">1</text></g>
       <text class="lbl" x="170" y="77">asks a question · session cookie</text>
       <line class="req" x1="79" y1="88" x2="257" y2="88" marker-end="url(#a3)"/>
 
       <!-- 2 app -> evo-ai -->
-      <g class="num"><circle cx="279" cy="136" r="10"/><text x="279" y="139.5">2</text></g>
       <text class="lbl" x="378" y="125">POST /query · svc key + X-Data-Tenant</text>
       <line class="req" x1="269" y1="136" x2="482" y2="136" marker-end="url(#a3)"/>
 
       <!-- 3 evo-ai self: plan -->
-      <g class="num"><circle cx="333" cy="196" r="10"/><text x="333" y="199.5">3</text></g>
       <g class="selfbox">
         <rect x="348" y="172" width="286" height="48" rx="6"/>
         <text x="491" y="192">planner: analytics SQL must touch</text>
@@ -79,7 +76,6 @@
       </g>
 
       <!-- 4 evo-ai self: expansion -->
-      <g class="num"><circle cx="333" cy="256" r="10"/><text x="333" y="259.5">4</text></g>
       <g class="selfbox">
         <rect x="348" y="234" width="286" height="42" rx="6"/>
         <text x="491" y="252">query expansion — lay wording</text>
@@ -87,14 +83,12 @@
       </g>
 
       <!-- 5 evo-ai <-> qdrant -->
-      <g class="num"><circle cx="504" cy="314" r="10"/><text x="504" y="317.5">5</text></g>
       <text class="lbl" x="596" y="303">hybrid search · tenant_id + source_type</text>
       <line class="req" x1="494" y1="314" x2="692" y2="314" marker-end="url(#a3)"/>
       <text class="lbl dim" x="596" y="341">top-k chunks + scores</text>
       <line class="resp" x1="692" y1="352" x2="498" y2="352" marker-end="url(#a3r)"/>
 
       <!-- 6 gate -->
-      <g class="num"><circle cx="333" cy="412" r="10"/><text x="333" y="415.5">6</text></g>
       <g class="selfbox hib">
         <rect x="348" y="388" width="286" height="48" rx="6"/>
         <text x="491" y="408">RELEVANCE GATE — best score under</text>
@@ -102,18 +96,26 @@
       </g>
 
       <!-- 7 evo-ai <-> llm -->
-      <g class="num"><circle cx="504" cy="470" r="10"/><text x="504" y="473.5">7</text></g>
       <text class="lbl" x="672" y="459">grounded prompt · tenant key / allowed default</text>
       <line class="req" x1="494" y1="470" x2="847" y2="470" marker-end="url(#a3)"/>
       <text class="lbl dim" x="672" y="497">answer, from the supplied context only</text>
       <line class="resp" x1="847" y1="508" x2="498" y2="508" marker-end="url(#a3r)"/>
 
       <!-- 8 back to app -->
-      <g class="num"><circle cx="475" cy="548" r="10"/><text x="475" y="551.5">8</text></g>
       <text class="lbl dim" x="378" y="537">answer + cited sources · gated/unconfigured flags</text>
       <line class="resp" x1="486" y1="548" x2="269" y2="548" marker-end="url(#a3r)"/>
 
       <!-- 9 back to browser -->
       <text class="lbl dim" x="170" y="569">rendered with citations</text>
       <line class="resp" x1="261" y1="580" x2="79" y2="580" marker-end="url(#a3r)"/>
+
+      <!-- step badges last: painted over lifelines and arrows -->
+      <g class="num"><circle cx="89" cy="88" r="10"/><text x="89" y="91.5">1</text></g>
+      <g class="num"><circle cx="279" cy="136" r="10"/><text x="279" y="139.5">2</text></g>
+      <g class="num"><circle cx="333" cy="196" r="10"/><text x="333" y="199.5">3</text></g>
+      <g class="num"><circle cx="333" cy="256" r="10"/><text x="333" y="259.5">4</text></g>
+      <g class="num"><circle cx="504" cy="314" r="10"/><text x="504" y="317.5">5</text></g>
+      <g class="num"><circle cx="333" cy="412" r="10"/><text x="333" y="415.5">6</text></g>
+      <g class="num"><circle cx="504" cy="470" r="10"/><text x="504" y="473.5">7</text></g>
+      <g class="num"><circle cx="475" cy="548" r="10"/><text x="475" y="551.5">8</text></g>
     </svg>
