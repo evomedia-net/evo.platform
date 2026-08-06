@@ -36,6 +36,31 @@ single implicit tenant, and no external dependencies — the whole app runs on o
 offline if needed. Setting `PLATFORM_URL` (plus client credentials) flips auth, tenancy, and
 email over to the platform SDK. Apps can start standalone today and join the platform later.
 
+## System flows
+
+How requests move through the platform — the full walkthrough with numbered
+steps and direction rules is in [docs/FLOWS.md](docs/FLOWS.md). Solid arrows
+are requests (tail = initiator), dashed are responses, amber is an out-of-band
+push, blue is the mechanism each figure exists to show.
+
+**User sign-up, end to end** — one request creates the workspace, its founding
+admin, and trial access to the arriving app only; nobody signs in until the
+mailbox is verified:
+
+![Sign-up sequence diagram](docs/img/flows/flow-1-signup.svg)
+
+**A tenant site through the system** — login is delegated to the platform,
+then every request is verified locally against pulled JWKS keys; after login
+the app does not need the platform to be up:
+
+![Tenant site sequence diagram](docs/img/flows/flow-2-tenant-site.svg)
+
+**A tenant app asking evo-ai** (separate, commercial service; the SDK's
+`AskAi` client is optional) — server-side service key, tenant-scoped
+retrieval, and a relevance gate that refuses before any model is invoked:
+
+![Ask AI sequence diagram](docs/img/flows/flow-3-ask-ai.svg)
+
 ## Repository layout
 
 ```
