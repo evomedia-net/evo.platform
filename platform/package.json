@@ -4,6 +4,7 @@
   "private": true,
   "description": "EvoPlatform shared platform service: tenants, users, auth (JWT/JWKS), apps, audit, email",
   "scripts": {
+    "postinstall": "prisma generate",
     "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",

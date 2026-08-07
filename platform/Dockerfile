@@ -4,7 +4,11 @@
 
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package*.json ./
+# Schema + config are copied before npm ci because the postinstall hook runs
+# prisma generate, which needs them. The explicit generate below still matters:
+# a cached npm-ci layer can hold a stale client when only the schema changed.
+COPY package*.json prisma.config.ts ./
+COPY prisma ./prisma
 RUN npm ci
 COPY . .
 RUN npx prisma generate && npm run build

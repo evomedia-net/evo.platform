@@ -4,6 +4,7 @@
   "private": true,
   "description": "EvoPlatform Next.js starter: multi-tenant, offline-first, standalone by default, platform mode via PLATFORM_URL",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev -p 4180",
     "build": "next build",
     "start": "next start -p 4180",
