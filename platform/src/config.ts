@@ -4,10 +4,36 @@
 
 import 'dotenv/config';
 
+const LOCAL_BASE_URL = 'http://localhost:8200';
+
+/**
+ * The base URL every emailed link is built from. Wrong here means verification,
+ * reset and invite mail all point somewhere the recipient cannot reach — and
+ * nothing else fails, so it stays invisible. Production ran for weeks emailing
+ * localhost links because this quietly fell back to the dev default, so
+ * production now refuses to start rather than send unusable mail.
+ */
+export function resolvePublicBaseUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const raw = env.PUBLIC_BASE_URL?.trim();
+  const value = (raw || LOCAL_BASE_URL).replace(/\/+$/, '');
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(value);
+  if (env.NODE_ENV === 'production' && isLocal) {
+    throw new Error(
+      `PUBLIC_BASE_URL is ${raw ? `set to ${value}` : 'not set'} in production. ` +
+        'Every verification, reset and invite email would link there and be ' +
+        'unreachable for the recipient. Set it to the public URL of this ' +
+        'service (e.g. https://platform.example.com).',
+    );
+  }
+  return value;
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 8200),
   /** Public URL of this service — used in email links (verify, reset). */
-  publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? 'http://localhost:8200').replace(/\/+$/, ''),
+  publicBaseUrl: resolvePublicBaseUrl(),
   signup: {
     /** closed (default) | invite (platform-admin-issued links) | open */
     mode: (process.env.SIGNUP_MODE ?? 'closed') as 'closed' | 'invite' | 'open',
