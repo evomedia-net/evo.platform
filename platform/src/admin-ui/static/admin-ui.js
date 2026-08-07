@@ -167,9 +167,13 @@ $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const err = $("#login-error");
   err.hidden = true;
+  // tenantSlug is omitted when blank: the API resolves a platform-level
+  // account then, and sending an empty string would look up a tenant named "".
+  const workspace = $("#login-workspace").value.trim().toLowerCase();
   const r = await raw("POST", "/auth/login", {
     email: $("#login-email").value.trim(),
     password: $("#login-password").value,
+    ...(workspace ? { tenantSlug: workspace } : {}),
   });
   if (!r.ok) { err.textContent = r.data?.message || "Sign-in failed"; err.hidden = false; return; }
   if (!r.data.user?.platformAdmin) {
@@ -196,7 +200,14 @@ $("#forgot-link").addEventListener("click", async () => {
     note.hidden = false;
     return;
   }
-  const r = await raw("POST", "/auth/forgot", { email });
+  // Same workspace resolution as sign-in: without it the lookup only sees
+  // platform-level accounts, and a tenant-homed admin's reset mail is
+  // silently never sent (the API answers ok either way, by design).
+  const fWorkspace = $("#login-workspace").value.trim().toLowerCase();
+  const r = await raw("POST", "/auth/forgot", {
+    email,
+    ...(fWorkspace ? { tenantSlug: fWorkspace } : {}),
+  });
   if (!r.ok) {
     // Distinguishing a failed request from an unknown account leaks nothing —
     // the server said nothing about the account either way. Claiming a link is
