@@ -53,17 +53,32 @@ export class AccountFlowsService {
   ) {}
 
   private async findByEmail(input: { tenantSlug?: string; email: string }): Promise<User | null> {
-    let tenantId: string | null = null;
+    const email = input.email.toLowerCase();
     if (input.tenantSlug) {
       const tenant = await this.prisma.tenant.findFirst({
         where: { slug: input.tenantSlug, deletedAt: null },
       });
       if (!tenant) return null;
-      tenantId = tenant.id;
+      return this.prisma.user.findFirst({ where: { tenantId: tenant.id, email, deletedAt: null } });
     }
-    return this.prisma.user.findFirst({
-      where: { tenantId, email: input.email.toLowerCase(), deletedAt: null },
+
+    const platformLevel = await this.prisma.user.findFirst({
+      where: { tenantId: null, email, deletedAt: null },
     });
+    if (platformLevel) return platformLevel;
+
+    // A platform admin's row may live inside a tenant, and the console has no
+    // workspace to offer someone who only knows they are an admin — without
+    // this their reset mail is silently never sent. Only ever one candidate:
+    // ambiguity must not pick an account on the user's behalf. Reset is safe
+    // to widen this way because the link goes to the address that owns it;
+    // login deliberately does NOT, since the session it mints carries tenant
+    // claims that must be chosen explicitly.
+    const admins = await this.prisma.user.findMany({
+      where: { email, deletedAt: null, isPlatformAdmin: true },
+      take: 2,
+    });
+    return admins.length === 1 ? admins[0] : null;
   }
 
   // ---- email verification ----

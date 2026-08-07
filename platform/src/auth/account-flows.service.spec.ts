@@ -22,6 +22,7 @@ const baseUser = {
   passwordHash: 'HASH-1',
   emailVerifiedAt: null as Date | null,
   deletedAt: null as Date | null,
+  isPlatformAdmin: false,
 };
 
 function makeDeps(user: Partial<typeof baseUser> | null = {}) {
@@ -32,6 +33,9 @@ function makeDeps(user: Partial<typeof baseUser> | null = {}) {
       user: {
         findFirst: jest.fn().mockResolvedValue(row),
         findUnique: jest.fn().mockResolvedValue(row),
+        // Fallback lookup for a platform admin homed inside a tenant; the
+        // no-tenant path reaches it only when findFirst finds nobody.
+        findMany: jest.fn().mockResolvedValue(row && row.isPlatformAdmin ? [row] : []),
         update: jest.fn().mockResolvedValue(row),
       },
       refreshToken: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
@@ -113,6 +117,23 @@ describe('password reset', () => {
     const deps = makeDeps();
     await makeSvc(deps).requestReset({ tenantSlug: 'acme', email: 'owner@acme.example' });
     expect(deps.email.send.mock.calls[0][0].text).toContain('/auth/reset-page?token=');
+  });
+
+  it('reaches a platform admin homed in a tenant when no workspace is given', async () => {
+    // The console has no workspace to offer someone who only knows they are an
+    // admin; without this fallback their reset mail is silently never sent.
+    const deps = makeDeps({ isPlatformAdmin: true });
+    deps.prisma.user.findFirst.mockResolvedValueOnce(null); // no platform-level row
+    await makeSvc(deps).requestReset({ email: 'owner@acme.example' });
+    expect(deps.email.send).toHaveBeenCalled();
+  });
+
+  it('refuses to guess when two platform admins share an address', async () => {
+    const deps = makeDeps({ isPlatformAdmin: true });
+    deps.prisma.user.findFirst.mockResolvedValueOnce(null);
+    deps.prisma.user.findMany.mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }]);
+    expect(await makeSvc(deps).requestReset({ email: 'owner@acme.example' })).toEqual({ ok: true });
+    expect(deps.email.send).not.toHaveBeenCalled();
   });
 
   it('answers ok without sending for unknown accounts', async () => {
