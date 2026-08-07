@@ -14,7 +14,7 @@
  * which is exactly what happened when the policy moved to the NIST/OWASP
  * Standard and these strings kept describing the deleted composition rule.
  */
-import { PASSWORD_RULES_TEXT } from '../core/password-policy';
+import { PASSWORD_MIN_LENGTH, PASSWORD_RULES_TEXT } from '../core/password-policy';
 
 const SHELL_STYLE = `
   :root { color-scheme: light; }
@@ -64,13 +64,16 @@ export function resetFormPage(token: string): string {
     </form>
     <script>
       const token = ${JSON.stringify(token)};
-      const policy = /^(?=(?:.*\\d){2,})(?=(?:.*[^A-Za-z0-9]){2,}).{8,}$/;
+      const MIN = ${PASSWORD_MIN_LENGTH};
       document.getElementById('f').addEventListener('submit', async (e) => {
         e.preventDefault();
         const err = document.getElementById('err');
         const pw = document.getElementById('pw').value;
         if (pw !== document.getElementById('pw2').value) { err.textContent = 'Passwords do not match'; return; }
-        if (!policy.test(pw)) { err.textContent = 'Password does not meet the policy above'; return; }
+        // Length only. The server owns the policy and answers with the exact
+        // reason; a second rule set here is what silently contradicted the
+        // rules printed directly above it.
+        if (pw.length < MIN) { err.textContent = 'Password must be at least ' + MIN + ' characters'; return; }
         err.textContent = '';
         const res = await fetch('/auth/reset', {
           method: 'POST',
@@ -82,7 +85,8 @@ export function resetFormPage(token: string): string {
             '<h1>Password updated</h1><p>All existing sessions were signed out. You can close this tab and sign in with your new password.</p>';
         } else {
           const body = await res.json().catch(() => null);
-          err.textContent = (body && body.message) || 'This link no longer works — request a new one.';
+          const msg = body && (Array.isArray(body.message) ? body.message[0] : body.message);
+          err.textContent = msg || 'This link no longer works — request a new one.';
         }
       });
     </script>`);
@@ -109,13 +113,14 @@ export function inviteAcceptPage(token: string): string {
     </form>
     <script>
       const token = ${JSON.stringify(token)};
-      const policy = /^(?=(?:.*\\d){2,})(?=(?:.*[^A-Za-z0-9]){2,}).{8,}$/;
+      const MIN = ${PASSWORD_MIN_LENGTH};
       document.getElementById('f').addEventListener('submit', async (e) => {
         e.preventDefault();
         const err = document.getElementById('err');
         const pw = document.getElementById('pw').value;
         if (pw !== document.getElementById('pw2').value) { err.textContent = 'Passwords do not match'; return; }
-        if (!policy.test(pw)) { err.textContent = 'Password does not meet the policy above'; return; }
+        // Length only — see the note in resetFormPage.
+        if (pw.length < MIN) { err.textContent = 'Password must be at least ' + MIN + ' characters'; return; }
         err.textContent = '';
         const res = await fetch('/auth/invites/accept', {
           method: 'POST',
@@ -134,7 +139,8 @@ export function inviteAcceptPage(token: string): string {
             '<h1>Account created</h1><p>You can close this tab and sign in' + where + ' with your new password.</p>';
         } else {
           const body = await res.json().catch(() => null);
-          err.textContent = (body && body.message) || 'This invite no longer works — ask for a new one.';
+          const msg = body && (Array.isArray(body.message) ? body.message[0] : body.message);
+          err.textContent = msg || 'This invite no longer works — ask for a new one.';
         }
       });
     </script>`);
