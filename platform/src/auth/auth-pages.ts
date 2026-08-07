@@ -14,6 +14,7 @@
  * which is exactly what happened when the policy moved to the NIST/OWASP
  * Standard and these strings kept describing the deleted composition rule.
  */
+import { config } from '../config';
 import { PASSWORD_MIN_LENGTH, PASSWORD_RULES_TEXT } from '../core/password-policy';
 
 const SHELL_STYLE = `
@@ -31,7 +32,59 @@ const SHELL_STYLE = `
   button { width: 100%; margin-top: 10px; padding: 10px; border: 0; border-radius: 6px;
     background: #336699; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
   button:hover { background: #003366; }
+  /* Password field with an inline show/hide toggle, mirroring the console. */
+  .pw-field { position: relative; }
+  .pw-field input { padding-right: 40px; }
+  .pw-field button.pw-toggle { position: absolute; right: 2px; top: 6px; bottom: 6px;
+    width: 34px; margin: 0; padding: 0; display: flex; align-items: center;
+    justify-content: center; background: none; border: 0; border-radius: 6px;
+    color: #4a6b8a; cursor: pointer; }
+  .pw-field button.pw-toggle:hover { background: none; color: #003366; }
+  .pw-field button.pw-toggle:focus-visible { outline: 2px solid #336699; outline-offset: 1px; }
+  a.cta { display: block; margin-top: 14px; padding: 10px; border-radius: 6px;
+    background: #336699; color: #fff; font-size: 14px; font-weight: 600;
+    text-decoration: none; }
+  a.cta:hover { background: #003366; }
 `;
+
+/** Same icons and behavior as the admin console, so a password field looks and
+ *  acts the same wherever someone meets one. Inline because these pages load
+ *  no external assets of any kind. */
+const EYE =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+/** A password input with its reveal toggle as a SIBLING — the delegated handler
+ *  walks parentElement to find the input. */
+function passwordField(id: string, placeholder: string): string {
+  return `<div class="pw-field">
+      <input id="${id}" type="password" placeholder="${placeholder}" autocomplete="new-password" required />
+      <button type="button" class="pw-toggle" data-pw-toggle aria-label="Show password">${EYE}</button>
+    </div>`;
+}
+
+/** One delegated listener covers every toggle on the page. */
+const PW_TOGGLE_SCRIPT = `
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-pw-toggle]');
+        if (!btn) return;
+        const input = btn.parentElement.querySelector('input');
+        if (!input) return;
+        const reveal = input.type === 'password';
+        input.type = reveal ? 'text' : 'password';
+        btn.innerHTML = reveal ? ${JSON.stringify(EYE_OFF)} : ${JSON.stringify(EYE)};
+        btn.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+      });`;
+
+/**
+ * Terminal screens used to end at "you can close this tab" — correct but a dead
+ * end, leaving someone who just set a password with nothing to click. Points at
+ * the platform sign-in; app users reach their own app's sign-in from there.
+ */
+function signInButton(): string {
+  return `<a class="cta" href="${config.publicBaseUrl}/">Go to sign in</a>`;
+}
 
 function page(body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
@@ -44,7 +97,8 @@ export function verifyResultPage(ok: boolean): string {
   return page(
     ok
       ? `<h1>Email verified</h1>
-         <p>Your account is active. You can close this tab and sign in.</p>`
+         <p>Your account is active.</p>
+         ${signInButton()}`
       : `<h1>Link invalid or expired</h1>
          <p>This verification link no longer works. Request a new one from the
          sign-in screen, or ask your administrator.</p>`,
@@ -57,14 +111,15 @@ export function resetFormPage(token: string): string {
     <h1>Set a new password</h1>
     <p>${PASSWORD_RULES_TEXT}</p>
     <form id="f">
-      <input id="pw" type="password" placeholder="New password" autocomplete="new-password" required />
-      <input id="pw2" type="password" placeholder="Confirm new password" autocomplete="new-password" required />
+      ${passwordField('pw', 'New password')}
+      ${passwordField('pw2', 'Confirm new password')}
       <p class="err" id="err"></p>
       <button type="submit">Reset password</button>
     </form>
     <script>
       const token = ${JSON.stringify(token)};
       const MIN = ${PASSWORD_MIN_LENGTH};
+      const SIGNIN_HTML = ${JSON.stringify(signInButton())};${PW_TOGGLE_SCRIPT}
       document.getElementById('f').addEventListener('submit', async (e) => {
         e.preventDefault();
         const err = document.getElementById('err');
@@ -82,7 +137,7 @@ export function resetFormPage(token: string): string {
         });
         if (res.ok) {
           document.querySelector('.card').innerHTML =
-            '<h1>Password updated</h1><p>All existing sessions were signed out. You can close this tab and sign in with your new password.</p>';
+            '<h1>Password updated</h1><p>All existing sessions were signed out. Sign in with your new password.</p>' + SIGNIN_HTML;
         } else {
           const body = await res.json().catch(() => null);
           const msg = body && (Array.isArray(body.message) ? body.message[0] : body.message);
@@ -106,14 +161,15 @@ export function inviteAcceptPage(token: string): string {
     <form id="f">
       <input id="fn" type="text" placeholder="First name" autocomplete="given-name" />
       <input id="ln" type="text" placeholder="Last name" autocomplete="family-name" />
-      <input id="pw" type="password" placeholder="Password" autocomplete="new-password" required />
-      <input id="pw2" type="password" placeholder="Confirm password" autocomplete="new-password" required />
+      ${passwordField('pw', 'Password')}
+      ${passwordField('pw2', 'Confirm password')}
       <p class="err" id="err"></p>
       <button type="submit">Create account</button>
     </form>
     <script>
       const token = ${JSON.stringify(token)};
       const MIN = ${PASSWORD_MIN_LENGTH};
+      const SIGNIN_HTML = ${JSON.stringify(signInButton())};${PW_TOGGLE_SCRIPT}
       document.getElementById('f').addEventListener('submit', async (e) => {
         e.preventDefault();
         const err = document.getElementById('err');
@@ -136,7 +192,7 @@ export function inviteAcceptPage(token: string): string {
           const out = await res.json().catch(() => null);
           const where = out && out.tenantSlug ? ' to the "' + out.tenantSlug + '" workspace' : '';
           document.querySelector('.card').innerHTML =
-            '<h1>Account created</h1><p>You can close this tab and sign in' + where + ' with your new password.</p>';
+            '<h1>Account created</h1><p>Sign in' + where + ' with your new password.</p>' + SIGNIN_HTML;
         } else {
           const body = await res.json().catch(() => null);
           const msg = body && (Array.isArray(body.message) ? body.message[0] : body.message);
