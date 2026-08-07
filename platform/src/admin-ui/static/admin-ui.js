@@ -326,6 +326,7 @@ async function viewTenants() {
       : `${t.status === "SUSPENDED"
           ? `<button class="btn sm" data-act="activate" data-id="${t.id}" data-tip="Re-enable logins for this tenant.">Activate</button>`
           : `<button class="btn sm" data-act="suspend" data-id="${t.id}" data-tip="Block all logins to this tenant. Reversible — data is kept.">Suspend</button>`}
+         <button class="btn sm" data-act="rename" data-id="${t.id}" data-name="${esc(t.name)}" data-tip="Change the workspace's display name. The slug is its permanent identity and does not change, so nothing that references this tenant breaks.">Rename</button>
          <button class="btn sm danger" data-act="delete" data-id="${t.id}" data-tip="Soft-delete — hides the tenant but keeps its data; restorable.">Delete</button>`;
     return `<tr><td><code>${esc(t.slug)}</code></td><td>${esc(t.name)}</td>
       <td>${esc(t.plan)}</td><td class="col-status">${state}</td><td class="muted">${esc(fmt(t.createdAt))}</td>
@@ -361,7 +362,13 @@ async function viewTenants() {
         toast("Export downloaded");
         return;
       }
-      if (a === "delete") await api("DELETE", `/admin/tenants/${id}`);
+      if (a === "rename") {
+        const next = prompt("Workspace display name:", btn.dataset.name);
+        if (next === null || !next.trim() || next.trim() === btn.dataset.name) return;
+        await api("PATCH", `/admin/tenants/${id}`, { name: next.trim() });
+        toast("Workspace renamed");
+      }
+      else if (a === "delete") await api("DELETE", `/admin/tenants/${id}`);
       else if (a === "purge") await api("DELETE", `/admin/tenants/${id}/purge`);
       else await api("POST", `/admin/tenants/${id}/${a}`);
       toast(a === "purge" ? `Tenant "${slug}" permanently erased` : `Tenant ${a}d`);
@@ -761,7 +768,10 @@ async function viewApps() {
              <button class="btn sm danger" data-act="app-purge" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Erase this app permanently, with its roles, every user's assignments to them, and every tenant's access. This cannot be undone.">Purge</button>`
           : `<button class="btn sm" data-act="rotate" data-id="${a.id}" data-tip="Replace this app's client secret — do it if the secret may have leaked, when someone with access leaves, or on a rotation schedule. The old secret stops working immediately, so update the app's config right away.">Rotate secret</button>
              <button class="btn sm danger" data-act="app-delete" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Soft-delete: sign-in through this app stops immediately, but nothing is destroyed and it can be restored. The client id stays reserved so it cannot be re-registered underneath.">Delete</button>`}</p>
-      <p class="muted">Callbacks: ${a.callbackUrls.map((u) => `<code>${esc(u)}</code>`).join(" ") || "—"}</p>
+      <form class="inline" data-app-callbacks="${a.id}" style="margin-top:6px">
+        <label style="flex:1 1 340px" data-tip="Where this app may receive auth codes, comma-separated. Registered once and then unchangeable used to mean a typo — or an app registered without one — could never be corrected from here. Empty is allowed: nothing enforces these yet.">Callback URLs <input name="callbacks" placeholder="https://app.example.com/cb" value="${esc(a.callbackUrls.join(", "))}" /></label>
+        <button class="btn sm grow0">Save</button>
+      </form>
       <div class="chips">${a.roles.map((r) => `<span class="chip">${esc(r.name)}
         <button data-role-act="rename" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" data-tip="Rename this role. Tokens carry role names, so it applies at next login/refresh.">&#9998;</button>
         <button data-role-act="delete" data-app-id="${a.id}" data-role-id="${r.id}" data-role-name="${esc(r.name)}" data-tip="Delete this role and remove it from every user that has it.">&times;</button>
@@ -914,6 +924,22 @@ async function viewApps() {
   });
 
   $("#content").addEventListener("submit", async (e) => {
+    const cbForm = e.target.closest("form[data-app-callbacks]");
+    if (cbForm) {
+      e.preventDefault();
+      // Split on commas, drop blanks — so "a, b," and "a,b" mean the same, and
+      // clearing the box clears the list rather than saving one empty string.
+      const urls = String(new FormData(cbForm).get("callbacks") || "")
+        .split(",").map((u) => u.trim()).filter(Boolean);
+      const bad = urls.find((u) => !/^https?:\/\/\S+$/.test(u));
+      if (bad) { toast(`Not a URL: ${bad}`, true); return; }
+      try {
+        await api("PATCH", `/admin/apps/${cbForm.dataset.appCallbacks}`, { callbackUrls: urls });
+        toast(urls.length ? "Callback URLs saved" : "Callback URLs cleared"); route();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+
     const priceForm = e.target.closest("form[data-app-price]");
     if (priceForm) {
       e.preventDefault();
