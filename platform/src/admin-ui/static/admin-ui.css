@@ -182,7 +182,10 @@ th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
   padding: 10px 14px; border-radius: 8px; z-index: 30; max-width: 380px; }
 #toast.err { border-left-color: var(--danger); }
 
-.roleselect { display: flex; gap: 6px; align-items: center; margin: 2px 0; }
+/* margin-bottom only: adjacent vertical margins collapse, so `margin: 2px 0`
+   left just 2px between stacked dropdowns — they read as one control. */
+.roleselect { display: flex; gap: 6px; align-items: center; margin: 0 0 12px; }
+.roleselect:last-child { margin-bottom: 0; }
 .roleselect .muted { font-size: 11px; min-width: 88px; }
 .roleselect select { margin-top: 0; width: auto; min-width: 110px; }
 
