@@ -8,7 +8,7 @@ import { z } from "zod";
 import { AuthError } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { signIn } from "@/auth";
-import { hashPassword } from "@/lib/auth/password";
+import { hashPassword, newPassword } from "@/lib/auth/password";
 import { rateLimit } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 import { defaultWorkspace, getPlatform, isPlatformMode } from "@/lib/platform";
@@ -26,7 +26,9 @@ export interface AuthFormState {
 const signupSchema = z.object({
   company: z.string().trim().min(2, "Company name must be at least 2 characters").max(80),
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters").max(200),
+  // NIST/OWASP Standard — same policy in platform mode, enforced server-side
+  // by the platform's DTOs; this keeps the standalone path identical.
+  password: newPassword(),
 });
 
 const loginSchema = z.object({
