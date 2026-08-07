@@ -9,7 +9,8 @@
  * and no special characters were fine. The server owns the policy; the page
  * checks length only.
  */
-import { inviteAcceptPage, resetFormPage } from './auth-pages';
+import { inviteAcceptPage, resetFormPage, verifyResultPage } from './auth-pages';
+import { config } from '../config';
 import { PASSWORD_MIN_LENGTH, PASSWORD_RULES_TEXT } from '../core/password-policy';
 
 describe.each([
@@ -34,5 +35,47 @@ describe.each([
 
   it('surfaces the server message, including validator arrays', () => {
     expect(html).toContain('Array.isArray(body.message)');
+  });
+});
+
+describe.each([
+  ['reset', resetFormPage('tok')],
+  ['invite', inviteAcceptPage('tok')],
+])('%s page password visibility', (_name, html) => {
+  it('gives every password field a show/hide toggle', () => {
+    const fields = (html.match(/type="password"/g) ?? []).length;
+    // Count the attribute in MARKUP only — the delegated handler's selector
+    // string contains the same token.
+    const toggles = (html.match(/class="pw-toggle" data-pw-toggle/g) ?? []).length;
+    expect(fields).toBeGreaterThan(0);
+    expect(toggles).toBe(fields);
+  });
+
+  it('labels the toggle for screen readers and swaps the label on reveal', () => {
+    expect(html).toContain('aria-label="Show password"');
+    expect(html).toContain("'Hide password'");
+  });
+
+  it('keeps the toggle a sibling of its input, which the handler relies on', () => {
+    expect(html).toContain("btn.parentElement.querySelector('input')");
+  });
+});
+
+describe('terminal screens offer a way forward', () => {
+  it('verify success links to sign in', () => {
+    expect(verifyResultPage(true)).toContain('Go to sign in');
+    expect(verifyResultPage(true)).not.toContain('close this tab');
+  });
+
+  it.each([
+    ['reset', resetFormPage('tok')],
+    ['invite', inviteAcceptPage('tok')],
+  ])('%s success screen carries the sign-in button', (_name, html) => {
+    expect(html).toContain('SIGNIN_HTML');
+    expect(html).toContain('Go to sign in');
+  });
+
+  it('points the button at the configured public URL, not a hardcoded host', () => {
+    expect(verifyResultPage(true)).toContain(`href="${config.publicBaseUrl}/"`);
   });
 });
