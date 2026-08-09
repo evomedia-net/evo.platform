@@ -71,6 +71,31 @@ await platform.sendEmail({ to, subject, html });          // tenant SMTP → def
 await platform.pushEvent({ action: 'thing.created', tenantId, detail });
 ```
 
+## Billing (client credentials)
+
+```ts
+const ent = await platform.getEntitlement({ tenantId });
+// { enabled, status, plan, trialEndsAt, graceUntil, daysLeft }
+// enabled mirrors the login gate; daysLeft counts down a trial or grace window.
+// A cheap DB read (no Stripe round-trip) — fine to call per page load, and it
+// answers even before Stripe is configured.
+
+const { url } = await platform.createCheckout({
+  tenantId,
+  successUrl: `${appUrl}/billing/success`,
+  cancelUrl: `${appUrl}/billing`,
+}); // redirect the browser to Stripe Checkout
+
+const portal = await platform.createBillingPortal({ tenantId, returnUrl: appUrl });
+```
+
+The platform's Stripe webhook then drives the tenant's access to the app
+(paid → active, failed → grace → suspended).
+
+Billing calls are scoped: the tenant must already have the calling app enabled,
+and every redirect URL (`successUrl`, `cancelUrl`, `returnUrl`) must share an
+origin with one of the app's registered callback URLs.
+
 ## Ask AI (evo-ai)
 
 evo-ai is a **separate service** with its own URL and credentials, so it has its own

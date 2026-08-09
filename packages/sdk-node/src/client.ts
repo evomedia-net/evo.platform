@@ -10,6 +10,7 @@ import {
   Claims,
   CreateInviteParams,
   CreateMemberParams,
+  Entitlement,
   EvoPlatformOptions,
   LoginParams,
   LoginResult,
@@ -257,9 +258,23 @@ export class EvoPlatform {
 
   // ---- client-credential services ----
 
+  /** The tenant's standing on THIS app — status, plan, trial/grace deadlines,
+   *  and whether a login would be admitted right now. A cheap DB read on the
+   *  platform (no Stripe round-trip), so calling it per page load is fine. */
+  getEntitlement(params: { tenantId: string }): Promise<Entitlement> {
+    return this.request(
+      'GET',
+      `/billing/entitlement?tenantId=${encodeURIComponent(params.tenantId)}`,
+      undefined,
+      this.clientHeaders(),
+    );
+  }
+
   /** Stripe Checkout for the tenant's subscription to THIS app. The webhook
    *  then drives the tenant's access to the app (paid → active, failed →
-   *  grace → suspended) — a completed first checkout enables the app. */
+   *  grace → suspended). The redirect URLs must share an origin with the
+   *  app's registered callback URLs, and the tenant must already have this
+   *  app enabled. */
   createCheckout(params: {
     tenantId: string;
     successUrl: string;

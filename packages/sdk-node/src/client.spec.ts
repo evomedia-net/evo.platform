@@ -210,3 +210,32 @@ describe('EvoPlatform API calls', () => {
     expect(headers['x-client-secret']).toBe('shh');
   });
 });
+
+describe('EvoPlatform.getEntitlement', () => {
+  it('is a GET with client credentials, an encoded tenant id, and no body', async () => {
+    const fetchFn = makeFetch({
+      '/billing/entitlement': (init) =>
+        init?.body === undefined && (init?.method ?? 'GET') === 'GET'
+          ? fakeResponse(200, { enabled: true, status: 'TRIAL', daysLeft: 5 })
+          : fakeResponse(500, { message: 'entitlement must be a bodyless GET' }),
+    });
+    const platform = new EvoPlatform({
+      platformUrl: 'http://platform.test',
+      clientId: 'app_x',
+      clientSecret: 'sec',
+      fetchFn,
+    });
+    const out = await platform.getEntitlement({ tenantId: 't 1/x' });
+    expect(out).toMatchObject({ enabled: true, status: 'TRIAL', daysLeft: 5 });
+    const [url, init] = fetchFn.mock.calls[0];
+    // Encoded, not interpolated raw — a slash in the id must not make a path.
+    expect(new URL(String(url)).searchParams.get('tenantId')).toBe('t 1/x');
+    expect((init?.headers as Record<string, string>)['x-client-id']).toBe('app_x');
+  });
+
+  it('refuses to run without client credentials — named at the call site', () => {
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn: makeFetch({}) });
+    // Thrown synchronously, before any request is even constructed.
+    expect(() => platform.getEntitlement({ tenantId: 't1' })).toThrow(ConfigError);
+  });
+});
