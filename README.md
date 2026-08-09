@@ -1,6 +1,6 @@
 # EvoPlatform
 
-![CI](https://github.com/kellymichels/EvoPlatform/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/evomedia-net/evo.platform/actions/workflows/ci.yml/badge.svg)
 
 A multi-tenant SaaS platform and app-template toolkit. Build a new tenant-aware site by
 cloning a starter template — tenancy, auth, RBAC, audit logging, and deployment come wired in.

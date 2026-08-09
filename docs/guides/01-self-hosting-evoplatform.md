@@ -73,7 +73,7 @@ first means that when something breaks on the server, you already know what
 ### A1. Get the code
 
 ```bash
-git clone https://github.com/kellymichels/EvoPlatform.git
+git clone https://github.com/evomedia-net/evo.platform.git
 ```
 
 ```bash
@@ -237,7 +237,7 @@ re-register their passkey. Choose once.
 SSH to the server, then:
 
 ```bash
-git clone https://github.com/kellymichels/EvoPlatform.git ~/stack/evoplatform
+git clone https://github.com/evomedia-net/evo.platform.git ~/stack/evoplatform
 ```
 
 ```bash
