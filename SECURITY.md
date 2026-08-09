@@ -9,7 +9,7 @@ it, so security reports are welcome and taken seriously.
 **Please do not open a public issue for a security problem.**
 
 Report it privately through GitHub's
-[private vulnerability reporting](https://github.com/kellymichels/EvoPlatform/security/advisories/new)
+[private vulnerability reporting](https://github.com/evomedia-net/evo.platform/security/advisories/new)
 (Security → Report a vulnerability). That creates a private advisory only
 you and the maintainer can see.
 
