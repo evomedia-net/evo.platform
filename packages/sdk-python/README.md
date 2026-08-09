@@ -51,6 +51,12 @@ parameters, camelCase on the wire.
 ## Billing (client credentials)
 
 ```python
+ent = platform.get_entitlement(tenant_id=tenant_id)
+# {"enabled", "status", "plan", "trialEndsAt", "graceUntil", "daysLeft"}
+# enabled mirrors the login gate; daysLeft counts down a trial or grace window.
+# A cheap DB read (no Stripe round-trip) — fine to call per page load, and it
+# answers even before Stripe is configured.
+
 out = platform.create_checkout(
     tenant_id=tenant_id,
     success_url=f"{app_url}/billing/success",
@@ -63,6 +69,10 @@ portal = platform.create_billing_portal(tenant_id=tenant_id, return_url=app_url)
 
 The platform's Stripe webhook then drives the tenant's access to the app
 (paid → active, failed → grace → suspended).
+
+Billing calls are scoped: the tenant must already have the calling app
+enabled, and every redirect URL (`success_url`, `cancel_url`, `return_url`)
+must share an origin with one of the app's registered callback URLs.
 
 ## Ask AI (evo-ai)
 

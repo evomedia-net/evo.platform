@@ -53,6 +53,19 @@ export interface LoginResult {
   };
 }
 
+/** A tenant's standing on the calling app (GET /billing/entitlement). */
+export interface Entitlement {
+  /** Would a login for this app be admitted right now. */
+  enabled: boolean;
+  /** null = the app has no relationship with this tenant. */
+  status: 'ACTIVE' | 'TRIAL' | 'PAST_DUE' | 'SUSPENDED' | null;
+  plan: string | null;
+  trialEndsAt: string | null;
+  graceUntil: string | null;
+  /** Days until the trial or grace deadline (rounded up); null when neither applies. */
+  daysLeft: number | null;
+}
+
 export interface SendEmailParams {
   /** Omit to use the platform default SMTP config. */
   tenantId?: string;

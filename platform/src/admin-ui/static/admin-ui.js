@@ -769,7 +769,7 @@ async function viewApps() {
           : `<button class="btn sm" data-act="rotate" data-id="${a.id}" data-tip="Replace this app's client secret — do it if the secret may have leaked, when someone with access leaves, or on a rotation schedule. The old secret stops working immediately, so update the app's config right away.">Rotate secret</button>
              <button class="btn sm danger" data-act="app-delete" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Soft-delete: sign-in through this app stops immediately, but nothing is destroyed and it can be restored. The client id stays reserved so it cannot be re-registered underneath.">Delete</button>`}</p>
       <form class="inline" data-app-callbacks="${a.id}" style="margin-top:6px">
-        <label style="flex:1 1 340px" data-tip="Where this app may receive auth codes, comma-separated. Registered once and then unchangeable used to mean a typo — or an app registered without one — could never be corrected from here. Empty is allowed: nothing enforces these yet.">Callback URLs <input name="callbacks" placeholder="https://app.example.com/cb" value="${esc(a.callbackUrls.join(", "))}" /></label>
+        <label style="flex:1 1 340px" data-tip="Where this app may receive auth codes, comma-separated. Billing enforces these: checkout and portal redirect URLs must share an origin with one of them, so an app with none registered cannot start a checkout.">Callback URLs <input name="callbacks" placeholder="https://app.example.com/cb" value="${esc(a.callbackUrls.join(", "))}" /></label>
         <button class="btn sm grow0">Save</button>
       </form>
       <div class="chips">${a.roles.map((r) => `<span class="chip">${esc(r.name)}

@@ -4,11 +4,17 @@
 
 import { IsInt, IsOptional, IsString, IsUrl, Min } from 'class-validator';
 
+export class EntitlementQueryDto {
+  @IsString()
+  tenantId!: string;
+}
+
 export class CheckoutDto {
   @IsString()
   tenantId!: string;
 
-  /** Optional override; defaults to the calling app's registered price. */
+  /** Accepted only when it names the app's registered price (kept for wire
+   *  compatibility; the registry is the sole source of what an app sells). */
   @IsOptional()
   @IsString()
   priceId?: string;

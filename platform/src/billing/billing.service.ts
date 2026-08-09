@@ -4,13 +4,14 @@
 
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import Stripe from 'stripe';
-import { AppTenantStatus } from '@prisma/client';
+import { AppTenant, AppTenantStatus } from '@prisma/client';
 import { PrismaService } from '../core/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { config } from '../config';
@@ -21,6 +22,7 @@ export interface CallingApp {
   id: string;
   clientId: string;
   stripePriceId: string | null;
+  callbackUrls: string[];
 }
 
 /**
@@ -80,6 +82,99 @@ export class BillingService {
     }
   }
 
+  /**
+   * The calling app may only transact for tenants it already has a
+   * relationship with. Rows are created by signup, auto-enroll, or a console
+   * grant — never by a billing call — so requiring one here keeps an app from
+   * enabling itself onto a workspace that never asked for it, and keeps one
+   * app's credentials from reaching another app's customers.
+   */
+  private async requireRelationship(tenantId: string, app: CallingApp): Promise<AppTenant> {
+    const access = await this.prisma.appTenant.findUnique({
+      where: { tenantId_appId: { tenantId, appId: app.id } },
+    });
+    if (!access) throw new ForbiddenException('App is not enabled for this workspace');
+    return access;
+  }
+
+  /**
+   * A redirect target must share an origin with one of the app's registered
+   * callback URLs — otherwise checkout/portal are an open redirect wearing
+   * Stripe's (or the platform's) domain: "stripe.com sent me here" is exactly
+   * the trust a phishing page wants to borrow.
+   */
+  private assertRedirectAllowed(url: string, app: CallingApp): void {
+    let origin: string;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      throw new BadRequestException(`Invalid redirect URL "${url}"`);
+    }
+    const allowed = (app.callbackUrls ?? []).some((cb) => {
+      try {
+        return new URL(cb).origin === origin;
+      } catch {
+        return false;
+      }
+    });
+    if (!allowed) {
+      throw new BadRequestException(
+        `Redirect origin ${origin} is not registered as a callback URL for this app`,
+      );
+    }
+  }
+
+  /**
+   * The tenant's standing on the CALLING app: status, plan, deadlines, and
+   * whether a login would be admitted right now. A pure DB read — no Stripe
+   * round-trip — so apps can call it per page load to render trial countdowns
+   * and past-due banners, and it answers even when Stripe is unconfigured.
+   *
+   * `enabled` mirrors AuthService.assertAppEnabled — keep the two in lockstep,
+   * or the banner will disagree with the door.
+   */
+  async entitlement(tenantId: string, app: CallingApp) {
+    const access = await this.prisma.appTenant.findUnique({
+      where: { tenantId_appId: { tenantId, appId: app.id } },
+    });
+    if (!access) {
+      // No relationship. Answered softly (not 403/404) so an app can render
+      // "not enabled" without treating the platform's answer as an error.
+      return {
+        enabled: false,
+        status: null,
+        plan: null,
+        trialEndsAt: null,
+        graceUntil: null,
+        daysLeft: null,
+      };
+    }
+    const now = new Date();
+    const trialExpired =
+      access.status === 'TRIAL' && access.trialEndsAt != null && access.trialEndsAt < now;
+    const graceExpired =
+      access.status === 'PAST_DUE' && access.graceUntil != null && access.graceUntil < now;
+    const enabled = access.status !== 'SUSPENDED' && !trialExpired && !graceExpired;
+    // The one deadline that currently threatens access, as a countdown.
+    const deadline =
+      access.status === 'TRIAL'
+        ? access.trialEndsAt
+        : access.status === 'PAST_DUE'
+          ? access.graceUntil
+          : null;
+    const daysLeft = deadline
+      ? Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000))
+      : null;
+    return {
+      enabled,
+      status: access.status,
+      plan: access.plan,
+      trialEndsAt: access.trialEndsAt,
+      graceUntil: access.graceUntil,
+      daysLeft,
+    };
+  }
+
   async ensureCustomer(tenantId: string): Promise<string> {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant || tenant.deletedAt) throw new NotFoundException('Tenant not found');
@@ -97,13 +192,23 @@ export class BillingService {
   }
 
   /** Checkout for the CALLING app's subscription: the price comes from the app
-   *  registry (dto.priceId may override), and the subscription is tagged with
-   *  tenant + app so the webhook can route it to the right AppTenant row. */
+   *  registry, and the subscription is tagged with tenant + app so the webhook
+   *  can route it to the right AppTenant row. */
   async checkout(dto: CheckoutDto, app: CallingApp) {
-    const priceId = dto.priceId ?? app.stripePriceId;
+    // The price is pinned at registration (where assertPriceUsable vets it).
+    // A caller-supplied priceId is accepted only when it names that same
+    // price: letting it vary would let a compromised app sell another app's
+    // product, or sell at a price nobody vetted.
+    if (dto.priceId != null && dto.priceId !== app.stripePriceId) {
+      throw new BadRequestException("priceId must match this app's registered Stripe price");
+    }
+    const priceId = app.stripePriceId;
     if (!priceId) {
       throw new BadRequestException('This app has no Stripe price configured');
     }
+    await this.requireRelationship(dto.tenantId, app);
+    this.assertRedirectAllowed(dto.successUrl, app);
+    this.assertRedirectAllowed(dto.cancelUrl, app);
     const customer = await this.ensureCustomer(dto.tenantId);
     const session = await this.requireStripe().checkout.sessions.create({
       mode: 'subscription',
@@ -118,7 +223,12 @@ export class BillingService {
     return { url: session.url };
   }
 
-  async portal(dto: PortalDto) {
+  /** A portal session opens the tenant's whole Stripe customer — invoices,
+   *  payment method, every subscription, a cancel button. Only an app with an
+   *  existing relationship to the tenant gets to mint one. */
+  async portal(dto: PortalDto, app: CallingApp) {
+    await this.requireRelationship(dto.tenantId, app);
+    this.assertRedirectAllowed(dto.returnUrl, app);
     const customer = await this.ensureCustomer(dto.tenantId);
     const session = await this.requireStripe().billingPortal.sessions.create({
       customer,

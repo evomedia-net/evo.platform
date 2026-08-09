@@ -2,7 +2,11 @@
 // Created by Kelly Michels · dev@evomedia.net
 // Licensed under the MIT License. See LICENSE.
 
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import Stripe from 'stripe';
 import { BillingService } from './billing.service';
 
@@ -54,7 +58,12 @@ function makePrisma(access: Record<string, unknown> | null = { ...baseAccess }) 
 }
 
 const audit = { record: jest.fn().mockResolvedValue(undefined) };
-const app = { id: 'a1', clientId: 'app_demo', stripePriceId: 'price_app' };
+const app = {
+  id: 'a1',
+  clientId: 'app_demo',
+  stripePriceId: 'price_app',
+  callbackUrls: ['https://app.test/cb'],
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const makeSvc = (prisma: any, stripe: any = realStripe) =>
@@ -238,12 +247,46 @@ describe('checkout', () => {
     expect(session.subscription_data.metadata).toMatchObject({ tenantId: 't1', appId: 'a1' });
   });
 
-  it('a dto priceId overrides the registered price', async () => {
+  it("rejects a priceId that is not the app's registered price", async () => {
     const stripe = fakeStripe();
     const svc = makeSvc(makePrisma(), stripe);
-    await svc.checkout({ ...dto, priceId: 'price_override' }, app);
-    expect(stripe.checkout.sessions.create.mock.calls[0][0].line_items[0].price).toBe(
-      'price_override',
+    await expect(svc.checkout({ ...dto, priceId: 'price_other_app' }, app)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('still accepts a priceId that names the registered price (wire compat)', async () => {
+    const stripe = fakeStripe();
+    await makeSvc(makePrisma(), stripe).checkout({ ...dto, priceId: 'price_app' }, app);
+    expect(stripe.checkout.sessions.create.mock.calls[0][0].line_items[0].price).toBe('price_app');
+  });
+
+  it('refuses checkout for a tenant the app has no relationship with', async () => {
+    const stripe = fakeStripe();
+    const svc = makeSvc(makePrisma(null), stripe);
+    await expect(svc.checkout(dto, app)).rejects.toBeInstanceOf(ForbiddenException);
+    // Refused before any Stripe call — no customer is created as a side effect.
+    expect(stripe.customers.create).not.toHaveBeenCalled();
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects redirect URLs whose origin is not a registered callback URL', async () => {
+    const stripe = fakeStripe();
+    const svc = makeSvc(makePrisma(), stripe);
+    await expect(
+      svc.checkout({ ...dto, successUrl: 'https://evil.test/ok' }, app),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      svc.checkout({ ...dto, cancelUrl: 'https://evil.test/no' }, app),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('an app with no registered callback URLs cannot mint redirects at all', async () => {
+    const svc = makeSvc(makePrisma(), fakeStripe());
+    await expect(svc.checkout(dto, { ...app, callbackUrls: [] })).rejects.toBeInstanceOf(
+      BadRequestException,
     );
   });
 
@@ -267,5 +310,107 @@ describe('checkout', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const svc = new BillingService(makePrisma() as any, audit as any);
     await expect(svc.checkout(dto, app)).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});
+
+describe('portal', () => {
+  const fakeStripe = () => ({
+    customers: { create: jest.fn().mockResolvedValue({ id: 'cus_new' }) },
+    billingPortal: { sessions: { create: jest.fn().mockResolvedValue({ url: 'https://stripe.test/p' }) } },
+  });
+
+  it('opens the portal for a tenant the app has a relationship with', async () => {
+    const stripe = fakeStripe();
+    const out = await makeSvc(makePrisma(), stripe).portal(
+      { tenantId: 't1', returnUrl: 'https://app.test/billing' },
+      app,
+    );
+    expect(out.url).toBe('https://stripe.test/p');
+  });
+
+  it("refuses the portal for another app's tenant — it exposes the whole customer", async () => {
+    const stripe = fakeStripe();
+    await expect(
+      makeSvc(makePrisma(null), stripe).portal({ tenantId: 't1', returnUrl: 'https://app.test/b' }, app),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(stripe.billingPortal.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a returnUrl outside the registered callback origins', async () => {
+    await expect(
+      makeSvc(makePrisma(), fakeStripe()).portal(
+        { tenantId: 't1', returnUrl: 'https://evil.test/b' },
+        app,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('entitlement', () => {
+  const DAY = 86_400_000;
+  // No Stripe client on purpose: entitlement must answer before billing is
+  // configured — apps render trial banners long before anyone can pay.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const svcFor = (access: Record<string, unknown> | null) =>
+    new BillingService(makePrisma(access) as any, audit as any, null as unknown as Stripe);
+
+  it('answers enabled:false with all-null fields when there is no relationship', async () => {
+    const out = await svcFor(null).entitlement('t1', app);
+    expect(out).toEqual({
+      enabled: false,
+      status: null,
+      plan: null,
+      trialEndsAt: null,
+      graceUntil: null,
+      daysLeft: null,
+    });
+  });
+
+  it('an ACTIVE pair is enabled with no countdown', async () => {
+    const out = await svcFor({ ...baseAccess }).entitlement('t1', app);
+    expect(out).toMatchObject({ enabled: true, status: 'ACTIVE', plan: 'free', daysLeft: null });
+  });
+
+  it('a live TRIAL counts down the days to trialEndsAt', async () => {
+    const ends = new Date(Date.now() + 5 * DAY + 60_000);
+    const out = await svcFor({ ...baseAccess, status: 'TRIAL', trialEndsAt: ends }).entitlement(
+      't1',
+      app,
+    );
+    expect(out.enabled).toBe(true);
+    expect(out.daysLeft).toBe(6); // partial days round UP: "6 days left", not 5.001
+  });
+
+  it('an expired TRIAL is disabled — matching the login gate', async () => {
+    const out = await svcFor({
+      ...baseAccess,
+      status: 'TRIAL',
+      trialEndsAt: new Date(Date.now() - DAY),
+    }).entitlement('t1', app);
+    expect(out).toMatchObject({ enabled: false, status: 'TRIAL', daysLeft: 0 });
+  });
+
+  it('PAST_DUE inside the grace window stays enabled and counts down', async () => {
+    const out = await svcFor({
+      ...baseAccess,
+      status: 'PAST_DUE',
+      graceUntil: new Date(Date.now() + 3 * DAY + 60_000),
+    }).entitlement('t1', app);
+    expect(out.enabled).toBe(true);
+    expect(out.daysLeft).toBe(4);
+  });
+
+  it('PAST_DUE past the grace window is disabled', async () => {
+    const out = await svcFor({
+      ...baseAccess,
+      status: 'PAST_DUE',
+      graceUntil: new Date(Date.now() - DAY),
+    }).entitlement('t1', app);
+    expect(out).toMatchObject({ enabled: false, daysLeft: 0 });
+  });
+
+  it('SUSPENDED is disabled regardless of any deadline', async () => {
+    const out = await svcFor({ ...baseAccess, status: 'SUSPENDED' }).entitlement('t1', app);
+    expect(out).toMatchObject({ enabled: false, status: 'SUSPENDED' });
   });
 });

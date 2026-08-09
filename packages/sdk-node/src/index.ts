@@ -15,6 +15,7 @@ export type {
   AskResult,
   AskSource,
   Claims,
+  Entitlement,
   EvoPlatformOptions,
   LoginParams,
   LoginResult,

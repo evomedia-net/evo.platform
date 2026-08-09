@@ -17,6 +17,7 @@ can wrap this later without changing the wire.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 import jwt as pyjwt
@@ -270,6 +271,18 @@ class EvoPlatform:
         return self._post("/auth/invites/accept", _camel(params))
 
     # ---- client-credential services ----
+
+    def get_entitlement(self, *, tenant_id: str) -> dict[str, Any]:
+        """The tenant's standing on THIS app - status, plan, trial/grace
+        deadlines, and whether a login would be admitted right now. A cheap
+        DB read on the platform (no Stripe round-trip), so calling it per
+        page load is fine."""
+        return self._request(
+            "GET",
+            f"/billing/entitlement?tenantId={quote(tenant_id, safe='')}",
+            None,
+            self._client_headers(),
+        )
 
     def create_checkout(
         self,

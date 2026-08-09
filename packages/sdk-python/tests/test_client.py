@@ -141,3 +141,15 @@ def test_a_timeout_is_504_not_a_bare_exception():
 def test_a_missing_platform_url_fails_at_construction():
     with pytest.raises(ConfigError):
         EvoPlatform("")
+
+
+def test_entitlement_is_a_get_with_the_tenant_in_the_query():
+    cap = Capture(respond={"enabled": True, "status": "TRIAL", "daysLeft": 5})
+    out = platform(cap, client_secret="sec").get_entitlement(tenant_id="t 1/x")
+    assert out["enabled"] is True
+    assert cap.last.method == "GET"
+    assert cap.last.url.path == "/billing/entitlement"
+    # The id is URL-encoded, not interpolated raw — slashes must not make paths.
+    assert cap.last.url.params["tenantId"] == "t 1/x"
+    assert cap.last.headers["x-client-id"] == "app_sp"
+    assert not cap.last.content  # a GET carries no body
