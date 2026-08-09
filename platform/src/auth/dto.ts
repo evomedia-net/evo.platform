@@ -30,6 +30,21 @@ export class RefreshDto {
 }
 
 /** Verification / reset requests: tenant + email, like login. */
+export class WorkspaceLookupDto {
+  @IsEmail()
+  email!: string;
+
+  /** Shown in the email so the user knows which product they were signing in
+   *  to - one platform serves several apps. */
+  @IsOptional()
+  @IsString()
+  appName?: string;
+
+  @IsOptional()
+  @IsString()
+  appUrl?: string;
+}
+
 export class EmailFlowDto {
   @IsOptional()
   @IsString()

@@ -108,6 +108,22 @@ export class EvoPlatform {
     return this.post('/auth/verify', { token });
   }
 
+  /**
+   * Ask the platform to email this address the workspaces it can sign in to.
+   *
+   * Always resolves { ok: true } - the platform answers identically whether or
+   * not the address has any, because returning the list would let any caller
+   * map an address to its workspaces. appName/appUrl are echoed into the email
+   * so the user knows which product to go back to.
+   */
+  forgotWorkspace(params: {
+    email: string;
+    appName?: string;
+    appUrl?: string;
+  }): Promise<{ ok: boolean }> {
+    return this.post('/auth/workspaces', params);
+  }
+
   forgotPassword(params: { tenantSlug?: string; email: string }): Promise<{ ok: boolean }> {
     return this.post('/auth/forgot', params);
   }

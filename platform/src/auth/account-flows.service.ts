@@ -139,6 +139,52 @@ export class AccountFlowsService {
       .digest('hex');
   }
 
+  /**
+   * Email the workspaces an address can sign in to.
+   *
+   * Answered by mail, never in the response: returning the list would let
+   * anyone map an address to the workspaces it belongs to, which is worse
+   * than plain account enumeration - it leaks the customer relationship.
+   *
+   * ``appName`` lets the calling app say where to sign in, since one platform
+   * serves several and the workspace list alone would not tell the user which
+   * product they were trying to reach.
+   */
+  async listWorkspaces(input: { email: string; appName?: string; appUrl?: string }) {
+    const ok = { ok: true };
+    const email = input.email.toLowerCase();
+    if (!allowSend(`workspaces:${email}`)) return ok;
+
+    const users = await this.prisma.user.findMany({
+      where: { email, deletedAt: null, tenantId: { not: null } },
+      include: { tenant: true },
+    });
+    const tenants = users
+      .map((u) => u.tenant)
+      .filter((t): t is NonNullable<typeof t> => !!t && !t.deletedAt)
+      .sort((a, b) => a.slug.localeCompare(b.slug));
+    if (!tenants.length) return ok;
+
+    const plural = tenants.length > 1 ? 's' : '';
+    const product = input.appName ? ` for ${input.appName}` : '';
+    const where = input.appUrl ? `\n\nSign in at ${input.appUrl}` : '';
+    const lines = tenants.map((t) => `  ${t.slug}  (${t.name})`).join('\n');
+    await this.email.send({
+      to: email,
+      subject: `Your workspaces${product}`,
+      text:
+        `This address can sign in to the following workspace${plural}${product}:` +
+        `\n\n${lines}${where}\n\nUse the workspace name on the left when signing in.`,
+      html:
+        `<p>This address can sign in to the following workspace${plural}${product}:</p>` +
+        `<ul>${tenants.map((t) => `<li><code>${t.slug}</code> &mdash; ${t.name}</li>`).join('')}</ul>` +
+        (input.appUrl ? `<p><a href="${input.appUrl}">Sign in</a></p>` : '') +
+        `<p>Use the workspace name when signing in.</p>`,
+    });
+    await this.audit.record('auth.workspaces_listed', { userId: users[0]?.id });
+    return ok;
+  }
+
   async requestReset(input: { tenantSlug?: string; email: string }) {
     const ok = { ok: true };
     if (!allowSend(`reset:${input.email.toLowerCase()}`)) return ok;

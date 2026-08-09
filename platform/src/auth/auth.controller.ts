@@ -9,7 +9,7 @@ import { AuthService } from './auth.service';
 import { AccountFlowsService } from './account-flows.service';
 import { SignupService } from './signup.service';
 import { resetFormPage, resetInvalidPage, verifyResultPage } from './auth-pages';
-import { EmailFlowDto, LoginDto, RefreshDto, ResetDto, SignupDto, SignupLinkDto, VerifyDto } from './dto';
+import { EmailFlowDto, WorkspaceLookupDto, LoginDto, RefreshDto, ResetDto, SignupDto, SignupLinkDto, VerifyDto } from './dto';
 import { JwtAuthGuard } from './jwt.guard';
 import { PlatformAdminGuard } from './platform-admin.guard';
 import { KeysService } from '../core/keys.service';
@@ -102,6 +102,14 @@ export class AuthController {
   }
 
   // ---- password reset ----
+
+  // Answered by email, never in the response: returning the list would map an
+  // address to the workspaces it belongs to for any caller.
+  @Post('workspaces')
+  @HttpCode(200)
+  workspaces(@Body() dto: WorkspaceLookupDto) {
+    return this.flows.listWorkspaces(dto);
+  }
 
   @Post('forgot')
   @HttpCode(200)
