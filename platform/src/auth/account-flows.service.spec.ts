@@ -180,3 +180,50 @@ describe('password reset', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('workspace lookup', () => {
+  it('emails the workspaces an address belongs to', async () => {
+    const deps = makeDeps();
+    deps.prisma.user.findMany = jest.fn().mockResolvedValue([
+      { id: 'u1', tenant: { slug: 'acme', name: 'Acme', deletedAt: null } },
+      { id: 'u2', tenant: { slug: 'zeta', name: 'Zeta', deletedAt: null } },
+    ]);
+    await makeSvc(deps).listWorkspaces({ email: 'owner@acme.example' });
+    const body = deps.email.send.mock.calls[0][0].text;
+    expect(body).toContain('acme');
+    expect(body).toContain('zeta');
+  });
+
+  it('answers ok without sending when the address has none', async () => {
+    const deps = makeDeps();
+    deps.prisma.user.findMany = jest.fn().mockResolvedValue([]);
+    expect(await makeSvc(deps).listWorkspaces({ email: 'ghost@x.example' })).toEqual({ ok: true });
+    expect(deps.email.send).not.toHaveBeenCalled();
+  });
+
+  it('never returns the workspaces in the response body', async () => {
+    const deps = makeDeps();
+    deps.prisma.user.findMany = jest.fn().mockResolvedValue([
+      { id: 'u1', tenant: { slug: 'acme', name: 'Acme', deletedAt: null } },
+    ]);
+    const found = await makeSvc(deps).listWorkspaces({ email: 'owner@acme.example' });
+    deps.email.send.mockClear();
+    deps.prisma.user.findMany = jest.fn().mockResolvedValue([]);
+    const missing = await makeSvc(deps).listWorkspaces({ email: 'ghost@x.example' });
+    // Identical shape either way - the difference exists only in the mailbox.
+    expect(found).toEqual(missing);
+    expect(JSON.stringify(found)).not.toContain('acme');
+  });
+
+  it('skips soft-deleted workspaces', async () => {
+    const deps = makeDeps();
+    deps.prisma.user.findMany = jest.fn().mockResolvedValue([
+      { id: 'u1', tenant: { slug: 'live', name: 'Live', deletedAt: null } },
+      { id: 'u2', tenant: { slug: 'gone', name: 'Gone', deletedAt: new Date() } },
+    ]);
+    await makeSvc(deps).listWorkspaces({ email: 'owner@acme.example' });
+    const body = deps.email.send.mock.calls[0][0].text;
+    expect(body).toContain('live');
+    expect(body).not.toContain('gone');
+  });
+});
