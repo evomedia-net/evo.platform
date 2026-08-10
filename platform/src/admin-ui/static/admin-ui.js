@@ -152,6 +152,13 @@ async function api(method, path, body) {
 function showLogin() {
   clearSession();
   $("#app-view").hidden = true;
+  // Prefill the workspace that last signed in successfully. A tenant-homed
+  // platform admin has no way to know their account is not platform-level,
+  // and a blank workspace fails for them with a bare "Invalid credentials"
+  // (#96) - remembering the answer beats explaining the distinction.
+  const last = localStorage.getItem("evo.lastWorkspace");
+  const ws = $("#login-workspace");
+  if (last && !ws.value) ws.value = last;
   $("#login-view").hidden = false;
 }
 
@@ -175,12 +182,21 @@ $("#login-form").addEventListener("submit", async (e) => {
     password: $("#login-password").value,
     ...(workspace ? { tenantSlug: workspace } : {}),
   });
-  if (!r.ok) { err.textContent = r.data?.message || "Sign-in failed"; err.hidden = false; return; }
+  if (!r.ok) {
+    err.textContent = r.data?.message || "Sign-in failed";
+    // Static, account-independent nudge (#96): a blank workspace only ever
+    // matches platform-level rows, and most admin accounts live in a
+    // workspace. Same text for every email, so it reveals nothing.
+    if (!workspace) err.textContent += " — if your account belongs to a workspace, enter it above.";
+    err.hidden = false;
+    return;
+  }
   if (!r.data.user?.platformAdmin) {
     err.textContent = "This console requires a platform admin account";
     err.hidden = false;
     return;
   }
+  localStorage.setItem("evo.lastWorkspace", workspace);
   setSession(r.data.accessToken, r.data.refreshToken, r.data.user);
   showApp();
 });
