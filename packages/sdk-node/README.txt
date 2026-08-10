@@ -70,6 +70,10 @@ Services
 Billing (client credentials)
 ----------------------------
 
+    const prices = await platform.listPrices();
+    // [{ stripeProductId, stripePriceId, productName, tier, unitAmount, currency,
+    //    interval, intervalCount, trialDays }] — cheapest first, archived tiers omitted.
+
     const ent = await platform.getEntitlement({ tenantId });
     // { enabled, status, plan, trialEndsAt, graceUntil, daysLeft }
     // enabled mirrors the login gate; daysLeft counts down a trial or grace window.
@@ -78,6 +82,7 @@ Billing (client credentials)
 
     const { url } = await platform.createCheckout({
       tenantId,
+      tier: 'pro',            // or interval: 'year'; or a priceId from listPrices()
       successUrl: `${appUrl}/billing/success`,
       cancelUrl: `${appUrl}/billing`,
     }); // redirect the browser to Stripe Checkout
@@ -90,6 +95,12 @@ The platform's Stripe webhook then drives the tenant's access to the app
 Billing calls are scoped: the tenant must already have the calling app enabled,
 and every redirect URL (successUrl, cancelUrl, returnUrl) must share an
 origin with one of the app's registered callback URLs.
+
+An app sells any number of tiers, each with its own billing period — name the
+one you want by tier (+ interval, default monthly) rather than a Stripe id,
+and repricing becomes a console edit instead of a redeploy. A tier billed
+once is a one-time purchase: it grants access permanently and has no renewal,
+grace or cancellation lifecycle.
 
 Ask AI (evo-ai)
 ---------------

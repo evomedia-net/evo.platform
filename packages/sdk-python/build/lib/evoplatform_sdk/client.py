@@ -1,4 +1,4 @@
-# Evomedia.net EvoPlatform — https://github.com/evomedia-net/evo.platform
+# Evomedia.net EvoPlatform — https://github.com/kellymichels/EvoPlatform
 # Created by Kelly Michels · dev@evomedia.net
 # Licensed under the MIT License. See LICENSE.
 
@@ -17,7 +17,6 @@ can wrap this later without changing the wire.
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 import jwt as pyjwt
@@ -272,32 +271,12 @@ class EvoPlatform:
 
     # ---- client-credential services ----
 
-    def get_entitlement(self, *, tenant_id: str) -> dict[str, Any]:
-        """The tenant's standing on THIS app - status, plan, trial/grace
-        deadlines, and whether a login would be admitted right now. A cheap
-        DB read on the platform (no Stripe round-trip), so calling it per
-        page load is fine."""
-        return self._request(
-            "GET",
-            f"/billing/entitlement?tenantId={quote(tenant_id, safe='')}",
-            None,
-            self._client_headers(),
-        )
-
-    def list_prices(self) -> list[dict[str, Any]]:
-        """What this app sells, cheapest first - enough to render a pricing
-        table without holding any Stripe ids in your own code."""
-        return self._request("GET", "/billing/prices", None, self._client_headers())
-
     def create_checkout(
         self,
         *,
         tenant_id: str,
         success_url: str,
         cancel_url: str,
-        tier: str | None = None,
-        interval: str | None = None,
-        interval_count: int | None = None,
         price_id: str | None = None,
         quantity: int | None = None,
     ) -> dict[str, Any]:
@@ -311,9 +290,6 @@ class EvoPlatform:
                     "tenantId": tenant_id,
                     "successUrl": success_url,
                     "cancelUrl": cancel_url,
-                    "tier": tier,
-                    "interval": interval,
-                    "intervalCount": interval_count,
                     "priceId": price_id,
                     "quantity": quantity,
                 }

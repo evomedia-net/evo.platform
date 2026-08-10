@@ -16,7 +16,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { AppsService } from './apps.service';
-import { CreateAppDto, CreateRoleDto, UpdateAppDto, UpdateRoleDto } from './dto';
+import { AddPriceDto, CreateAppDto, CreateRoleDto, UpdateAppDto, UpdateRoleDto } from './dto';
 
 @Controller('admin/apps')
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
@@ -68,6 +68,21 @@ export class AppsController {
   @Get(':id/tenants')
   listTenants(@Param('id') id: string) {
     return this.apps.listTenants(id);
+  }
+
+  @Get(':id/prices')
+  listPrices(@Param('id') id: string) {
+    return this.apps.listPrices(id);
+  }
+
+  @Post(':id/prices')
+  addPrice(@Param('id') id: string, @Body() dto: AddPriceDto) {
+    return this.apps.addPrice(id, dto);
+  }
+
+  @Delete(':id/prices/:priceId')
+  removePrice(@Param('id') id: string, @Param('priceId') priceId: string) {
+    return this.apps.removePrice(id, priceId);
   }
 
   @Get(':id/roles')

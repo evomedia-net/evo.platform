@@ -53,6 +53,22 @@ export interface LoginResult {
   };
 }
 
+/** One thing the calling app sells (GET /billing/prices). */
+export interface AppPrice {
+  stripePriceId: string;
+  stripeProductId: string;
+  productName: string;
+  /** What the app calls this tier; also what lands in Entitlement.plan. */
+  tier: string;
+  /** Smallest currency unit, e.g. cents. */
+  unitAmount: number;
+  currency: string;
+  /** once | day | week | month | year. 'once' never renews. */
+  interval: string;
+  intervalCount: number;
+  trialDays: number;
+}
+
 /** A tenant's standing on the calling app (GET /billing/entitlement). */
 export interface Entitlement {
   /** Would a login for this app be admitted right now. */

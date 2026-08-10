@@ -1,3 +1,15 @@
+Metadata-Version: 2.4
+Name: evoplatform-sdk
+Version: 0.2.0
+Summary: Python SDK for EvoPlatform: local JWT verification via cached JWKS, auth proxy, billing, email, and the Ask AI client
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.27
+Requires-Dist: PyJWT[crypto]>=2.8
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+
 # evoplatform-sdk (Python)
 
 Python SDK for EvoPlatform, mirrored method-for-method with
@@ -51,19 +63,8 @@ parameters, camelCase on the wire.
 ## Billing (client credentials)
 
 ```python
-prices = platform.list_prices()
-# [{"stripeProductId", "stripePriceId", "productName", "tier", "unitAmount",
-#   "currency", "interval", "intervalCount", "trialDays"}] - cheapest first.
-
-ent = platform.get_entitlement(tenant_id=tenant_id)
-# {"enabled", "status", "plan", "trialEndsAt", "graceUntil", "daysLeft"}
-# enabled mirrors the login gate; daysLeft counts down a trial or grace window.
-# A cheap DB read (no Stripe round-trip) — fine to call per page load, and it
-# answers even before Stripe is configured.
-
 out = platform.create_checkout(
     tenant_id=tenant_id,
-    tier="pro",          # or interval="year"; or price_id= from list_prices()
     success_url=f"{app_url}/billing/success",
     cancel_url=f"{app_url}/billing",
 )
@@ -74,15 +75,6 @@ portal = platform.create_billing_portal(tenant_id=tenant_id, return_url=app_url)
 
 The platform's Stripe webhook then drives the tenant's access to the app
 (paid → active, failed → grace → suspended).
-
-Billing calls are scoped: the tenant must already have the calling app
-enabled, and every redirect URL (`success_url`, `cancel_url`, `return_url`)
-must share an origin with one of the app's registered callback URLs.
-
-An app sells any number of tiers, each with its own billing period - name the
-one you want by tier (+ interval, default monthly) rather than a Stripe id, so
-repricing is a console edit instead of a redeploy. A tier billed once is a
-one-time purchase: permanent access, with no renewal or grace lifecycle.
 
 ## Ask AI (evo-ai)
 
