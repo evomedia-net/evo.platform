@@ -15,8 +15,10 @@
       <label>Email <input id="login-email" type="email" autocomplete="username" required /></label>
       <!-- A platform admin's row may live inside a tenant rather than at the
            platform level, and login resolves the account within the workspace
-           it is given. Leave blank for a platform-level account. -->
-      <label>Workspace <span class="muted small">(leave blank for platform-level)</span>
+           it is given. The hint must not equate "I am a platform admin" with
+           "my account is platform-level" - most admin rows live in a
+           workspace, and a blank lookup never finds those (#96). -->
+      <label>Workspace <span class="muted small">(the workspace you sign in under; blank only if your account has none)</span>
         <input id="login-workspace" type="text" autocomplete="organization" /></label>
       <label>Password</label>
       <!-- Same .pw-field / data-pw-toggle markup the set-password modal uses;
