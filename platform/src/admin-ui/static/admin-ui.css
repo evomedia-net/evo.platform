@@ -218,15 +218,10 @@ th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
   border-top-color: transparent; border-bottom-color: var(--tip-bg);
 }
 
-/* A button that reads as a link. A <button>, not an <a>: it fires a request
-   rather than navigating, so this keeps keyboard and screen-reader behaviour
-   correct while looking like the link people expect next to a sign-in form. */
-.linklike {
-  display: inline; width: auto; margin-top: 10px; padding: 0;
-  background: none; border: 0; color: var(--accent);
-  font-size: 13px; cursor: pointer; text-decoration: underline;
-}
-.linklike:hover { color: var(--text); }
+/* Sign in + Forgot password sit on one row; recovery is an action, so it is
+   a button like everything else that acts (fleet UI standard). */
+.login-card .btn { margin-top: 10px; }
+.login-card .btn + .btn { margin-left: 8px; }
 .small { font-size: 12px; margin-top: 8px; }
 
 /* ── Revenue view ────────────────────────────────────────────────────── */
