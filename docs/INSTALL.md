@@ -305,8 +305,11 @@ SMTP resolution order per send: tenant config (`PUT /admin/smtp` with
 - **Secrets**: set real `SECRET_KEY`, seed passwords, and Stripe keys via your
   deploy environment — never commit them. `.env` files are gitignored.
 - **Stripe**: point a dashboard webhook at `POST /billing/webhook` with events
-  `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`, and set
-  `STRIPE_WEBHOOK_SECRET`.
+  `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`,
+  `checkout.session.completed` (one-time purchases), and set
+  `STRIPE_WEBHOOK_SECRET`. Register what each app sells on the console's Apps
+  page — any number of tiers and billing periods per app; the amount and
+  cadence are read from Stripe, never typed.
 - **Passkeys**: set `WEBAUTHN_BASE_DOMAINS=yourdomain.com` so one passkey works
   on the apex and every tenant subdomain. HTTPS is required outside loopback.
 - **Email**: point `SMTP_*` (or the platform-default config) at a real relay;

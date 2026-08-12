@@ -125,8 +125,6 @@ model App {
   clientSecretHash String
   name             String   @unique
   callbackUrls     String[]
-  // Stripe Price (price_...) for this app's subscription; null = not sellable yet.
-  stripePriceId    String?
   // false = admin-created tenants are NOT auto-enabled on this app; access
   // must be granted specifically (console, signup-through, or subscription).
   autoEnroll       Boolean  @default(true)
@@ -138,8 +136,63 @@ model App {
   deletedAt        DateTime?
   roles            Role[]
   appTenants       AppTenant[]
+  // What this app sells. No row = not sellable yet.
+  prices           AppPrice[]
 
   @@map("apps")
+}
+
+// One sellable price. Rows, never columns: an app may sell two tiers or
+// twenty-five, monthly and annual or anything else Stripe supports, without a
+// schema change.
+model AppPrice {
+  id            String   @id @default(uuid())
+  appId         String
+  app           App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  // Globally unique so a webhook can resolve a subscription's price to exactly
+  // one (app, tier) - and so one app's price can never be registered under
+  // another app, which would let it sell someone else's product.
+  stripePriceId String   @unique
+  // The tier this price sells at, named by the operator ("starter", "pro",
+  // "seat-25"). Deliberately free text: the platform never enumerates tiers,
+  // because it does not know what any given app sells. Stamped onto
+  // AppTenant.plan when a subscription syncs, which is what finally gives that
+  // column a meaning apps can gate features on.
+  tier          String
+  // The Stripe Product this price belongs to, and its name. One product has
+  // many prices (monthly/annual/regional), so the product is what a human
+  // recognises in a pricing table while the price id is what gets charged.
+  stripeProductId String
+  productName     String
+  // Cached from Stripe when the price is registered. Safe to cache precisely
+  // because Stripe Prices are immutable in these fields - changing an amount
+  // or interval means archiving the price and creating a new one - so this
+  // copy cannot silently drift from the source of truth.
+  unitAmount    Int
+  currency      String
+  // How often it bills: once | day | week | month | year. 'once' is a
+  // one-time purchase, which checks out in Stripe's payment mode rather than
+  // subscription mode and has no renewal, grace or cancellation lifecycle.
+  // Not an enum: a fixed set would be this schema deciding which billing
+  // periods exist, which is Stripe's call and the operator's, not ours.
+  interval      String
+  intervalCount Int      @default(1)
+  // Offered to new customers. Archiving rather than deleting keeps a tier
+  // resolvable for everyone already paying for it.
+  sellable      Boolean  @default(true)
+  // Free trial for this tier, in days. 0 = none.
+  trialDays     Int      @default(0)
+  // Display order in a pricing table; ties fall back to unitAmount.
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Exactly one price per (tier, billing period), so "check out pro/yearly"
+  // resolves to one row rather than an arbitrary pick between duplicates.
+  // Multi-currency would extend this key and the selector together.
+  @@unique([appId, tier, interval, intervalCount])
+  @@index([appId])
+  @@map("app_prices")
 }
 
 enum AppTenantStatus {

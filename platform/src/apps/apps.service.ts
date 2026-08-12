@@ -8,14 +8,13 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../core/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BillingService } from '../billing/billing.service';
-import { CreateAppDto, CreateRoleDto, UpdateAppDto, UpdateRoleDto } from './dto';
+import { AddPriceDto, CreateAppDto, CreateRoleDto, UpdateAppDto, UpdateRoleDto } from './dto';
 
 const PUBLIC_FIELDS = {
   id: true,
   clientId: true,
   name: true,
   callbackUrls: true,
-  stripePriceId: true,
   autoEnroll: true,
   createdAt: true,
   deletedAt: true,
@@ -117,19 +116,12 @@ export class AppsService {
 
   async update(id: string, dto: UpdateAppDto) {
     const before = await this.get(id);
-    // A price that doesn't exist is only discovered at checkout otherwise.
-    // Empty string means "clear it", so only a non-empty value is checked.
-    if (dto.stripePriceId) await this.billing.assertPriceUsable(dto.stripePriceId);
     const updated = await this.prisma.app.update({
       where: { id },
       data: {
         name: dto.name,
         callbackUrls: dto.callbackUrls,
         autoEnroll: dto.autoEnroll,
-        // Empty string clears the price (app becomes non-sellable).
-        ...(dto.stripePriceId !== undefined
-          ? { stripePriceId: dto.stripePriceId || null }
-          : {}),
       },
       select: PUBLIC_FIELDS,
     });
@@ -137,13 +129,13 @@ export class AppsService {
     // Update was the one mutation here with no audit event, and it is the one
     // that changes autoEnroll — whether every new workspace is automatically
     // granted this app — plus callbackUrls (where auth codes may go) and
-    // stripePriceId (what a customer is billed). An unexplained autoEnroll
+    // what a customer is billed (now app_prices). An unexplained autoEnroll
     // flip on a production app is what surfaced this (#54): the change could
     // not be reconstructed because nothing recorded it. from/to per changed
     // field, in the user.email_changed style — the old value is what makes an
     // unexpected change traceable afterwards.
     const changes: Record<string, { from: unknown; to: unknown }> = {};
-    for (const field of ['name', 'callbackUrls', 'autoEnroll', 'stripePriceId'] as const) {
+    for (const field of ['name', 'callbackUrls', 'autoEnroll'] as const) {
       const prev = before[field];
       const next = updated[field];
       if (JSON.stringify(prev) !== JSON.stringify(next)) {
@@ -182,6 +174,79 @@ export class AppsService {
     const access = await this.prisma.appTenant.findMany({ where: { appId } });
     const byTenant = new Map(access.map((a) => [a.tenantId, a]));
     return tenants.map((t) => ({ ...t, access: byTenant.get(t.id) ?? null }));
+  }
+
+  // ---- prices: what the app sells ----
+
+  async listPrices(appId: string) {
+    await this.get(appId);
+    return this.prisma.appPrice.findMany({
+      where: { appId },
+      orderBy: [{ sortOrder: 'asc' }, { unitAmount: 'asc' }],
+    });
+  }
+
+  /**
+   * Register a Stripe price as one of this app's tiers. The amount, currency
+   * and billing period are read from Stripe rather than typed by hand — an
+   * operator retyping "$49/mo" that Stripe actually bills at $499 is a support
+   * incident, and the console would happily display the lie.
+   */
+  async addPrice(appId: string, dto: AddPriceDto) {
+    await this.get(appId);
+    const facts = await this.billing.describePrice(dto.stripePriceId);
+
+    const owner = await this.prisma.appPrice.findUnique({
+      where: { stripePriceId: dto.stripePriceId },
+      include: { app: { select: { name: true } } },
+    });
+    if (owner) {
+      throw new ConflictException(
+        owner.appId === appId
+          ? `That price is already registered for this app as "${owner.tier}"`
+          : `That price already belongs to "${owner.app.name}"`,
+      );
+    }
+    const clash = await this.prisma.appPrice.findUnique({
+      where: {
+        appId_tier_interval_intervalCount: {
+          appId,
+          tier: dto.tier,
+          interval: facts.interval,
+          intervalCount: facts.intervalCount,
+        },
+      },
+    });
+    if (clash) {
+      throw new ConflictException(
+        `This app already sells "${dto.tier}" every ${facts.intervalCount} ${facts.interval}`,
+      );
+    }
+
+    const price = await this.prisma.appPrice.create({
+      data: { appId, stripePriceId: dto.stripePriceId, tier: dto.tier, sortOrder: dto.sortOrder ?? 0, ...facts },
+    });
+    const app = await this.get(appId);
+    await this.audit.record('app.price_added', {
+      appClientId: app.clientId,
+      detail: { tier: price.tier, stripePriceId: price.stripePriceId, interval: price.interval },
+    });
+    return price;
+  }
+
+  /** Stops the tier being sold. Existing subscriptions are untouched — they
+   *  live in Stripe, and cancelling them is a deliberate act there, not a
+   *  side effect of tidying a pricing table. */
+  async removePrice(appId: string, priceId: string) {
+    const app = await this.get(appId);
+    const price = await this.prisma.appPrice.findUnique({ where: { id: priceId } });
+    if (!price || price.appId !== appId) throw new NotFoundException('Price not found');
+    await this.prisma.appPrice.delete({ where: { id: priceId } });
+    await this.audit.record('app.price_removed', {
+      appClientId: app.clientId,
+      detail: { tier: price.tier, stripePriceId: price.stripePriceId },
+    });
+    return { ok: true };
   }
 
   async addRole(appId: string, dto: CreateRoleDto) {

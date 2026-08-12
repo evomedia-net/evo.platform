@@ -412,6 +412,7 @@ exists wins.
 | Windows: `EPERM ... query_engine-windows.dll.node` | The running service has the file locked. Stop it, run `npx prisma generate`, start it again |
 | `POST /email/send` returns 503 | No mail settings anywhere. Locally, start Mailpit with `docker compose up -d mail`; in production, fill in `SMTP_*` |
 | `POST /billing/*` returns 503 | Billing is not configured. Expected until you add the Stripe keys |
+| Checkout says "Specify tier" | The app sells more than one price, so the caller must name which (`tier`, optionally `interval`) |
 | Passkey rejected: "Unrecognized origin" | The site's address is not loopback and does not match `WEBAUTHN_BASE_DOMAINS`, or nginx is not forwarding `X-Forwarded-Proto` |
 | Everyone logged out after a restart | The signing keypair changed. Restore the `evoplatform_keys` volume from backup, or accept that everyone signs in again |
 | Apps cannot verify tokens after a key rotation | Normal and self-correcting — apps refetch the signing keys automatically when they see an unfamiliar key |

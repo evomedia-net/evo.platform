@@ -164,6 +164,10 @@ th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
 .badge.warn { color: var(--warn); border-color: var(--warn); }
 .badge.bad { color: var(--danger); border-color: var(--danger); }
 
+/* Badges stacking in a narrow table cell used to touch, because the only gap
+   was a literal space that collapses when they wrap onto separate lines. */
+.badges { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { background: var(--panel2); border: 1px solid var(--border);
   padding: 1px 8px; border-radius: 999px; font-size: 12px; }
@@ -171,6 +175,34 @@ th.col-actions, td.col-actions { width: 172px; white-space: nowrap; }
   cursor: pointer; padding: 0 1px; font-size: 12px; line-height: 1; }
 .chip button:hover { color: var(--accent); }
 .chip button[data-role-act="delete"]:hover { color: var(--danger); }
+
+/* Collapsible sections. A card that carries callback URLs, roles, a price
+   table and every workspace's access is several screens tall; collapsed by
+   default, the page is a scannable list again. <details> rather than a custom
+   widget so keyboard, screen readers and in-page find all work already. */
+details.fold > summary {
+  cursor: pointer; list-style: none; padding: 2px 0;
+  display: flex; align-items: center; gap: 8px;
+}
+details.fold > summary::-webkit-details-marker { display: none; }
+/* The marker is drawn here so it can rotate; ::marker cannot be transformed. */
+details.fold > summary::before {
+  content: "▸"; color: var(--muted); font-size: 11px;
+  /* inline-block, not the default inline: transforms do not apply to a
+     non-replaced inline box, so the rotation was silently dropped. */
+  display: inline-block;
+  transition: transform .12s ease;
+}
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold > summary:hover::before { color: var(--accent); }
+details.fold > summary h2, details.fold > summary h3 { margin: 0; }
+details.fold > summary .muted { font-weight: 400; font-size: 12px; }
+.fold-body { padding-top: 10px; }
+/* Nested folds (tenant access inside an app) sit in from their parent. */
+details.fold details.fold { margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  details.fold > summary::before { transition: none; }
+}
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6);
   display: flex; align-items: center; justify-content: center; z-index: 20; }

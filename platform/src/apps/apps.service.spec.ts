@@ -20,53 +20,81 @@ function makePrisma() {
   };
 }
 
-const billing = { assertPriceUsable: jest.fn().mockResolvedValue(undefined) };
+const MONTHLY = { unitAmount: 1000, currency: 'usd', interval: 'month', intervalCount: 1 };
+const billing = { describePrice: jest.fn().mockResolvedValue(MONTHLY) };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const makeSvc = (prisma: any) => new AppsService(prisma, audit as any, billing as any);
 
 beforeEach(() => jest.clearAllMocks());
 
-// ── Stripe price is verified before it is stored ─────────────────────────────
+// ── What an app sells is a list of prices, verified against Stripe ──────────
 //
 // A price id that doesn't exist used to be saved happily and only failed at
-// checkout — in front of a paying customer.
+// checkout — in front of a paying customer. Amount/currency/interval are read
+// from Stripe rather than typed, so the console can never display a price
+// that differs from what is actually billed.
 
-describe('AppsService.update stripePriceId', () => {
+describe('AppsService prices', () => {
   const appRow = { id: 'a1', clientId: 'app_1', name: 'demo', deletedAt: null, roles: [] };
-  const makeAppPrisma = () => ({
+  const makePrisma = (existing: Record<string, unknown> | null = null, clash: Record<string, unknown> | null = null) => ({
     app: {
       findUnique: jest.fn().mockResolvedValue(appRow),
       update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...appRow, ...data })),
     },
+    appPrice: {
+      findUnique: jest.fn()
+        .mockResolvedValueOnce(existing)   // global stripePriceId owner check
+        .mockResolvedValueOnce(clash),     // (app, tier, interval) clash check
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'p1', ...data })),
+      delete: jest.fn().mockResolvedValue({}),
+    },
   });
 
-  it('verifies a new price with Stripe before saving', async () => {
-    const prisma = makeAppPrisma();
-    await makeSvc(prisma).update('a1', { stripePriceId: 'price_live123' });
-    expect(billing.assertPriceUsable).toHaveBeenCalledWith('price_live123');
-    expect(prisma.app.update).toHaveBeenCalled();
+  it('stores the amount and interval Stripe reports, not what was typed', async () => {
+    const prisma = makePrisma();
+    billing.describePrice.mockResolvedValueOnce({
+      unitAmount: 49900, currency: 'usd', interval: 'year', intervalCount: 1,
+    });
+    const price = await makeSvc(prisma).addPrice('a1', { stripePriceId: 'price_pro_y', tier: 'pro' });
+    expect(billing.describePrice).toHaveBeenCalledWith('price_pro_y');
+    expect(price).toMatchObject({ tier: 'pro', unitAmount: 49900, interval: 'year' });
   });
 
   it('does not save when Stripe rejects the price', async () => {
-    const prisma = makeAppPrisma();
-    billing.assertPriceUsable.mockRejectedValueOnce(new Error('no such price'));
-    await expect(makeSvc(prisma).update('a1', { stripePriceId: 'price_typo' })).rejects.toThrow();
-    expect(prisma.app.update).not.toHaveBeenCalled();
+    const prisma = makePrisma();
+    billing.describePrice.mockRejectedValueOnce(new Error('no such price'));
+    await expect(
+      makeSvc(prisma).addPrice('a1', { stripePriceId: 'price_typo', tier: 'pro' }),
+    ).rejects.toThrow();
+    expect(prisma.appPrice.create).not.toHaveBeenCalled();
   });
 
-  it('clearing the price needs no Stripe round-trip', async () => {
-    const prisma = makeAppPrisma();
-    await makeSvc(prisma).update('a1', { stripePriceId: '' });
-    expect(billing.assertPriceUsable).not.toHaveBeenCalled();
-    expect(prisma.app.update.mock.calls[0][0].data.stripePriceId).toBeNull();
+  it("refuses a price already registered to another app — one app cannot sell another's product", async () => {
+    const prisma = makePrisma({ appId: 'other', tier: 'pro', app: { name: 'swag-estimates' } });
+    await expect(
+      makeSvc(prisma).addPrice('a1', { stripePriceId: 'price_taken', tier: 'pro' }),
+    ).rejects.toThrow(/already belongs to "swag-estimates"/);
+    expect(prisma.appPrice.create).not.toHaveBeenCalled();
   });
 
-  it('leaves the price alone when the field is omitted', async () => {
-    const prisma = makeAppPrisma();
-    await makeSvc(prisma).update('a1', { autoEnroll: false });
-    expect(billing.assertPriceUsable).not.toHaveBeenCalled();
-    expect(prisma.app.update.mock.calls[0][0].data).not.toHaveProperty('stripePriceId');
+  it('refuses a second price for the same tier and billing period', async () => {
+    const prisma = makePrisma(null, { id: 'existing', tier: 'pro' });
+    await expect(
+      makeSvc(prisma).addPrice('a1', { stripePriceId: 'price_dupe', tier: 'pro' }),
+    ).rejects.toThrow(/already sells "pro"/);
+  });
+
+  it('an app may sell as many tiers as it likes — nothing caps the list', async () => {
+    const svc = makeSvc(makePrisma());
+    for (let i = 0; i < 25; i++) {
+      const prisma = makePrisma();
+      const s = makeSvc(prisma);
+      await s.addPrice('a1', { stripePriceId: `price_${i}`, tier: `seat-${i}` });
+      expect(prisma.appPrice.create).toHaveBeenCalled();
+    }
+    expect(svc).toBeDefined();
   });
 });
 
@@ -233,11 +261,10 @@ describe('AppsService.update auditing', () => {
   });
 
   it('keeps the old value, which is what makes a change traceable', async () => {
-    const prisma = makeAppPrisma({ name: 'renamed', stripePriceId: 'price_x' });
-    await makeSvc(prisma).update('a1', { name: 'renamed', stripePriceId: 'price_x' });
+    const prisma = makeAppPrisma({ name: 'renamed' });
+    await makeSvc(prisma).update('a1', { name: 'renamed' });
     const detail = audit.record.mock.calls.find(([a]) => a === 'app.updated')![1].detail;
     expect(detail.name).toEqual({ from: 'demo', to: 'renamed' });
-    expect(detail.stripePriceId).toEqual({ from: null, to: 'price_x' });
     expect(detail.autoEnroll).toBeUndefined(); // unchanged fields stay out
   });
 

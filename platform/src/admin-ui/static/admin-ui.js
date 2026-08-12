@@ -147,6 +147,41 @@ async function api(method, path, body) {
   return r.data;
 }
 
+/** Cents -> "$49.00", in whatever currency Stripe reported. */
+function money(cents, currency) {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: (currency || "usd").toUpperCase(),
+    }).format((cents ?? 0) / 100);
+  } catch {
+    // An unknown currency code must not blank the whole price table.
+    return `${((cents ?? 0) / 100).toFixed(2)} ${String(currency || "").toUpperCase()}`;
+  }
+}
+
+/** How often it bills, in words: "Monthly", "Once", "Every 3 months". */
+function cadence(interval, count) {
+  const n = count ?? 1;
+  if (interval === "once") return "Once";
+  const single = { day: "Daily", week: "Weekly", month: "Monthly", year: "Yearly" };
+  if (n === 1) return single[interval] ?? interval;
+  return `Every ${n} ${interval}s`;
+}
+
+// Which folds the operator has opened. Views re-render wholesale after every
+// mutation, and <details> loses its open attribute when its markup is replaced
+// — so a card would slam shut the moment you changed anything inside it.
+const OPEN = { app: new Set(), access: new Set(), tenant: new Set() };
+document.addEventListener("toggle", (e) => {
+  const d = e.target;
+  if (!(d instanceof HTMLDetailsElement)) return;
+  for (const kind of ["app", "access", "tenant"]) {
+    const id = d.dataset[`fold${kind[0].toUpperCase()}${kind.slice(1)}`];
+    if (id) { d.open ? OPEN[kind].add(id) : OPEN[kind].delete(id); }
+  }
+}, true);
+
 // ── login / shell ───────────────────────────────────────────────────────────
 
 function showLogin() {
@@ -521,7 +556,7 @@ async function viewUsers() {
       <td>${esc(u.email)}${u.deletedAt ? ' <span class="badge bad">deleted</span>' : ""}</td>
       <td>${esc(u.name ?? "")}</td>
       <td><code>${esc(tenantName(u.tenantId))}</code></td>
-      <td>${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}${u.isTenantAdmin ? ' <span class="badge ok" data-tip="Manages their own tenant\'s members from inside the apps.">tenant admin</span>' : ""}${u.emailVerifiedAt ? "" : ' <span class="badge warn" data-tip="Mailbox not yet proven — sign-in is refused until the user clicks their verification email.">unverified</span>'}</td>
+      <td><div class="badges">${u.isPlatformAdmin ? '<span class="badge ok">admin</span>' : ""}${u.isTenantAdmin ? '<span class="badge ok" data-tip="Manages their own tenant\'s members from inside the apps.">tenant admin</span>' : ""}${u.emailVerifiedAt ? "" : '<span class="badge warn" data-tip="Mailbox not yet proven — sign-in is refused until the user clicks their verification email.">unverified</span>'}</div></td>
       <td>${roleCell(u)}</td>
       <td>${u.deletedAt
         ? `<button class="btn sm" data-act="restore" data-id="${u.id}" data-tip="Bring this soft-deleted user back.">Restore</button>
@@ -751,10 +786,14 @@ const ACCESS_STATUSES = ["TRIAL", "ACTIVE", "PAST_DUE", "SUSPENDED"];
 
 async function viewApps() {
   await loadApps();
-  // Per-app tenant access (the enablement matrix, one column per card)
-  const accessByApp = Object.fromEntries(await Promise.all(
-    S.apps.map(async (a) => [a.id, await api("GET", `/admin/apps/${a.id}/tenants`)]),
-  ));
+  await loadTenants();
+  // Per-app tenant access (the enablement matrix, one column per card) and the
+  // price list, fetched together so one slow card doesn't serialise the page.
+  const [accessByApp, pricesByApp] = await Promise.all([
+    Promise.all(S.apps.map(async (a) => [a.id, await api("GET", `/admin/apps/${a.id}/tenants`)])).then(Object.fromEntries),
+    Promise.all(S.apps.map(async (a) => [a.id, await api("GET", `/admin/apps/${a.id}/prices`)])).then(Object.fromEntries),
+  ]);
+  for (const a of S.apps) a.prices = pricesByApp[a.id] ?? [];
 
   const accessRows = (a) => accessByApp[a.id].map((t) => {
     const acc = t.access;
@@ -777,7 +816,12 @@ async function viewApps() {
 
   const cards = S.apps.map((a) => `
     <div class="card">
-      <h2>${esc(a.name)}${a.deletedAt ? ' <span class="badge bad">deleted</span>' : ""}</h2>
+     <details class="fold" data-fold-app="${a.id}"${OPEN.app.has(a.id) ? " open" : ""}>
+      <summary>
+        <h2>${esc(a.name)}${a.deletedAt ? ' <span class="badge bad">deleted</span>' : ""}</h2>
+        <span class="muted">${a.prices.length ? `${a.prices.length} price${a.prices.length === 1 ? "" : "s"}` : "no prices"} &middot; ${a.roles.length} role${a.roles.length === 1 ? "" : "s"}</span>
+      </summary>
+      <div class="fold-body">
       <p>Client id: <code>${esc(a.clientId)}</code>
         ${a.deletedAt
           ? `<button class="btn sm" data-act="app-restore" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Bring this app back. Its client id, roles and tenant grants are intact, and sign-in through it starts working again.">Restore</button>
@@ -796,15 +840,40 @@ async function viewApps() {
         <label style="flex:0 0 200px">Add role <input name="role" list="role-suggestions" placeholder="admin" required /></label>
         <button class="btn sm grow0">Add</button>
       </form>
+      <h3 data-tip="What this app sells. Add as many tiers and billing periods as the product needs — the amount and cadence are read from Stripe, never typed here, so this table cannot disagree with what a customer is actually charged.">Prices</h3>
+      <table>
+        <tr><th>ProdID</th><th>StripeID</th><th>Name</th><th>Tier</th><th>Cost</th><th>Occurrence</th><th class="col-actions"></th></tr>
+        ${a.prices.length === 0
+          ? '<tr><td colspan="7" class="muted">Nothing to sell yet — add a Stripe price below.</td></tr>'
+          : a.prices.map((p) => `<tr>
+              <td><code>${esc(p.stripeProductId || "—")}</code></td>
+              <td><code>${esc(p.stripePriceId)}</code></td>
+              <td>${esc(p.productName || "—")}</td>
+              <td><code>${esc(p.tier)}</code>${p.trialDays > 0 ? ` <span class="badge" data-tip="New subscriptions on this tier start with a free trial.">${p.trialDays}d trial</span>` : ""}${p.sellable ? "" : ' <span class="badge warn" data-tip="Not offered to new customers. Existing subscriptions on this tier keep working.">archived</span>'}</td>
+              <td>${esc(money(p.unitAmount, p.currency))}</td>
+              <td>${esc(cadence(p.interval, p.intervalCount))}</td>
+              <td class="col-actions"><button class="btn sm danger" data-price-act="remove" data-app-id="${a.id}" data-price-id="${p.id}" data-price-tier="${esc(p.tier)}" data-tip="Stop selling this tier. Existing subscriptions are untouched — they live in Stripe, and cancelling them is a deliberate act there.">Remove</button></td>
+            </tr>`).join("")}
+      </table>
       <form class="inline" data-app-price="${a.id}" style="margin-top:10px">
-        <label style="flex:0 0 280px" data-tip="Stripe Price id (price_...) sold as this app's subscription. Checkout uses it; webhook events then drive each workspace's access to this app. Leave empty while the app isn't sellable.">Stripe price <input name="priceId" placeholder="price_..." value="${esc(a.stripePriceId ?? "")}" /></label>
-        <button class="btn sm grow0">Save</button>
+        <label style="flex:0 0 260px" data-tip="A Stripe Price id (price_...). It is checked against Stripe before it is saved, and its product, amount and cadence are read from there.">Stripe price id <input name="priceId" placeholder="price_..." required /></label>
+        <label style="flex:0 0 160px" data-tip="What this app calls the tier — apps ask for a price by tier name, so this is also what gets stamped on a workspace's plan.">Tier <input name="tier" placeholder="pro" required /></label>
+        <button class="btn sm grow0">Add price</button>
       </form>
       <label class="check" style="display:block;margin-top:10px" data-tip="Checked: workspaces you create in this console start enabled on this app. Unchecked: access must be granted specifically — here, by signup through the app, or by subscription. Self-service signup is unaffected (it only ever enables the app arrived through).">
         <input type="checkbox" data-auto-enroll="${a.id}"${a.autoEnroll ? " checked" : ""} /> Auto-enroll new tenants
       </label>
-      <h3 data-tip="Which workspaces may sign in to this app. Logins scoped to an app are refused unless the workspace is enabled here.">Tenant access</h3>
-      <table><tr><th>Slug</th><th>Name</th><th>Access</th><th class="col-actions"></th></tr>${accessRows(a)}</table>
+      <details class="fold" data-fold-access="${a.id}"${OPEN.access.has(a.id) ? " open" : ""}>
+        <summary>
+          <h3 data-tip="Which workspaces may sign in to this app. Logins scoped to an app are refused unless the workspace is enabled here.">Tenant access</h3>
+          <span class="muted">${S.tenants.filter((t) => !t.deletedAt).length} workspace${S.tenants.filter((t) => !t.deletedAt).length === 1 ? "" : "s"}</span>
+        </summary>
+        <div class="fold-body">
+          <table><tr><th>Slug</th><th>Name</th><th>Access</th><th class="col-actions"></th></tr>${accessRows(a)}</table>
+        </div>
+      </details>
+      </div>
+     </details>
     </div>`).join("");
 
   // Role names are app-defined, so this can't be a fixed dropdown — an app may
@@ -856,6 +925,18 @@ async function viewApps() {
           const out = await api("DELETE", `/admin/apps/${appId}/roles/${roleId}`);
           toast(`Role deleted (${out.assignmentsRemoved} assignment${out.assignmentsRemoved === 1 ? "" : "s"} removed)`);
         }
+        route();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+
+    const priceBtn = e.target.closest("button[data-price-act]");
+    if (priceBtn) {
+      const { appId, priceId, priceTier } = priceBtn.dataset;
+      try {
+        if (!(await confirmDialog(`Stop selling "${priceTier}"? Existing subscriptions on it keep billing — cancel those in Stripe if that is what you mean.`))) return;
+        await api("DELETE", `/admin/apps/${appId}/prices/${priceId}`);
+        toast("Price removed");
         route();
       } catch (err) { toast(err.message, true); }
       return;
@@ -959,17 +1040,20 @@ async function viewApps() {
     const priceForm = e.target.closest("form[data-app-price]");
     if (priceForm) {
       e.preventDefault();
-      const priceId = String(new FormData(priceForm).get("priceId") || "").trim();
+      const f = new FormData(priceForm);
+      const priceId = String(f.get("priceId") || "").trim();
+      const tier = String(f.get("tier") || "").trim();
       // Shape check before the request; the server additionally asks Stripe
       // whether the price actually exists. A wrong id used to be accepted
       // silently and only surfaced at checkout, in front of a paying customer.
-      if (priceId && !/^price_[A-Za-z0-9]+$/.test(priceId)) {
-        toast("A Stripe price id looks like price_1A2b3C… (empty clears it)", true);
+      if (!/^price_[A-Za-z0-9]+$/.test(priceId)) {
+        toast("A Stripe price id looks like price_1A2b3C…", true);
         return;
       }
+      if (!tier) { toast("Name the tier this price sells", true); return; }
       try {
-        await api("PATCH", `/admin/apps/${priceForm.dataset.appPrice}`, { stripePriceId: priceId });
-        toast("Stripe price saved"); route();
+        await api("POST", `/admin/apps/${priceForm.dataset.appPrice}/prices`, { stripePriceId: priceId, tier });
+        toast("Price added"); route();
       } catch (err) { toast(err.message, true); }
       return;
     }

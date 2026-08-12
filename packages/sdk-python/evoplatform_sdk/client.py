@@ -284,12 +284,20 @@ class EvoPlatform:
             self._client_headers(),
         )
 
+    def list_prices(self) -> list[dict[str, Any]]:
+        """What this app sells, cheapest first - enough to render a pricing
+        table without holding any Stripe ids in your own code."""
+        return self._request("GET", "/billing/prices", None, self._client_headers())
+
     def create_checkout(
         self,
         *,
         tenant_id: str,
         success_url: str,
         cancel_url: str,
+        tier: str | None = None,
+        interval: str | None = None,
+        interval_count: int | None = None,
         price_id: str | None = None,
         quantity: int | None = None,
     ) -> dict[str, Any]:
@@ -303,6 +311,9 @@ class EvoPlatform:
                     "tenantId": tenant_id,
                     "successUrl": success_url,
                     "cancelUrl": cancel_url,
+                    "tier": tier,
+                    "interval": interval,
+                    "intervalCount": interval_count,
                     "priceId": price_id,
                     "quantity": quantity,
                 }

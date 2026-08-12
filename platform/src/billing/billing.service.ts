@@ -17,11 +17,24 @@ import { AuditService } from '../audit/audit.service';
 import { config } from '../config';
 import { CheckoutDto, PortalDto } from './dto';
 
+/** The fields of a Stripe Price that are immutable, and so safe to store. */
+export interface PriceFacts {
+  stripeProductId: string;
+  productName: string;
+  unitAmount: number;
+  currency: string;
+  /** once | day | week | month | year */
+  interval: string;
+  intervalCount: number;
+}
+
+/** A one-time price bills in Stripe's payment mode and never renews. */
+export const ONCE = 'once';
+
 /** The calling app, as attached to the request by ClientGuard. */
 export interface CallingApp {
   id: string;
   clientId: string;
-  stripePriceId: string | null;
   callbackUrls: string[];
 }
 
@@ -61,25 +74,75 @@ export class BillingService {
   }
 
   /**
-   * Confirm a Price exists and is active before it is saved on an app.
-   * Without this a mistyped id is stored happily and only fails at checkout —
-   * in front of a paying customer, which is the worst place to discover it.
+   * Confirm a Price exists and is active before it is saved on an app, and
+   * return the facts worth storing alongside it. Without this a mistyped id is
+   * stored happily and only fails at checkout — in front of a paying customer,
+   * which is the worst place to discover it.
    *
-   * Deliberately a no-op when Stripe is unconfigured: a deployment without
+   * The returned amount/currency/interval are safe to persist because Stripe
+   * Prices are immutable in exactly those fields: changing what something
+   * costs means archiving the price and creating a new one, so a stored copy
+   * cannot drift from Stripe.
+   *
+   * Deliberately tolerant when Stripe is unconfigured: a deployment without
    * keys can still record the id it intends to sell on, and checkout already
    * refuses separately when billing isn't set up.
    */
-  async assertPriceUsable(priceId: string): Promise<void> {
-    if (!this.stripe) return;
+  async describePrice(priceId: string): Promise<PriceFacts> {
+    if (!this.stripe) {
+      return {
+        stripeProductId: '',
+        productName: '',
+        unitAmount: 0,
+        currency: 'usd',
+        interval: 'month',
+        intervalCount: 1,
+      };
+    }
     let price: Stripe.Price;
     try {
-      price = await this.stripe.prices.retrieve(priceId);
+      price = await this.stripe.prices.retrieve(priceId, { expand: ['product'] });
     } catch {
       throw new BadRequestException(`Stripe has no price "${priceId}"`);
     }
     if (!price.active) {
       throw new BadRequestException(`Stripe price "${priceId}" is archived, so checkout would fail`);
     }
+    // A price with no `recurring` block is a one-time charge. Supported, but it
+    // is a different product shape: payment mode at checkout, and no renewal,
+    // grace or cancellation lifecycle to drive access afterwards.
+    const product = price.product as Stripe.Product | Stripe.DeletedProduct | string;
+    const productId = typeof product === 'string' ? product : product.id;
+    const productName =
+      typeof product === 'string' || product.deleted ? '' : (product.name ?? '');
+    return {
+      stripeProductId: productId,
+      productName,
+      unitAmount: price.unit_amount ?? 0,
+      currency: price.currency,
+      interval: price.recurring?.interval ?? ONCE,
+      intervalCount: price.recurring?.interval_count ?? 1,
+    };
+  }
+
+  /** What an app sells, cheapest first — enough for an app to render its own
+   *  pricing table without holding any Stripe ids in its own code. */
+  listPrices(appId: string) {
+    return this.prisma.appPrice.findMany({
+      where: { appId, sellable: true },
+      orderBy: [{ sortOrder: 'asc' }, { unitAmount: 'asc' }],
+      select: {
+        stripePriceId: true,
+        stripeProductId: true,
+        productName: true,
+        tier: true,
+        unitAmount: true,
+        currency: true,
+        interval: true,
+        intervalCount: true,
+        trialDays: true,
+      },
+    });
   }
 
   /**
@@ -191,34 +254,84 @@ export class BillingService {
     return customer.id;
   }
 
+  /**
+   * Resolve which of the app's prices a checkout is for. Either a priceId the
+   * app already registered, or a (tier, interval) pair — the latter lets an
+   * app say "pro, yearly" and never hold a Stripe id in its own code, so
+   * repricing is a console edit rather than a redeploy of every app.
+   *
+   * Whichever route, the answer must be a row belonging to THIS app: that is
+   * what stops a compromised app selling another product, or selling at a
+   * price nobody vetted.
+   */
+  private async resolvePrice(dto: CheckoutDto, app: CallingApp) {
+    const prices = await this.prisma.appPrice.findMany({ where: { appId: app.id } });
+    if (!prices.length) {
+      throw new BadRequestException('This app has no Stripe prices configured');
+    }
+    if (dto.priceId) {
+      const match = prices.find((p) => p.stripePriceId === dto.priceId);
+      if (!match) {
+        throw new BadRequestException("priceId is not one of this app's registered prices");
+      }
+      return match;
+    }
+    if (dto.tier) {
+      const interval = dto.interval ?? 'month';
+      const count = dto.intervalCount ?? 1;
+      const match = prices.find(
+        (p) => p.tier === dto.tier && p.interval === interval && p.intervalCount === count,
+      );
+      if (!match) {
+        throw new BadRequestException(
+          `This app has no "${dto.tier}" price billed every ${count} ${interval}`,
+        );
+      }
+      return match;
+    }
+    // One price and no selector is unambiguous; more than one is a real
+    // choice, and guessing it would silently bill someone the wrong amount.
+    if (prices.length > 1) {
+      throw new BadRequestException('Specify tier (or priceId): this app sells more than one price');
+    }
+    return prices[0];
+  }
+
   /** Checkout for the CALLING app's subscription: the price comes from the app
-   *  registry, and the subscription is tagged with tenant + app so the webhook
-   *  can route it to the right AppTenant row. */
+   *  registry, and the subscription is tagged with tenant + app + tier so the
+   *  webhook can route it to the right AppTenant row and stamp the plan. */
   async checkout(dto: CheckoutDto, app: CallingApp) {
-    // The price is pinned at registration (where assertPriceUsable vets it).
-    // A caller-supplied priceId is accepted only when it names that same
-    // price: letting it vary would let a compromised app sell another app's
-    // product, or sell at a price nobody vetted.
-    if (dto.priceId != null && dto.priceId !== app.stripePriceId) {
-      throw new BadRequestException("priceId must match this app's registered Stripe price");
-    }
-    const priceId = app.stripePriceId;
-    if (!priceId) {
-      throw new BadRequestException('This app has no Stripe price configured');
-    }
+    const price = await this.resolvePrice(dto, app);
+    const priceId = price.stripePriceId;
     await this.requireRelationship(dto.tenantId, app);
     this.assertRedirectAllowed(dto.successUrl, app);
     this.assertRedirectAllowed(dto.cancelUrl, app);
     const customer = await this.ensureCustomer(dto.tenantId);
+    const metadata = {
+      tenantId: dto.tenantId,
+      appId: app.id,
+      appClientId: app.clientId,
+      tier: price.tier,
+    };
+    const once = price.interval === ONCE;
     const session = await this.requireStripe().checkout.sessions.create({
-      mode: 'subscription',
+      // A one-time price has no subscription to create, so payment mode is not
+      // a preference here - subscription mode rejects it outright.
+      mode: once ? 'payment' : 'subscription',
       customer,
       line_items: [{ price: priceId, quantity: dto.quantity ?? 1 }],
       success_url: dto.successUrl,
       cancel_url: dto.cancelUrl,
-      subscription_data: {
-        metadata: { tenantId: dto.tenantId, appId: app.id, appClientId: app.clientId },
-      },
+      // Payment mode has no subscription_data, so the routing metadata rides on
+      // the session itself; checkout.session.completed is what grants access.
+      ...(once
+        ? { metadata }
+        : {
+            subscription_data: {
+              metadata,
+              ...(price.trialDays > 0 ? { trial_period_days: price.trialDays } : {}),
+            },
+          }),
     });
     return { url: session.url };
   }
@@ -265,6 +378,8 @@ export class BillingService {
         return this.onInvoicePaid(event.data.object as Stripe.Invoice);
       case 'invoice.payment_failed':
         return this.onPaymentFailed(event.data.object as Stripe.Invoice);
+      case 'checkout.session.completed':
+        return this.onCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
       default:
         return { handled: false };
     }
@@ -286,6 +401,20 @@ export class BillingService {
   private async accessBySubscriptionId(subId: string | null) {
     if (!subId) return null;
     return this.prisma.appTenant.findFirst({ where: { stripeSubscriptionId: subId } });
+  }
+
+  /**
+   * Which tier a subscription is on, read from the price it actually bills.
+   * The price is authoritative rather than the checkout metadata: an upgrade
+   * done in the Stripe portal changes the price and never revisits our
+   * metadata, so trusting the stamp would leave `plan` describing what the
+   * customer bought once rather than what they pay for now.
+   */
+  private async tierOf(sub: Stripe.Subscription): Promise<string | null> {
+    const priceId = sub.items?.data?.[0]?.price?.id;
+    if (!priceId) return null;
+    const price = await this.prisma.appPrice.findUnique({ where: { stripePriceId: priceId } });
+    return price?.tier ?? null;
   }
 
   private async syncSubscription(sub: Stripe.Subscription) {
@@ -311,6 +440,8 @@ export class BillingService {
       graceUntil = null;
     }
 
+    const tier = await this.tierOf(sub);
+
     if (!access) {
       // A subscription for a pair with no row yet: paying IS enablement —
       // but only if the metadata names a real tenant + app.
@@ -322,6 +453,7 @@ export class BillingService {
           status,
           graceUntil,
           stripeSubscriptionId: sub.id,
+          ...(tier ? { plan: tier } : {}),
         },
       });
     } else {
@@ -336,13 +468,21 @@ export class BillingService {
       }
       access = await this.prisma.appTenant.update({
         where: { tenantId_appId: { tenantId: access.tenantId, appId: access.appId } },
-        data: { status, graceUntil, stripeSubscriptionId: sub.id, trialEndsAt: null },
+        data: {
+          status,
+          graceUntil,
+          stripeSubscriptionId: sub.id,
+          trialEndsAt: null,
+          // Only when the price resolves: an unknown price means the tier is
+          // unknown, and blanking a known plan would be worse than keeping it.
+          ...(tier ? { plan: tier } : {}),
+        },
       });
     }
 
     await this.audit.record('billing.subscription_synced', {
       tenantId: access.tenantId,
-      detail: { appId: access.appId, stripeStatus: sub.status, status },
+      detail: { appId: access.appId, stripeStatus: sub.status, status, plan: access.plan },
     });
     return { handled: true };
   }
@@ -361,6 +501,41 @@ export class BillingService {
         detail: { appId: access.appId },
       });
     }
+    return { handled: true };
+  }
+
+  /**
+   * A completed one-time purchase. Subscription checkouts are ignored here —
+   * customer.subscription.created already handled those, and acting twice
+   * would race it. A perpetual purchase has no renewal to watch, so the row is
+   * simply ACTIVE with no subscription id, grace or trial hanging off it.
+   */
+  private async onCheckoutCompleted(session: Stripe.Checkout.Session) {
+    if (session.mode !== 'payment' || session.payment_status !== 'paid') {
+      return { handled: false };
+    }
+    const meta = (session.metadata ?? {}) as { tenantId?: string; appId?: string; tier?: string };
+    if (!meta.tenantId || !meta.appId) return { handled: false };
+
+    await this.prisma.appTenant.upsert({
+      where: { tenantId_appId: { tenantId: meta.tenantId, appId: meta.appId } },
+      create: {
+        tenantId: meta.tenantId,
+        appId: meta.appId,
+        status: 'ACTIVE',
+        ...(meta.tier ? { plan: meta.tier } : {}),
+      },
+      update: {
+        status: 'ACTIVE',
+        graceUntil: null,
+        trialEndsAt: null,
+        ...(meta.tier ? { plan: meta.tier } : {}),
+      },
+    });
+    await this.audit.record('billing.purchase_completed', {
+      tenantId: meta.tenantId,
+      detail: { appId: meta.appId, plan: meta.tier ?? null, mode: 'payment' },
+    });
     return { handled: true };
   }
 

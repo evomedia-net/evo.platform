@@ -49,6 +49,10 @@ parameters, camelCase on the wire.
 Billing (client credentials)
 ----------------------------
 
+    prices = platform.list_prices()
+    # [{"stripeProductId", "stripePriceId", "productName", "tier", "unitAmount",
+    #   "currency", "interval", "intervalCount", "trialDays"}] - cheapest first.
+
     ent = platform.get_entitlement(tenant_id=tenant_id)
     # {"enabled", "status", "plan", "trialEndsAt", "graceUntil", "daysLeft"}
     # enabled mirrors the login gate; daysLeft counts down a trial or grace window.
@@ -57,6 +61,7 @@ Billing (client credentials)
 
     out = platform.create_checkout(
         tenant_id=tenant_id,
+        tier="pro",          # or interval="year"; or price_id= from list_prices()
         success_url=f"{app_url}/billing/success",
         cancel_url=f"{app_url}/billing",
     )
@@ -70,6 +75,11 @@ The platform's Stripe webhook then drives the tenant's access to the app
 Billing calls are scoped: the tenant must already have the calling app
 enabled, and every redirect URL (success_url, cancel_url, return_url)
 must share an origin with one of the app's registered callback URLs.
+
+An app sells any number of tiers, each with its own billing period - name the
+one you want by tier (+ interval, default monthly) rather than a Stripe id, so
+repricing is a console edit instead of a redeploy. A tier billed once is a
+one-time purchase: permanent access, with no renewal or grace lifecycle.
 
 Ask AI (evo-ai)
 ---------------

@@ -7,6 +7,7 @@ import { JwksCache } from './jwks';
 import { ConfigError, PlatformError, TokenError } from './errors';
 import {
   AcceptInviteParams,
+  AppPrice,
   Claims,
   CreateInviteParams,
   CreateMemberParams,
@@ -270,15 +271,28 @@ export class EvoPlatform {
     );
   }
 
+  /** What this app sells, cheapest first — enough to render a pricing table
+   *  without holding any Stripe ids in your own code. */
+  listPrices(): Promise<AppPrice[]> {
+    return this.request('GET', '/billing/prices', undefined, this.clientHeaders());
+  }
+
   /** Stripe Checkout for the tenant's subscription to THIS app. The webhook
    *  then drives the tenant's access to the app (paid → active, failed →
    *  grace → suspended). The redirect URLs must share an origin with the
    *  app's registered callback URLs, and the tenant must already have this
-   *  app enabled. */
+   *  app enabled.
+   *
+   *  Name the price by `tier` (+ `interval`, default monthly) so repricing is
+   *  a console edit rather than a redeploy, or pass a `priceId` from
+   *  listPrices(). An app selling exactly one price may omit both. */
   createCheckout(params: {
     tenantId: string;
     successUrl: string;
     cancelUrl: string;
+    tier?: string;
+    interval?: string;
+    intervalCount?: number;
     priceId?: string;
     quantity?: number;
   }): Promise<{ url: string | null }> {

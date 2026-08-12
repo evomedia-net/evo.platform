@@ -70,16 +70,31 @@ function makeStripe({
   } as unknown as Stripe;
 }
 
-function makePrisma(apps: { name: string; stripePriceId: string }[] = []) {
-  return { app: { findMany: jest.fn().mockResolvedValue(apps) } };
+// What each price sells, as the registry now records it: price -> app + tier.
+function makePrisma(prices: { name: string; stripePriceId: string; tier?: string }[] = []) {
+  return {
+    appPrice: {
+      findMany: jest.fn().mockResolvedValue(
+        prices.map((p) => ({
+          stripePriceId: p.stripePriceId,
+          tier: p.tier ?? 'standard',
+          app: { name: p.name },
+        })),
+      ),
+    },
+  };
 }
 
 function makeHealth(state = 'ok') {
   return { check: jest.fn().mockResolvedValue({ state, stripeStatusUrl: 'https://status.stripe.com/' }) };
 }
 
-function service(stripe: Stripe, apps: { name: string; stripePriceId: string }[] = [], health = makeHealth()) {
-  return new RevenueService(makePrisma(apps) as never, health as never, stripe);
+function service(
+  stripe: Stripe,
+  prices: { name: string; stripePriceId: string; tier?: string }[] = [],
+  health = makeHealth(),
+) {
+  return new RevenueService(makePrisma(prices) as never, health as never, stripe);
 }
 
 describe('RevenueService', () => {
@@ -92,13 +107,18 @@ describe('RevenueService', () => {
           sub({ status: 'past_due' }),
         ],
       }),
-      [{ name: 'SmartPlant EHS', stripePriceId: 'price_basic_m' }],
+      [{ name: 'evo.ehs', stripePriceId: 'price_basic_m', tier: 'basic' }],
     );
     const report = await svc.report();
     const s = report.snapshot!.subscriptions;
     expect(s.total).toBe(3);
     expect(s.byStatus).toEqual({ active: 2, past_due: 1 });
-    expect(s.byPlan['SmartPlant EHS|Basic|month']).toBe(2);
+    // The registered tier names the plan, not the price's Stripe nickname:
+    // the tier is what AppTenant.plan is stamped with, so revenue and
+    // entitlements describe a customer the same way.
+    expect(s.byPlan['evo.ehs|basic|month']).toBe(2);
+    // An unregistered price still counts; it just cannot name a tier, so it
+    // falls back to the nickname rather than vanishing from the report.
     expect(s.byPlan['unmapped|Pro|year']).toBe(1);
     expect(s.byInterval).toEqual({ month: 2, year: 1 });
   });

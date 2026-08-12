@@ -122,13 +122,17 @@ export class RevenueService {
     const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
     const since = Math.floor(yearStart.getTime() / 1000);
 
-    // Price id -> app name, so plans are reported by the product an adopter
-    // actually sells rather than an opaque price_… id.
-    const apps = await this.prisma.app.findMany({
-      where: { stripePriceId: { not: null } },
-      select: { name: true, stripePriceId: true },
+    // Price id -> app + tier, so plans are reported as the product and tier an
+    // adopter actually sells rather than an opaque price_… id. The tier comes
+    // from the registry rather than the price's Stripe nickname: the nickname
+    // is free-form text nobody is obliged to fill in, while the tier is what
+    // AppTenant.plan is stamped with, so reports and entitlements agree.
+    const prices = await this.prisma.appPrice.findMany({
+      select: { stripePriceId: true, tier: true, app: { select: { name: true } } },
     });
-    const appByPrice = new Map(apps.map((a) => [a.stripePriceId as string, a.name]));
+    const soldByPrice = new Map(
+      prices.map((p) => [p.stripePriceId, { app: p.app.name, tier: p.tier }]),
+    );
 
     const byStatus: Record<string, number> = {};
     const byPlan: Record<string, number> = {};
@@ -146,8 +150,9 @@ export class RevenueService {
       for (const item of sub.items.data) {
         const price = item.price;
         const interval = price.recurring?.interval ?? 'one-time';
-        const app = appByPrice.get(price.id) ?? 'unmapped';
-        const plan = price.nickname ?? price.id;
+        const sold = soldByPrice.get(price.id);
+        const app = sold?.app ?? 'unmapped';
+        const plan = sold?.tier ?? price.nickname ?? price.id;
         byInterval[interval] = (byInterval[interval] ?? 0) + 1;
         byPlan[`${app}|${plan}|${interval}`] = (byPlan[`${app}|${plan}|${interval}`] ?? 0) + 1;
       }

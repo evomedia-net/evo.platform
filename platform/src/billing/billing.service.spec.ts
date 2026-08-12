@@ -42,8 +42,14 @@ const baseAccess = {
   stripeSubscriptionId: 'sub_1',
 };
 
-function makePrisma(access: Record<string, unknown> | null = { ...baseAccess }) {
+function makePrisma(access: Record<string, unknown> | null = { ...baseAccess }, prices = PRICES) {
   return {
+    appPrice: {
+      findMany: jest.fn().mockResolvedValue(prices),
+      findUnique: jest.fn(async ({ where }: { where: { stripePriceId: string } }) =>
+        prices.find((p) => p.stripePriceId === where.stripePriceId) ?? null,
+      ),
+    },
     tenant: {
       findUnique: jest.fn().mockResolvedValue(baseTenant),
       update: jest.fn().mockResolvedValue(baseTenant),
@@ -58,12 +64,14 @@ function makePrisma(access: Record<string, unknown> | null = { ...baseAccess }) 
 }
 
 const audit = { record: jest.fn().mockResolvedValue(undefined) };
-const app = {
-  id: 'a1',
-  clientId: 'app_demo',
-  stripePriceId: 'price_app',
-  callbackUrls: ['https://app.test/cb'],
-};
+const app = { id: 'a1', clientId: 'app_demo', callbackUrls: ['https://app.test/cb'] };
+
+// What the app sells. Rows, not a column: two tiers x two billing periods.
+const PRICES = [
+  { id: 'ap1', appId: 'a1', stripePriceId: 'price_app', tier: 'starter', unitAmount: 1000, currency: 'usd', interval: 'month', intervalCount: 1 },
+  { id: 'ap2', appId: 'a1', stripePriceId: 'price_pro_m', tier: 'pro', unitAmount: 5000, currency: 'usd', interval: 'month', intervalCount: 1 },
+  { id: 'ap3', appId: 'a1', stripePriceId: 'price_pro_y', tier: 'pro', unitAmount: 50000, currency: 'usd', interval: 'year', intervalCount: 1 },
+];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const makeSvc = (prisma: any, stripe: any = realStripe) =>
@@ -237,17 +245,73 @@ describe('checkout', () => {
     cancelUrl: 'https://app.test/no',
   };
 
-  it("uses the calling app's registered price and tags the subscription", async () => {
+  it('selects a tier and billing period, and tags the subscription with both', async () => {
     const stripe = fakeStripe();
     const svc = makeSvc(makePrisma(), stripe);
-    const out = await svc.checkout(dto, app);
+    const out = await svc.checkout({ ...dto, tier: 'pro', interval: 'year' }, app);
     expect(out.url).toBe('https://stripe.test/c');
     const session = stripe.checkout.sessions.create.mock.calls[0][0];
-    expect(session.line_items[0].price).toBe('price_app');
-    expect(session.subscription_data.metadata).toMatchObject({ tenantId: 't1', appId: 'a1' });
+    expect(session.mode).toBe('subscription');
+    expect(session.line_items[0].price).toBe('price_pro_y');
+    expect(session.subscription_data.metadata).toMatchObject({
+      tenantId: 't1',
+      appId: 'a1',
+      tier: 'pro',
+    });
   });
 
-  it("rejects a priceId that is not the app's registered price", async () => {
+  it('the same tier at a different period is a different price', async () => {
+    const stripe = fakeStripe();
+    await makeSvc(makePrisma(), stripe).checkout({ ...dto, tier: 'pro' }, app);
+    // No interval given → monthly, not the annual row.
+    expect(stripe.checkout.sessions.create.mock.calls[0][0].line_items[0].price).toBe('price_pro_m');
+  });
+
+  it('refuses to guess when the app sells more than one price', async () => {
+    const stripe = fakeStripe();
+    await expect(makeSvc(makePrisma(), stripe).checkout(dto, app)).rejects.toThrow(/Specify tier/);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('a single-price app needs no selector — there is nothing to choose', async () => {
+    const stripe = fakeStripe();
+    await makeSvc(makePrisma(undefined, [PRICES[0]]), stripe).checkout(dto, app);
+    expect(stripe.checkout.sessions.create.mock.calls[0][0].line_items[0].price).toBe('price_app');
+  });
+
+  it('rejects a tier the app does not sell', async () => {
+    const stripe = fakeStripe();
+    await expect(
+      makeSvc(makePrisma(), stripe).checkout({ ...dto, tier: 'enterprise' }, app),
+    ).rejects.toThrow(/no "enterprise" price/);
+  });
+
+  it('a one-time price checks out in payment mode, with metadata on the session', async () => {
+    const stripe = fakeStripe();
+    const once = {
+      ...PRICES[0],
+      stripePriceId: 'price_lifetime',
+      tier: 'lifetime',
+      interval: 'once',
+    };
+    await makeSvc(makePrisma(undefined, [once]), stripe).checkout(dto, app);
+    const session = stripe.checkout.sessions.create.mock.calls[0][0];
+    // Subscription mode rejects a non-recurring price outright, so this is
+    // not a preference — and payment mode has no subscription_data to carry
+    // the routing metadata, hence it riding on the session.
+    expect(session.mode).toBe('payment');
+    expect(session.subscription_data).toBeUndefined();
+    expect(session.metadata).toMatchObject({ tenantId: 't1', appId: 'a1', tier: 'lifetime' });
+  });
+
+  it('a tier with a trial passes it to Stripe', async () => {
+    const stripe = fakeStripe();
+    const trial = { ...PRICES[0], trialDays: 14 };
+    await makeSvc(makePrisma(undefined, [trial]), stripe).checkout(dto, app);
+    expect(stripe.checkout.sessions.create.mock.calls[0][0].subscription_data.trial_period_days).toBe(14);
+  });
+
+  it("rejects a priceId that is not one of the app's registered prices", async () => {
     const stripe = fakeStripe();
     const svc = makeSvc(makePrisma(), stripe);
     await expect(svc.checkout({ ...dto, priceId: 'price_other_app' }, app)).rejects.toBeInstanceOf(
@@ -256,16 +320,18 @@ describe('checkout', () => {
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 
-  it('still accepts a priceId that names the registered price (wire compat)', async () => {
+  it('accepts any priceId the app does register', async () => {
     const stripe = fakeStripe();
-    await makeSvc(makePrisma(), stripe).checkout({ ...dto, priceId: 'price_app' }, app);
-    expect(stripe.checkout.sessions.create.mock.calls[0][0].line_items[0].price).toBe('price_app');
+    await makeSvc(makePrisma(), stripe).checkout({ ...dto, priceId: 'price_pro_y' }, app);
+    expect(stripe.checkout.sessions.create.mock.calls[0][0].line_items[0].price).toBe('price_pro_y');
   });
 
   it('refuses checkout for a tenant the app has no relationship with', async () => {
     const stripe = fakeStripe();
     const svc = makeSvc(makePrisma(null), stripe);
-    await expect(svc.checkout(dto, app)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.checkout({ ...dto, tier: 'starter' }, app)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     // Refused before any Stripe call — no customer is created as a side effect.
     expect(stripe.customers.create).not.toHaveBeenCalled();
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
@@ -275,33 +341,31 @@ describe('checkout', () => {
     const stripe = fakeStripe();
     const svc = makeSvc(makePrisma(), stripe);
     await expect(
-      svc.checkout({ ...dto, successUrl: 'https://evil.test/ok' }, app),
+      svc.checkout({ ...dto, tier: 'starter', successUrl: 'https://evil.test/ok' }, app),
     ).rejects.toBeInstanceOf(BadRequestException);
     await expect(
-      svc.checkout({ ...dto, cancelUrl: 'https://evil.test/no' }, app),
+      svc.checkout({ ...dto, tier: 'starter', cancelUrl: 'https://evil.test/no' }, app),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 
   it('an app with no registered callback URLs cannot mint redirects at all', async () => {
     const svc = makeSvc(makePrisma(), fakeStripe());
-    await expect(svc.checkout(dto, { ...app, callbackUrls: [] })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      svc.checkout({ ...dto, tier: 'starter' }, { ...app, callbackUrls: [] }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('400s when the app has no price configured', async () => {
-    const svc = makeSvc(makePrisma(), fakeStripe());
-    await expect(svc.checkout(dto, { ...app, stripePriceId: null })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+  it('400s when the app sells nothing at all', async () => {
+    const svc = makeSvc(makePrisma(undefined, []), fakeStripe());
+    await expect(svc.checkout(dto, app)).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('creates and stores a customer when the tenant has none', async () => {
     const stripe = fakeStripe();
     const prisma = makePrisma();
     prisma.tenant.findUnique.mockResolvedValue({ ...baseTenant, stripeCustomerId: null });
-    await makeSvc(prisma, stripe).checkout(dto, app);
+    await makeSvc(prisma, stripe).checkout({ ...dto, tier: 'starter' }, app);
     expect(stripe.customers.create).toHaveBeenCalled();
     expect(prisma.tenant.update.mock.calls[0][0].data.stripeCustomerId).toBe('cus_new');
   });
@@ -309,7 +373,9 @@ describe('checkout', () => {
   it('reports billing unconfigured when no key and no client are present', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const svc = new BillingService(makePrisma() as any, audit as any);
-    await expect(svc.checkout(dto, app)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(svc.checkout({ ...dto, tier: 'starter' }, app)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 });
 

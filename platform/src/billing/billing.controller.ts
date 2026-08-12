@@ -32,6 +32,14 @@ export class BillingController {
     return this.billing.entitlement(query.tenantId, req.clientApp);
   }
 
+  /** What this app sells, cheapest first — enough to render a pricing table
+   *  without holding any Stripe ids in the app's own code. */
+  @Get('prices')
+  @UseGuards(ClientGuard)
+  prices(@Req() req: { clientApp: CallingApp }) {
+    return this.billing.listPrices(req.clientApp.id);
+  }
+
   /** Apps request a Stripe Checkout URL for the tenant's subscription to THIS
    *  app (the caller's identity comes from ClientGuard). */
   @Post('checkout')
