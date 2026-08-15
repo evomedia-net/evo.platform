@@ -417,6 +417,31 @@ export class BillingService {
     return price?.tier ?? null;
   }
 
+  /**
+   * A subscription naming a tenant or app this platform does not know (a
+   * tenant purged after subscribing, or foreign metadata) is the webhook's
+   * problem to absorb, not Stripe's to retry: answering 500 makes Stripe
+   * redeliver the event for days and, kept up, disable the endpoint — which
+   * would silently stop billing sync for EVERYONE over one orphan. So it is
+   * acknowledged like any other unroutable event, and recorded in the audit
+   * log so the money-without-access situation is not invisible.
+   */
+  private async acknowledgeOrphan(
+    subId: string,
+    meta: { tenantId?: string; appId?: string },
+    stripeStatus: string,
+  ): Promise<{ handled: boolean }> {
+    await this.audit.record('billing.orphan_subscription', {
+      detail: {
+        stripeSubscriptionId: subId,
+        tenantId: meta.tenantId ?? null,
+        appId: meta.appId ?? null,
+        stripeStatus,
+      },
+    });
+    return { handled: false };
+  }
+
   private async syncSubscription(sub: Stripe.Subscription) {
     // Prefer the metadata stamped at checkout; fall back to the stored sub id.
     const meta = (sub.metadata ?? {}) as { tenantId?: string; appId?: string };
@@ -446,16 +471,21 @@ export class BillingService {
       // A subscription for a pair with no row yet: paying IS enablement —
       // but only if the metadata names a real tenant + app.
       if (!meta.tenantId || !meta.appId) return { handled: false };
-      access = await this.prisma.appTenant.create({
-        data: {
-          tenantId: meta.tenantId,
-          appId: meta.appId,
-          status,
-          graceUntil,
-          stripeSubscriptionId: sub.id,
-          ...(tier ? { plan: tier } : {}),
-        },
-      });
+      try {
+        access = await this.prisma.appTenant.create({
+          data: {
+            tenantId: meta.tenantId,
+            appId: meta.appId,
+            status,
+            graceUntil,
+            stripeSubscriptionId: sub.id,
+            ...(tier ? { plan: tier } : {}),
+          },
+        });
+      } catch (e) {
+        if ((e as { code?: string })?.code !== 'P2003') throw e;
+        return this.acknowledgeOrphan(sub.id, meta, sub.status);
+      }
     } else {
       // A row already owned by a DIFFERENT subscription ignores terminal
       // events from the old one (upgrade flows replace subscriptions).
@@ -517,6 +547,22 @@ export class BillingService {
     const meta = (session.metadata ?? {}) as { tenantId?: string; appId?: string; tier?: string };
     if (!meta.tenantId || !meta.appId) return { handled: false };
 
+    try {
+      await this.upsertPurchase({ tenantId: meta.tenantId, appId: meta.appId, tier: meta.tier });
+    } catch (e) {
+      // Same absorption as syncSubscription: an unknown tenant/app must not
+      // become a 500 that Stripe retries for days.
+      if ((e as { code?: string })?.code !== 'P2003') throw e;
+      return this.acknowledgeOrphan(session.id, meta, 'checkout_paid');
+    }
+    await this.audit.record('billing.purchase_completed', {
+      tenantId: meta.tenantId,
+      detail: { appId: meta.appId, plan: meta.tier ?? null, mode: 'payment' },
+    });
+    return { handled: true };
+  }
+
+  private async upsertPurchase(meta: { tenantId: string; appId: string; tier?: string }) {
     await this.prisma.appTenant.upsert({
       where: { tenantId_appId: { tenantId: meta.tenantId, appId: meta.appId } },
       create: {
@@ -532,11 +578,6 @@ export class BillingService {
         ...(meta.tier ? { plan: meta.tier } : {}),
       },
     });
-    await this.audit.record('billing.purchase_completed', {
-      tenantId: meta.tenantId,
-      detail: { appId: meta.appId, plan: meta.tier ?? null, mode: 'payment' },
-    });
-    return { handled: true };
   }
 
   private async onPaymentFailed(invoice: Stripe.Invoice) {
