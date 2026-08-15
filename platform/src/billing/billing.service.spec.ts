@@ -59,6 +59,7 @@ function makePrisma(access: Record<string, unknown> | null = { ...baseAccess }, 
       findFirst: jest.fn().mockResolvedValue(access),
       create: jest.fn().mockResolvedValue({ ...baseAccess }),
       update: jest.fn().mockResolvedValue({ ...baseAccess }),
+      upsert: jest.fn().mockResolvedValue({ ...baseAccess }),
     },
   };
 }
@@ -220,6 +221,95 @@ describe('per-app event handling', () => {
     );
     expect(out.handled).toBe(true);
     expect(prisma.appTenant.update).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges a subscription naming an unknown tenant instead of 500ing', async () => {
+    // A 500 makes Stripe retry the same event for days and eventually disable
+    // the endpoint - one orphan must never stop billing sync for everyone.
+    const prisma = makePrisma(null);
+    const fk = Object.assign(new Error('FK violation'), { code: 'P2003' });
+    prisma.appTenant.create.mockRejectedValueOnce(fk);
+    const out = await makeSvc(prisma).handleEvent(
+      asEvent('customer.subscription.created', {
+        id: 'sub_orphan',
+        status: 'active',
+        metadata: { tenantId: 'purged-tenant', appId: 'a1' },
+      }),
+    );
+    expect(out.handled).toBe(false); // acknowledged (200), not applied
+    expect(audit.record).toHaveBeenCalledWith('billing.orphan_subscription', {
+      detail: {
+        stripeSubscriptionId: 'sub_orphan',
+        tenantId: 'purged-tenant',
+        appId: 'a1',
+        stripeStatus: 'active',
+      },
+    });
+  });
+
+  it('a database failure that is NOT an orphan still throws - Stripe should retry those', async () => {
+    const prisma = makePrisma(null);
+    prisma.appTenant.create.mockRejectedValueOnce(new Error('connection reset'));
+    await expect(
+      makeSvc(prisma).handleEvent(
+        asEvent('customer.subscription.created', {
+          id: 'sub_1',
+          status: 'active',
+          metadata: { tenantId: 't1', appId: 'a1' },
+        }),
+      ),
+    ).rejects.toThrow('connection reset');
+  });
+
+  it('a paid one-time checkout activates the pair and stamps the tier', async () => {
+    const prisma = makePrisma(null);
+    const out = await makeSvc(prisma).handleEvent(
+      asEvent('checkout.session.completed', {
+        id: 'cs_1',
+        mode: 'payment',
+        payment_status: 'paid',
+        metadata: { tenantId: 't1', appId: 'a1', tier: 'lifetime' },
+      }),
+    );
+    expect(out.handled).toBe(true);
+    const call = prisma.appTenant.upsert.mock.calls[0][0];
+    expect(call.create).toMatchObject({ tenantId: 't1', appId: 'a1', status: 'ACTIVE', plan: 'lifetime' });
+    // Re-purchase lifts grace/trial; it never leaves a paid pair suspended.
+    expect(call.update).toMatchObject({ status: 'ACTIVE', graceUntil: null, trialEndsAt: null });
+  });
+
+  it('an unpaid or subscription-mode checkout.session.completed is ignored', async () => {
+    const prisma = makePrisma(null);
+    const out = await makeSvc(prisma).handleEvent(
+      asEvent('checkout.session.completed', {
+        id: 'cs_2',
+        mode: 'subscription',
+        payment_status: 'paid',
+        metadata: { tenantId: 't1', appId: 'a1' },
+      }),
+    );
+    expect(out.handled).toBe(false);
+    expect(prisma.appTenant.upsert).not.toHaveBeenCalled();
+  });
+
+  it('a one-time purchase for an unknown tenant is acknowledged, not 500ed', async () => {
+    const prisma = makePrisma(null);
+    prisma.appTenant.upsert.mockRejectedValueOnce(
+      Object.assign(new Error('FK violation'), { code: 'P2003' }),
+    );
+    const out = await makeSvc(prisma).handleEvent(
+      asEvent('checkout.session.completed', {
+        id: 'cs_3',
+        mode: 'payment',
+        payment_status: 'paid',
+        metadata: { tenantId: 'purged-tenant', appId: 'a1' },
+      }),
+    );
+    expect(out.handled).toBe(false);
+    expect(audit.record).toHaveBeenCalledWith(
+      'billing.orphan_subscription',
+      expect.objectContaining({ detail: expect.objectContaining({ tenantId: 'purged-tenant' }) }),
+    );
   });
 
   it('ignores events that resolve to no known pair', async () => {
