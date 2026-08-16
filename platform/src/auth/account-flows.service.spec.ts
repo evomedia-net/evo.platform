@@ -9,6 +9,7 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { AccountFlowsService } from './account-flows.service';
+import { EmailTemplateService } from '../email/email-template.service';
 import { KeysService } from '../core/keys.service';
 import { config } from '../config';
 
@@ -48,7 +49,17 @@ function makeDeps(user: Partial<typeof baseUser> | null = {}) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const makeSvc = (deps: ReturnType<typeof makeDeps>) =>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  new AccountFlowsService(deps.prisma as any, keys, audit as any, deps.email as any);
+  new AccountFlowsService(deps.prisma as any, keys, audit as any, deps.email as any, templates());
+
+/** The real renderer over an empty template table, so these tests cover the
+ *  built-in copy that ships - the path every install uses until someone edits. */
+const templates = () =>
+  new EmailTemplateService(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { emailTemplate: { findUnique: jest.fn().mockResolvedValue(null) } } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    audit as any,
+  );
 
 const resetSecret = (id: string, passwordHash: string) =>
   createHmac('sha256', config.secretKey).update(`reset:${id}:${passwordHash}`).digest('hex');

@@ -313,7 +313,11 @@ SMTP resolution order per send: tenant config (`PUT /admin/smtp` with
 - **Passkeys**: set `WEBAUTHN_BASE_DOMAINS=yourdomain.com` so one passkey works
   on the apex and every tenant subdomain. HTTPS is required outside loopback.
 - **Email**: point `SMTP_*` (or the platform-default config) at a real relay;
-  Mailpit is dev-only.
+  Mailpit is dev-only. What the messages *say* is editable in the console under
+  **Email copy** — platform-wide, with the product name as a variable, so one
+  wording serves every app. A template left incomplete falls back to the
+  built-in copy rather than failing to send, so recovery mail never depends on
+  the editor.
 - **TLS/routing**: put the platform and apps behind your reverse proxy; the
   service itself speaks plain HTTP.
 

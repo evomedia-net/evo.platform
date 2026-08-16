@@ -265,6 +265,34 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// Operator-editable copy for the mail the platform sends.
+//
+// There is deliberately NO tenantId column - not even a nullable one meaning
+// "platform-level". These templates are platform-wide by design (one voice
+// across every product), and a nullable discriminator would be exactly the
+// NULL-as-a-kind mistake the schema rules forbid: when there is only one kind,
+// the column should not exist.
+//
+// A missing row is not an error. Every code has a built-in default in
+// email-templates.ts, and a row here only overrides it - so recovery mail
+// keeps working whether or not anyone has ever opened the editor.
+model EmailTemplate {
+  // Which message this is: password_reset, email_verify, ...
+  code        String   @id
+  subject     String
+  heading     String
+  // One paragraph per line. Admin-authored HTML is trusted here; the
+  // {{variables}} substituted into it are escaped, because those carry user
+  // input (an address, a workspace name).
+  intro       String
+  actionLabel String?
+  outro       String
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+
+  @@map("email_templates")
+}
+
 model SmtpConfig {
   id          String  @id @default(uuid())
   tenantId    String? @unique // null = platform default config

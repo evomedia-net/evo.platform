@@ -61,3 +61,27 @@ export class UpsertSmtpDto {
   @IsString()
   fromAddress!: string;
 }
+
+export class SaveTemplateDto {
+  @IsString()
+  subject!: string;
+
+  @IsString()
+  heading!: string;
+
+  /** One paragraph per line. */
+  @IsString()
+  intro!: string;
+
+  @IsOptional()
+  @IsString()
+  actionLabel?: string;
+
+  @IsString()
+  outro!: string;
+}
+
+export class TestSendDto {
+  @IsEmail()
+  to!: string;
+}

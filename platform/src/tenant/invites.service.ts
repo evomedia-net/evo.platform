@@ -14,6 +14,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../core/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
+import { EmailTemplateService } from '../email/email-template.service';
 import { sha256 } from '../core/crypto.util';
 import { config } from '../config';
 import { AcceptInviteDto, CreateInviteDto } from './dto';
@@ -58,6 +59,7 @@ export class InvitesService {
     private prisma: PrismaService,
     private audit: AuditService,
     private email: EmailService,
+    private templates: EmailTemplateService,
   ) {}
 
   list(tenantId: string) {
@@ -222,12 +224,17 @@ export class InvitesService {
     const who = inviter?.name || inviter?.email || 'An administrator';
     const workspace = tenant?.name ?? 'a workspace';
     const link = `${config.publicBaseUrl}/auth/invites/accept-page?token=${encodeURIComponent(rawToken)}`;
+    const msg = await this.templates.render(
+      'member_invite',
+      { productName: 'EvoPlatform', inviter: who, workspace, expiryHours: '24' },
+      link,
+    );
     await this.email.send({
       tenantId,
       to,
-      subject: `${who} invited you to ${workspace}`,
-      text: `${who} invited you to join ${workspace}.\n\nCreate your account here:\n\n${link}\n\nThe link is valid for 24 hours and can be used once. If you weren't expecting this, ignore this email.`,
-      html: `<p>${escapeHtml(who)} invited you to join <b>${escapeHtml(workspace)}</b>.</p><p><a href="${link}">Create your account</a></p><p>The link is valid for 24 hours and can be used once. If you weren't expecting this, ignore this email.</p>`,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
     });
   }
 }

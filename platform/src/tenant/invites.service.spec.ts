@@ -9,6 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InvitesService } from './invites.service';
+import { EmailTemplateService } from '../email/email-template.service';
 import { sha256 } from '../core/crypto.util';
 
 const audit = { record: jest.fn().mockResolvedValue(undefined) };
@@ -62,7 +63,17 @@ function makeDeps() {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const makeSvc = (d: ReturnType<typeof makeDeps>) =>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  new InvitesService(d.prisma as any, audit as any, d.email as any);
+  new InvitesService(
+    d.prisma as any,
+    audit as any,
+    d.email as any,
+    new EmailTemplateService(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { emailTemplate: { findUnique: jest.fn().mockResolvedValue(null) } } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      audit as any,
+    ),
+  );
 
 beforeEach(() => jest.clearAllMocks());
 

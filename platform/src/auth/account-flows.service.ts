@@ -12,7 +12,7 @@ import { KeysService } from '../core/keys.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { config } from '../config';
-import { renderEmail, esc } from '../email/email-layout';
+import { EmailTemplateService } from '../email/email-template.service';
 import { resolveProduct } from './product';
 
 const VERIFY_TTL_SEC = 24 * 3600;
@@ -52,6 +52,7 @@ export class AccountFlowsService {
     private keys: KeysService,
     private audit: AuditService,
     private email: EmailService,
+    private templates: EmailTemplateService,
   ) {}
 
   private async findByEmail(input: { tenantSlug?: string; email: string }): Promise<User | null> {
@@ -85,7 +86,7 @@ export class AccountFlowsService {
 
   // ---- email verification ----
 
-  async sendVerification(input: { tenantSlug?: string; email: string }) {
+  async sendVerification(input: { tenantSlug?: string; email: string; clientId?: string }) {
     const ok = { ok: true };
     if (!allowSend(`verify:${input.email.toLowerCase()}`)) return ok;
     const user = await this.findByEmail(input);
@@ -167,21 +168,21 @@ export class AccountFlowsService {
       .sort((a, b) => a.slug.localeCompare(b.slug));
     if (!tenants.length) return ok;
 
-    const plural = tenants.length > 1 ? 's' : '';
-    const product = input.appName ? ` for ${input.appName}` : '';
-    const where = input.appUrl ? `\n\nSign in at ${input.appUrl}` : '';
-    const lines = tenants.map((t) => `  ${t.slug}  (${t.name})`).join('\n');
+    // One line per workspace. Kept as text rather than a <ul> so the same
+    // value reads correctly in both parts of the message.
+    const lines = tenants.map((t) => `${t.slug} — ${t.name}`).join('\n');
+    const productName = input.appName || 'EvoPlatform';
+    const msg = await this.templates.render(
+      'workspace_list',
+      { productName, workspaces: lines, signInUrl: input.appUrl ?? '' },
+      input.appUrl,
+    );
     await this.email.send({
       to: email,
-      subject: `Your workspaces${product}`,
-      text:
-        `This address can sign in to the following workspace${plural}${product}:` +
-        `\n\n${lines}${where}\n\nUse the workspace name on the left when signing in.`,
-      html:
-        `<p>This address can sign in to the following workspace${plural}${product}:</p>` +
-        `<ul>${tenants.map((t) => `<li><code>${t.slug}</code> &mdash; ${t.name}</li>`).join('')}</ul>` +
-        (input.appUrl ? `<p><a href="${input.appUrl}">Sign in</a></p>` : '') +
-        `<p>Use the workspace name when signing in.</p>`,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+      fromName: productName,
     });
     await this.audit.record('auth.workspaces_listed', { userId: users[0]?.id });
     return ok;
@@ -203,25 +204,21 @@ export class AccountFlowsService {
       { expiresIn: RESET_TTL_SEC },
     );
     const link = `${config.publicBaseUrl}/auth/reset-page?token=${encodeURIComponent(token)}`;
-    const minutes = Math.round(RESET_TTL_SEC / 60);
-    const { html, text } = renderEmail({
-      product: product.name,
-      heading: `Reset your ${product.name} password`,
-      intro: [
-        `Someone asked to reset the password for <strong>${esc(user.email)}</strong>. If that was you, set a new password now.`,
-      ],
-      action: { label: 'Reset my password', url: link },
-      outro: [
-        `The link is valid for ${minutes} minutes and can be used once.`,
-        "If it wasn't you, ignore this email — your password is unchanged.",
-      ],
-    });
+    const msg = await this.templates.render(
+      'password_reset',
+      {
+        productName: product.name,
+        email: user.email,
+        expiryMinutes: String(Math.round(RESET_TTL_SEC / 60)),
+      },
+      link,
+    );
     await this.email.send({
       tenantId: user.tenantId ?? undefined,
       to: user.email,
-      subject: `Reset your ${product.name} password`,
-      text,
-      html,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
       fromName: product.name,
     });
     await this.audit.record('auth.reset_requested', {

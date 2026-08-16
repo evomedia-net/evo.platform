@@ -172,11 +172,11 @@ function cadence(interval, count) {
 // Which folds the operator has opened. Views re-render wholesale after every
 // mutation, and <details> loses its open attribute when its markup is replaced
 // — so a card would slam shut the moment you changed anything inside it.
-const OPEN = { app: new Set(), access: new Set(), tenant: new Set() };
+const OPEN = { app: new Set(), access: new Set(), tenant: new Set(), tpl: new Set() };
 document.addEventListener("toggle", (e) => {
   const d = e.target;
   if (!(d instanceof HTMLDetailsElement)) return;
-  for (const kind of ["app", "access", "tenant"]) {
+  for (const kind of ["app", "access", "tenant", "tpl"]) {
     const id = d.dataset[`fold${kind[0].toUpperCase()}${kind.slice(1)}`];
     if (id) { d.open ? OPEN[kind].add(id) : OPEN[kind].delete(id); }
   }
@@ -282,7 +282,7 @@ $("#logout").addEventListener("click", async () => {
 
 // ── routing ─────────────────────────────────────────────────────────────────
 
-const VIEWS = { tenants: viewTenants, users: viewUsers, apps: viewApps, revenue: viewRevenue, audit: viewAudit, smtp: viewSmtp };
+const VIEWS = { tenants: viewTenants, users: viewUsers, apps: viewApps, revenue: viewRevenue, audit: viewAudit, smtp: viewSmtp, email: viewEmailTemplates };
 
 async function route() {
   const name = (location.hash.replace("#/", "") || "tenants").split("?")[0];
@@ -1321,6 +1321,97 @@ function download(filename, type, content) {
 }
 
 // ── smtp ────────────────────────────────────────────────────────────────────
+
+
+// ── email copy ──────────────────────────────────────────────────────────────
+//
+// Platform-level only: one voice across every product, so there is nothing
+// tenant-scoped here. Editing words cannot break the message - the server
+// falls back to the built-in copy whenever a saved row is unusable - which is
+// why this page can be a plain textarea rather than a guarded HTML editor.
+
+async function viewEmailTemplates() {
+  const templates = await api("GET", "/admin/email-templates");
+
+  const card = (t) => `
+    <div class="card">
+     <details class="fold" data-fold-tpl="${t.code}"${OPEN.tpl.has(t.code) ? " open" : ""}>
+      <summary>
+        <h2>${esc(t.code)}</h2>
+        <span class="muted">${esc(t.description)}${t.customized ? " · edited" : " · default"}</span>
+      </summary>
+      <div class="fold-body">
+        <p class="muted small">Variables: ${t.variables.map((v) => `<code>{{${esc(v)}}}</code>`).join(" ")}
+          &mdash; values are escaped when substituted, so they cannot inject markup.</p>
+        <form data-tpl="${t.code}">
+          <label>Subject <input name="subject" value="${esc(t.subject)}" required /></label>
+          <label>Heading <input name="heading" value="${esc(t.heading)}" required /></label>
+          <label data-tip="One paragraph per line. Light HTML is allowed here.">Intro
+            <textarea name="intro" rows="3" required>${esc(t.intro)}</textarea></label>
+          <label>Button label <input name="actionLabel" value="${esc(t.actionLabel)}" /></label>
+          <label>Closing <textarea name="outro" rows="3" required>${esc(t.outro)}</textarea></label>
+          <div class="row">
+            <button class="btn primary">Save</button>
+            <button type="button" class="btn" data-tpl-act="preview" data-code="${t.code}">Preview</button>
+            <button type="button" class="btn" data-tpl-act="test" data-code="${t.code}" data-tip="Sends the preview to an address you choose, which is the only way to see how it actually arrives.">Send test</button>
+            ${t.customized ? `<button type="button" class="btn danger" data-tpl-act="reset" data-code="${t.code}">Revert to default</button>` : ""}
+          </div>
+        </form>
+      </div>
+     </details>
+    </div>`;
+
+  $("#content").innerHTML = `
+    <div class="card">
+      <h2>Email copy</h2>
+      <p class="muted">What the platform's messages say. These apply to every product &mdash;
+        the product name is a variable, so one wording serves all of them. Saving cannot break a
+        message: if a template is left incomplete, the built-in copy is used instead.</p>
+    </div>
+    ${templates.map(card).join("")}`;
+
+  $("#content").addEventListener("submit", async (e) => {
+    const form = e.target.closest("form[data-tpl]");
+    if (!form) return;
+    e.preventDefault();
+    const f = new FormData(form);
+    try {
+      await api("PUT", `/admin/email-templates/${form.dataset.tpl}`, {
+        subject: String(f.get("subject") || ""),
+        heading: String(f.get("heading") || ""),
+        intro: String(f.get("intro") || ""),
+        actionLabel: String(f.get("actionLabel") || ""),
+        outro: String(f.get("outro") || ""),
+      });
+      toast("Saved"); route();
+    } catch (err) { toast(err.message, true); }
+  });
+
+  $("#content").addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-tpl-act]");
+    if (!btn) return;
+    const { tplAct, code } = btn.dataset;
+    try {
+      if (tplAct === "preview") {
+        const msg = await api("GET", `/admin/email-templates/${code}/preview`);
+        // srcdoc in a sandboxed frame: the preview is rendered mail, and it
+        // must not be able to run anything against the console session.
+        modal(`<h3>Subject: ${esc(msg.subject)}</h3>
+          <iframe sandbox="" style="width:100%;height:420px;border:1px solid var(--border);border-radius:8px;background:#fff"
+                  srcdoc="${esc(msg.html)}"></iframe>`);
+      } else if (tplAct === "test") {
+        const to = prompt("Send the sample to which address?");
+        if (!to) return;
+        await api("POST", `/admin/email-templates/${code}/test`, { to });
+        toast("Test sent");
+      } else if (tplAct === "reset") {
+        if (!(await confirmDialog("Revert this template to the built-in copy? Your edits are discarded."))) return;
+        await api("DELETE", `/admin/email-templates/${code}`);
+        toast("Reverted to default"); route();
+      }
+    } catch (err) { toast(err.message, true); }
+  });
+}
 
 async function viewSmtp() {
   await loadTenants();
