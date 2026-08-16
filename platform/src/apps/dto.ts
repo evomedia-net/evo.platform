@@ -8,6 +8,11 @@ export class CreateAppDto {
   @IsString()
   name!: string;
 
+  /** Customer-facing product name ("SWAG Estimates"); defaults from the slug. */
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -23,6 +28,11 @@ export class UpdateAppDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  /** Customer-facing product name, shown in emails and recovery pages. */
+  @IsOptional()
+  @IsString()
+  displayName?: string;
 
   @IsOptional()
   @IsArray()

@@ -125,12 +125,19 @@ export class AuthController {
 
   /** The page the emailed reset link lands on: a minimal new-password form. */
   @Get('reset-page')
-  resetPage(@Query('token') token: string | undefined, @Res() res: HtmlRes) {
+  async resetPage(@Query('token') token: string | undefined, @Res() res: HtmlRes) {
     if (!token || !JWT_SHAPE.test(token)) {
       res.type('html').send(resetInvalidPage());
       return;
     }
-    res.type('html').send(resetFormPage(token));
+    // Decoded WITHOUT verifying, for display only. Verification needs the
+    // per-user secret (a DB lookup keyed on the password hash) and happens on
+    // submit, where it decides whether the reset is allowed. Nothing here
+    // grants anything: the claim only selects which registered app to name,
+    // and the URL comes from that app's registry row - so the worst a forged
+    // claim can do is label the page as another of our own products.
+    const product = await this.flows.productForResetToken(token);
+    res.type('html').send(resetFormPage(token, product.name, product.signInUrl));
   }
 }
 

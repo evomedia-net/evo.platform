@@ -124,6 +124,11 @@ model App {
   clientId         String   @unique
   clientSecretHash String
   name             String   @unique
+  /// What a customer should read: "SWAG Estimates", not the "swag-estimates"
+  /// registry slug. Used in email subjects, sender names and the recovery
+  /// pages, where showing a slug undermines the legitimacy the message needs
+  /// (#103). Null falls back to a titleized name.
+  displayName      String?
   callbackUrls     String[]
   // false = admin-created tenants are NOT auto-enabled on this app; access
   // must be granted specifically (console, signup-through, or subscription).
