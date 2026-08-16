@@ -12,6 +12,8 @@ import { KeysService } from '../core/keys.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { config } from '../config';
+import { renderEmail, esc } from '../email/email-layout';
+import { resolveProduct } from './product';
 
 const VERIFY_TTL_SEC = 24 * 3600;
 const RESET_TTL_SEC = 30 * 60;
@@ -185,28 +187,72 @@ export class AccountFlowsService {
     return ok;
   }
 
-  async requestReset(input: { tenantSlug?: string; email: string }) {
+  async requestReset(input: { tenantSlug?: string; email: string; clientId?: string }) {
     const ok = { ok: true };
     if (!allowSend(`reset:${input.email.toLowerCase()}`)) return ok;
     const user = await this.findByEmail(input);
     if (!user) return ok;
 
-    const token = jwt.sign({ purpose: 'password_reset', sub: user.id }, this.resetSecret(user), {
-      expiresIn: RESET_TTL_SEC,
-    });
+    const product = await resolveProduct(this.prisma, input.clientId);
+    // The clientId rides inside the signed token so the reset page can name
+    // the product and send the user home afterwards. The URL itself is never
+    // carried here - the page resolves it from the registry at render time.
+    const token = jwt.sign(
+      { purpose: 'password_reset', sub: user.id, ...(input.clientId ? { app: input.clientId } : {}) },
+      this.resetSecret(user),
+      { expiresIn: RESET_TTL_SEC },
+    );
     const link = `${config.publicBaseUrl}/auth/reset-page?token=${encodeURIComponent(token)}`;
+    const minutes = Math.round(RESET_TTL_SEC / 60);
+    const { html, text } = renderEmail({
+      product: product.name,
+      heading: `Reset your ${product.name} password`,
+      intro: [
+        `Someone asked to reset the password for <strong>${esc(user.email)}</strong>. If that was you, set a new password now.`,
+      ],
+      action: { label: 'Reset my password', url: link },
+      outro: [
+        `The link is valid for ${minutes} minutes and can be used once.`,
+        "If it wasn't you, ignore this email — your password is unchanged.",
+      ],
+    });
     await this.email.send({
       tenantId: user.tenantId ?? undefined,
       to: user.email,
-      subject: 'Reset your password',
-      text: `Someone asked to reset the password for this account. If that was you, set a new password here:\n\n${link}\n\nThe link is valid for 30 minutes and can be used once. If it wasn't you, ignore this email — your password is unchanged.`,
-      html: `<p>Someone asked to reset the password for this account. If that was you, set a new password here:</p><p><a href="${link}">Reset my password</a></p><p>The link is valid for 30 minutes and can be used once. If it wasn't you, ignore this email — your password is unchanged.</p>`,
+      subject: `Reset your ${product.name} password`,
+      text,
+      html,
+      fromName: product.name,
     });
     await this.audit.record('auth.reset_requested', {
       tenantId: user.tenantId ?? undefined,
       userId: user.id,
+      appClientId: input.clientId,
     });
     return ok;
+  }
+
+  /**
+   * Which product a reset link belongs to, for branding the landing page.
+   *
+   * The token is decoded, not verified: the signing secret is derived from the
+   * user's current password hash, so verifying here would mean a lookup to
+   * decide nothing more than a heading. Safe because the only thing read is an
+   * `app` claim used to select a registered app - the name and URL come from
+   * the registry, never from the token - and because this grants nothing. The
+   * real verification happens in resetPassword().
+   */
+  async productForResetToken(token: string) {
+    let clientId: string | undefined;
+    try {
+      const decoded = jwt.decode(token);
+      if (decoded && typeof decoded !== 'string' && typeof decoded.app === 'string') {
+        clientId = decoded.app;
+      }
+    } catch {
+      // A malformed token still gets a page; it fails on submit.
+    }
+    return resolveProduct(this.prisma, clientId);
   }
 
   async resetPassword(token: string, password: string) {

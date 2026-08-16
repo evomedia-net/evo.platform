@@ -24,6 +24,12 @@ const SHELL_STYLE = `
   .card { background: #c3d7f0; border: 1px solid #9fbadd; border-radius: 10px;
     padding: 28px 34px; max-width: 420px; text-align: center;
     box-shadow: 0 2px 10px rgba(0, 51, 102, 0.12); }
+  /* Names the product above the heading: someone who arrived from a reset
+     email needs to see which product this page belongs to before typing a
+     password into it (#103). */
+  .brand { font-size: 13px; font-weight: 700; letter-spacing: .02em;
+    text-transform: none; color: #1d4067; margin: 0 0 14px;
+    padding-bottom: 10px; border-bottom: 1px solid #9fbadd; }
   h1 { font-size: 20px; margin: 0 0 10px; color: #003366; }
   p { font-size: 14px; line-height: 1.5; margin: 0 0 8px; }
   .err { color: #a33; min-height: 18px; font-size: 13px; }
@@ -82,15 +88,27 @@ const PW_TOGGLE_SCRIPT = `
  * end, leaving someone who just set a password with nothing to click. Points at
  * the platform sign-in; app users reach their own app's sign-in from there.
  */
-function signInButton(): string {
-  return `<a class="cta" href="${config.publicBaseUrl}/">Go to sign in</a>`;
+function signInButton(url = `${config.publicBaseUrl}/`): string {
+  return `<a class="cta" href="${escapeHtml(url)}">Go to sign in</a>`;
 }
 
-function page(body: string): string {
+/** Escape a registry value before it is embedded in a page. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function page(body: string, product = 'EvoPlatform'): string {
+  const name = escapeHtml(product);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta name="robots" content="noindex"/><title>EvoPlatform</title>
-<style>${SHELL_STYLE}</style></head><body><div class="card">${body}</div></body></html>`;
+<meta name="robots" content="noindex"/><title>${name}</title>
+<style>${SHELL_STYLE}</style></head><body><div class="card">
+<p class="brand">${name}</p>${body}</div></body></html>`;
 }
 
 export function verifyResultPage(ok: boolean): string {
@@ -106,7 +124,12 @@ export function verifyResultPage(ok: boolean): string {
 }
 
 /** token must already be validated as JWT-shaped before being embedded. */
-export function resetFormPage(token: string): string {
+/**
+ * @param product  Name shown to the user, resolved from the app registry.
+ * @param signInUrl Where the success screen sends them - the app they started
+ *                  from, not the operator console (#103). Registry-owned.
+ */
+export function resetFormPage(token: string, product?: string, signInUrl?: string): string {
   return page(`
     <h1>Set a new password</h1>
     <p>${PASSWORD_RULES_TEXT}</p>
@@ -119,7 +142,7 @@ export function resetFormPage(token: string): string {
     <script>
       const token = ${JSON.stringify(token)};
       const MIN = ${PASSWORD_MIN_LENGTH};
-      const SIGNIN_HTML = ${JSON.stringify(signInButton())};${PW_TOGGLE_SCRIPT}
+      const SIGNIN_HTML = ${JSON.stringify(signInButton(signInUrl))};${PW_TOGGLE_SCRIPT}
       document.getElementById('f').addEventListener('submit', async (e) => {
         e.preventDefault();
         const err = document.getElementById('err');
@@ -144,7 +167,7 @@ export function resetFormPage(token: string): string {
           err.textContent = msg || 'This link no longer works — request a new one.';
         }
       });
-    </script>`);
+    </script>`, product);
 }
 
 export function resetInvalidPage(): string {

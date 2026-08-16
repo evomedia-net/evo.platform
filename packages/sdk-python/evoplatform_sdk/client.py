@@ -129,8 +129,17 @@ class EvoPlatform:
     def forgot_password(
         self, *, email: str, tenant_slug: str | None = None
     ) -> dict[str, Any]:
+        """Starts recovery. The client's own id rides along so the platform can
+        name the product in the email and send the user back to THIS app."""
         return self._post(
-            "/auth/forgot", _drop_none({"tenantSlug": tenant_slug, "email": email})
+            "/auth/forgot",
+            _drop_none(
+                {
+                    "tenantSlug": tenant_slug,
+                    "email": email,
+                    "clientId": self._client_id,
+                }
+            ),
         )
 
     def reset_password(self, token: str, password: str) -> dict[str, Any]:

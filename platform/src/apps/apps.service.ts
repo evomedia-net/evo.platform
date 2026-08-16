@@ -14,6 +14,7 @@ const PUBLIC_FIELDS = {
   id: true,
   clientId: true,
   name: true,
+  displayName: true,
   callbackUrls: true,
   autoEnroll: true,
   createdAt: true,
@@ -103,6 +104,7 @@ export class AppsService {
     const app = await this.prisma.app.create({
       data: {
         name: dto.name,
+        displayName: dto.displayName,
         clientId,
         clientSecretHash: await bcrypt.hash(clientSecret, 10),
         callbackUrls: dto.callbackUrls ?? [],
@@ -120,6 +122,7 @@ export class AppsService {
       where: { id },
       data: {
         name: dto.name,
+        displayName: dto.displayName,
         callbackUrls: dto.callbackUrls,
         autoEnroll: dto.autoEnroll,
       },
@@ -135,7 +138,7 @@ export class AppsService {
     // field, in the user.email_changed style — the old value is what makes an
     // unexpected change traceable afterwards.
     const changes: Record<string, { from: unknown; to: unknown }> = {};
-    for (const field of ['name', 'callbackUrls', 'autoEnroll'] as const) {
+    for (const field of ['name', 'displayName', 'callbackUrls', 'autoEnroll'] as const) {
       const prev = before[field];
       const next = updated[field];
       if (JSON.stringify(prev) !== JSON.stringify(next)) {

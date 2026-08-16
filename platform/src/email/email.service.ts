@@ -56,7 +56,9 @@ export class EmailService {
       auth: smtp.username ? { user: smtp.username, pass: smtp.password ?? '' } : undefined,
     });
     const info = await transport.sendMail({
-      from: smtp.fromAddress,
+      // Address always from config; only the display name is caller-supplied,
+      // and nodemailer escapes it into the header.
+      from: dto.fromName ? { name: dto.fromName, address: smtp.fromAddress } : smtp.fromAddress,
       to: dto.to,
       subject: dto.subject,
       text: dto.text,

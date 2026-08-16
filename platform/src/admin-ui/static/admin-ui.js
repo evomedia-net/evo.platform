@@ -828,6 +828,10 @@ async function viewApps() {
              <button class="btn sm danger" data-act="app-purge" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Erase this app permanently, with its roles, every user's assignments to them, and every tenant's access. This cannot be undone.">Purge</button>`
           : `<button class="btn sm" data-act="rotate" data-id="${a.id}" data-tip="Replace this app's client secret — do it if the secret may have leaked, when someone with access leaves, or on a rotation schedule. The old secret stops working immediately, so update the app's config right away.">Rotate secret</button>
              <button class="btn sm danger" data-act="app-delete" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Soft-delete: sign-in through this app stops immediately, but nothing is destroyed and it can be restored. The client id stays reserved so it cannot be re-registered underneath.">Delete</button>`}</p>
+      <form class="inline" data-app-display="${a.id}" style="margin-top:6px">
+        <label style="flex:1 1 260px" data-tip="What customers read: 'SWAG Estimates', not the 'swag-estimates' registry slug. Used in email subject lines, the sender name, and the password-reset page - where a slug undermines the legitimacy the message needs. Empty falls back to a title-cased slug.">Display name <input name="displayName" placeholder="SWAG Estimates" value="${esc(a.displayName ?? "")}" /></label>
+        <button class="btn sm grow0">Save</button>
+      </form>
       <form class="inline" data-app-callbacks="${a.id}" style="margin-top:6px">
         <label style="flex:1 1 340px" data-tip="Where this app may receive auth codes, comma-separated. Billing enforces these: checkout and portal redirect URLs must share an origin with one of them, so an app with none registered cannot start a checkout.">Callback URLs <input name="callbacks" placeholder="https://app.example.com/cb" value="${esc(a.callbackUrls.join(", "))}" /></label>
         <button class="btn sm grow0">Save</button>
@@ -1021,6 +1025,17 @@ async function viewApps() {
   });
 
   $("#content").addEventListener("submit", async (e) => {
+    const dispForm = e.target.closest("form[data-app-display]");
+    if (dispForm) {
+      e.preventDefault();
+      const displayName = String(new FormData(dispForm).get("displayName") || "").trim();
+      try {
+        await api("PATCH", `/admin/apps/${dispForm.dataset.appDisplay}`, { displayName });
+        toast("Display name saved"); route();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+
     const cbForm = e.target.closest("form[data-app-callbacks]");
     if (cbForm) {
       e.preventDefault();

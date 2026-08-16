@@ -126,8 +126,10 @@ export class EvoPlatform {
     return this.post('/auth/workspaces', params);
   }
 
+  /** Starts recovery. The client's own id rides along so the platform can name
+   *  the product in the email and send the user back to THIS app afterwards. */
   forgotPassword(params: { tenantSlug?: string; email: string }): Promise<{ ok: boolean }> {
-    return this.post('/auth/forgot', params);
+    return this.post('/auth/forgot', { ...params, ...(this.opts.clientId ? { clientId: this.opts.clientId } : {}) });
   }
 
   /** Resets the password and revokes every session of that user. */
