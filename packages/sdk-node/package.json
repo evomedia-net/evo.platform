@@ -1,6 +1,6 @@
 {
   "name": "@evoplatform/sdk-node",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Node SDK for EvoPlatform: local JWT verification via cached JWKS, auth proxy, email and audit clients",
   "license": "MIT",
   "main": "dist/index.js",
