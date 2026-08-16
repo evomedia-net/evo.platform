@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "evoplatform-sdk"
 # Versioned in step with @evoplatform/sdk-node: the two SDKs mirror one
 # surface, and a shared number states which surface this is.
-version = "0.2.0"
+version = "0.3.0"
 description = "Python SDK for EvoPlatform: local JWT verification via cached JWKS, auth proxy, billing, email, and the Ask AI client"
 readme = "README.md"
 license = { text = "MIT" }
