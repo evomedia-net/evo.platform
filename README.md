@@ -5,9 +5,10 @@
 A multi-tenant SaaS platform and app-template toolkit. Build a new tenant-aware site by
 cloning a starter template — tenancy, auth, RBAC, audit logging, and deployment come wired in.
 
-> **Status: working v1.** The platform service (with admin console), Node SDK, Next.js
-> template, and `evo new` CLI all run and are tested. Not yet built: Python SDK, NiceGUI
-> template. **Setup: [docs/INSTALL.md](docs/INSTALL.md)** · deploy:
+> **Status: working v1.** The platform service (with admin console), both SDKs (Node and
+> Python), the Next.js template, and the `evo new` CLI all run and are tested, and are in
+> use by shipped apps. Not yet built: the NiceGUI template — `evo new` accepts
+> `--stack next` only. **Setup: [docs/INSTALL.md](docs/INSTALL.md)** · deploy:
 > [docs/DEPLOY.md](docs/DEPLOY.md) · design:
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/TEMPLATE_CONTRACT.md](docs/TEMPLATE_CONTRACT.md) · flows:
 > [docs/FLOWS.md](docs/FLOWS.md).
@@ -19,15 +20,16 @@ login, roles, billing, email, admin tooling. EvoPlatform splits that into:
 
 - **A shared platform service** (Node.js/NestJS + Prisma + PostgreSQL) that owns tenants,
   users, auth (JWT/JWKS), billing, and SMTP — one service serving many apps.
-- **An SDK** — `@evoplatform/sdk-node` — wrapping auth, tenancy, members, invites, and
-  billing, so apps talk to the platform without hand-rolling HTTP calls.
+- **Two SDKs** — `@evoplatform/sdk-node` and `evoplatform-sdk` (Python) — wrapping auth,
+  tenancy, members, invites, billing, brand and email, so apps talk to the platform without
+  hand-rolling HTTP calls.
 - **A starter template** conforming to a single template contract:
   `templates/next` — Next.js + Prisma + PostgreSQL, with an offline-first browser layer
   (IndexedDB mutation queue, last-write-wins sync).
 - **A scaffold CLI** — `evo new <app-name>` — clone, rename, generate secrets, done.
 
-A Python SDK and a NiceGUI template are planned to mirror the Node ones; both are
-currently placeholder directories, and the CLI accepts `--stack next` only.
+A NiceGUI template is planned to mirror the Next.js one; it is currently a placeholder
+directory, and the CLI accepts `--stack next` only.
 
 ## Standalone mode
 
@@ -66,7 +68,7 @@ retrieval, and a relevance gate that refuses before any model is invoked:
 ```
 platform/            Shared platform service (NestJS)
 packages/sdk-node/   Node SDK
-packages/sdk-python/ Python SDK          — placeholder, not built yet
+packages/sdk-python/ Python SDK
 templates/next/      Next.js starter template
 templates/nicegui/   NiceGUI template    — placeholder, not built yet
 cli/                 `evo new` scaffolding tool

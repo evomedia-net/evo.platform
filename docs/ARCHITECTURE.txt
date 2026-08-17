@@ -1,85 +1,89 @@
-# Architecture
+Architecture
+============
 
-## Model: shared platform service
+Model: shared platform service
+------------------------------
 
 A standalone platform service owns tenancy, auth, billing, and email. Apps stay in their
 native stack and talk to it through a JWT-authenticated SDK. Each app owns its own domain
-database with a `tenant_id` foreign key on every row.
+database with a tenant_id foreign key on every row.
 
-```
-                    ┌──────────────────────────┐
-                    │   EvoPlatform service    │
-                    │  NestJS + Prisma + PG    │
-                    │  tenants, users, roles,  │
-                    │  billing, SMTP, admin UI │
-                    └───────────┬──────────────┘
-                        JWT / JWKS / REST
-              ┌─────────────────┼─────────────────┐
-        ┌─────┴─────┐     ┌─────┴─────┐     ┌─────┴─────┐
-        │  App A    │     │  App B    │     │  App C    │
-        │ (Next.js) │     │ (NiceGUI) │     │  (any)    │
-        │  own DB   │     │  own DB   │     │  own DB   │
-        └───────────┘     └───────────┘     └───────────┘
-```
+                        ┌──────────────────────────┐
+                        │   EvoPlatform service    │
+                        │  NestJS + Prisma + PG    │
+                        │  tenants, users, roles,  │
+                        │  billing, SMTP, admin UI │
+                        └───────────┬──────────────┘
+                            JWT / JWKS / REST
+                  ┌─────────────────┼─────────────────┐
+            ┌─────┴─────┐     ┌─────┴─────┐     ┌─────┴─────┐
+            │  App A    │     │  App B    │     │  App C    │
+            │ (Next.js) │     │ (NiceGUI) │     │  (any)    │
+            │  own DB   │     │  own DB   │     │  own DB   │
+            └───────────┘     └───────────┘     └───────────┘
 
-## Key decisions
+Key decisions
+-------------
 
 | Area | Decision |
 |---|---|
 | Platform stack | Node.js + NestJS + Prisma + PostgreSQL |
-| Tenant isolation | Row-level: shared schema, `tenant_id` FK on every domain table, auto-scoped queries |
-| Routing | Subdomain per tenant (`acme.app.example.com`) and path-based (`example.com/acme/…`); subdomain is the default |
+| Tenant isolation | Row-level: shared schema, tenant_id FK on every domain table, auto-scoped queries |
+| Routing | Subdomain per tenant (acme.app.example.com) and path-based (example.com/acme/…); subdomain is the default |
 | Auth | Platform issues short-lived JWTs (~15 min) signed with its private key; apps verify via cached JWKS — no per-request platform call. Refresh tokens for long sessions |
-| Login UX | Credentials are **delegated**, not redirected: the app keeps its own form. No `/authorize` endpoint exists |
+| Login UX | Credentials are delegated, not redirected: the app keeps its own form. No /authorize endpoint exists |
 | SDKs | Two mirrored SDKs (Node + Python) with the same surface area |
 | Billing | Stripe. Prices are registered per app; amount, currency and cadence are read from Stripe, never typed into the console, so the two cannot disagree about what a customer is charged |
 | Redirects | Checkout/portal return URLs must share an origin with a registered callback URL — a caller-supplied URL in a billing or recovery flow would be an open redirect |
 | Deployment | Docker Compose; no Kubernetes at small scale |
 
-## Request flow
+Request flow
+------------
 
-**The user never leaves the app.** There is no redirect to a platform login page and no
-`/authorize` endpoint — the app keeps its own sign-in form and *delegates the credential
+The user never leaves the app. There is no redirect to a platform login page and no
+/authorize endpoint — the app keeps its own sign-in form and *delegates the credential
 check*. This matters for more than aesthetics: an app that owns its login screen can be
 branded, can run standalone with the same form, and can add a passkey button without the
 platform shipping UI for it.
 
 1. User submits the app's own login form (email, password, and — in platform mode — a
    workspace slug).
-2. The app calls `sdk.login({ tenantSlug, email, password })`. The platform verifies the
+2. The app calls sdk.login({ tenantSlug, email, password }). The platform verifies the
    credentials and returns access + refresh tokens. Claims: `{ sub, tenantId, tenantSlug,
    roles, app, exp }`.
-3. The app **JIT-provisions** its own `Tenant`/`User`/`Membership` rows from the *verified
+3. The app JIT-provisions its own Tenant/User/Membership rows from the *verified
    token claims* — never from the form input — so every downstream tenant-scoped query and
    the app's own session machinery keep working unchanged.
 4. Every later request verifies the signature against cached JWKS. **After login the app
    does not need the platform to be reachable**; a ~15-minute access token plus a refresh
    token means an outage is invisible to signed-in users.
 5. The app never touches the platform database; the platform never touches app databases.
-6. Cross-cutting calls go through the SDK: `sendEmail()` resolves the tenant's SMTP config,
-   `getBrand()` returns the app's brand record, audit events are pushed via the API.
+6. Cross-cutting calls go through the SDK: sendEmail() resolves the tenant's SMTP config,
+   getBrand() returns the app's brand record, audit events are pushed via the API.
 
-Recovery follows the same shape: the app's own `/forgot-password` page calls
-`sdk.forgotPassword({ tenantSlug, email })`, and the platform sends the mail and hosts the
+Recovery follows the same shape: the app's own /forgot-password page calls
+sdk.forgotPassword({ tenantSlug, email }), and the platform sends the mail and hosts the
 page that completes the reset. The workspace slug is required — without it the platform
 searches platform-level accounts only, and tenant users silently get no mail.
 
-## What the platform owns today
+What the platform owns today
+----------------------------
 
 | Area | Surface |
 |---|---|
-| Auth | password login, refresh/logout, email verification, `POST /auth/forgot` + platform-hosted reset page, workspace lookup by email |
-| Passkeys | WebAuthn register/login, sudo-mode management. `rpId` is a base domain, so passkeys do **not** carry across domains |
+| Auth | password login, refresh/logout, email verification, POST /auth/forgot + platform-hosted reset page, workspace lookup by email |
+| Passkeys | WebAuthn register/login, sudo-mode management. rpId is a base domain, so passkeys do not carry across domains |
 | Tenancy | tenant CRUD, suspend/activate, soft delete + restore + purge, per-tenant export, per-(tenant, app) enablement |
 | Users | platform users and per-tenant members, roles, invites (create/resend/accept), soft delete + restore |
-| Apps | registry with `clientId`/secret + rotation, `displayName`, callback URLs, `autoEnroll`, soft delete/restore/purge, per-app roles |
+| Apps | registry with clientId/secret + rotation, displayName, callback URLs, autoEnroll, soft delete/restore/purge, per-app roles |
 | Billing | Stripe: per-app price tiers, checkout + portal sessions, webhook-driven subscription status, entitlement lookup |
-| Brand | per-app brand record served over `GET /brand`; apps merge it over their own local fallback |
+| Brand | per-app brand record served over GET /brand; apps merge it over their own local fallback |
 | Email | tenant → platform → fallback SMTP resolution, plus operator-editable templates with a preview and a rich-text editor |
 | Revenue | summary, health, CSV export |
-| Audit | auth events recorded by the platform; apps push their own via `POST /events` |
+| Audit | auth events recorded by the platform; apps push their own via POST /events |
 
-## Responsibility split
+Responsibility split
+--------------------
 
 | Concern | Platform | App |
 |---|---|---|
@@ -88,25 +92,26 @@ searches platform-level accounts only, and tenant users silently get no mail.
 | Tenant lifecycle | owns | reads status; refuses if suspended |
 | Billing | owns (Stripe, per app + tenant) | reads entitlement; renders its own upgrade UI |
 | Product identity | serves a brand record per app | merges it over its own local fallback |
-| SMTP config + sending | owns | calls `sendEmail()` |
+| SMTP config + sending | owns | calls sendEmail() |
 | Password recovery | owns tokens, mail and the reset page | renders its own request form, delegates |
 | Passkeys | owns registration + verification | proxies the ceremony from its own origin |
 | Global admin UI | owns | — |
 | Audit (auth events) | owns | pushes app events via API |
 | Domain data, settings, UI | — | owns entirely |
 
-## Integrating a new app
+Integrating a new app
+---------------------
 
-1. Install the SDK (`npm i @evoplatform/sdk-node`, or the Python wheel for a Python app).
+1. Install the SDK (npm i @evoplatform/sdk-node, or the Python wheel for a Python app).
 2. Add middleware that validates the JWT and attaches tenant context.
-3. Put a `tenant_id` column on every domain table; auto-scope queries
+3. Put a tenant_id column on every domain table; auto-scope queries
    (Prisma middleware / SQLAlchemy event listener).
-4. Delegate the credential check to `sdk.login()` and JIT-provision local rows from the
-   **verified token claims** — not from the submitted form.
+4. Delegate the credential check to sdk.login() and JIT-provision local rows from the
+   verified token claims — not from the submitted form.
 5. Register the app in the console; receive a client id and secret, set callback URLs, and
-   set `displayName` so recovery email is named for the product rather than the slug.
-6. Decide `autoEnroll`: leave it on for an app every new workspace should get, turn it off
+   set displayName so recovery email is named for the product rather than the slug.
+6. Decide autoEnroll: leave it on for an app every new workspace should get, turn it off
    for one that must be granted deliberately.
 
 Or skip all of that on day one: start from a template in standalone mode and flip
-`PLATFORM_URL` on later.
+PLATFORM_URL on later.
