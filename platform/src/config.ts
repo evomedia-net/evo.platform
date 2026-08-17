@@ -43,7 +43,7 @@ export const config = {
   brand: {
     company: process.env.BRAND_COMPANY ?? 'Evomedia.net LLC',
     /** Platform's own display name, for mail it sends about itself. */
-    platformName: process.env.BRAND_PLATFORM_NAME ?? 'EvoPlatform',
+    platformName: process.env.BRAND_PLATFORM_NAME ?? 'evo.platform',
   },
   /** Public URL of this service — used in email links (verify, reset). */
   publicBaseUrl: resolvePublicBaseUrl(),
@@ -82,7 +82,7 @@ export const config = {
     graceDays: Number(process.env.BILLING_GRACE_DAYS ?? 7),
   },
   webauthn: {
-    rpName: process.env.WEBAUTHN_RP_NAME ?? 'EvoPlatform',
+    rpName: process.env.WEBAUTHN_RP_NAME ?? 'evo.platform',
     // Registrable base domains allowed for passkey ceremonies (loopback is
     // always allowed for dev). One passkey then works from the apex and any
     // subdomain, mirroring subdomain-per-tenant routing.

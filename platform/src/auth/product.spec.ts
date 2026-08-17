@@ -49,8 +49,8 @@ describe('resolveProduct', () => {
   });
 
   it('falls back to the platform for an unknown or absent clientId', async () => {
-    expect((await resolveProduct(prismaWith(null), 'app_gone')).name).toBe('EvoPlatform');
-    expect((await resolveProduct(prismaWith(null), undefined)).name).toBe('EvoPlatform');
+    expect((await resolveProduct(prismaWith(null), 'app_gone')).name).toBe(config.brand.platformName);
+    expect((await resolveProduct(prismaWith(null), undefined)).name).toBe(config.brand.platformName);
   });
 });
 

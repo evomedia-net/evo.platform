@@ -102,7 +102,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function page(body: string, product = 'EvoPlatform'): string {
+function page(body: string, product = config.brand.platformName): string {
   const name = escapeHtml(product);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
