@@ -312,6 +312,13 @@ SMTP resolution order per send: tenant config (`PUT /admin/smtp` with
   cadence are read from Stripe, never typed.
 - **Passkeys**: set `WEBAUTHN_BASE_DOMAINS=yourdomain.com` so one passkey works
   on the apex and every tenant subdomain. HTTPS is required outside loopback.
+  Note that `rpId` is the base domain, so passkeys do **not** carry across two
+  different base domains — see `docs/RENAMING.md`.
+- **Branding**: `BRAND_COMPANY` names the company in the footer of every
+  platform email (default `Evomedia.net LLC`), and `BRAND_PLATFORM_NAME` is
+  what the platform calls itself in mail about its own accounts. Products are
+  named individually by **Display name** on each app in the console — that one
+  field drives email subjects, sender names and the recovery pages.
 - **Email**: point `SMTP_*` (or the platform-default config) at a real relay;
   Mailpit is dev-only. What the messages *say* is editable in the console under
   **Email copy** — platform-wide, with the product name as a variable, so one

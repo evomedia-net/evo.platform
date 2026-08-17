@@ -4,6 +4,7 @@
 
 import { resolveProduct } from './product';
 import { renderEmail } from '../email/email-layout';
+import { config } from '../config';
 
 const prismaWith = (app: Record<string, unknown> | null) =>
   ({ app: { findFirst: jest.fn().mockResolvedValue(app) } }) as never;
@@ -110,6 +111,14 @@ describe('renderEmail', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('?a="b');
+  });
+
+  // A self-hosted instance must be able to sign its own mail. Platform-level
+  // only: the product is named per app, the company is the installation's.
+  it('names the installation company from config, not a hardcoded string', () => {
+    const { html, text } = renderEmail(body);
+    expect(html).toContain(`an ${config.brand.company} product`);
+    expect(text).toContain(`an ${config.brand.company} product`);
   });
 
   it('omits the button entirely when there is nothing to click', () => {

@@ -21,6 +21,8 @@
  * template set that drifts apart, and there is no per-tenant theming at all.
  */
 
+import { config } from '../config';
+
 const BRAND = '#1d4067';
 const INK = '#14304a';
 const MUTED = '#5b6b7d';
@@ -100,7 +102,7 @@ export function renderEmail(body: EmailBody): { html: string; text: string } {
       <tr><td style="padding:0 28px 22px;font-family:Helvetica,Arial,sans-serif">
         <hr style="border:0;border-top:1px solid ${RULE};margin:0 0 14px"/>
         <p style="margin:0;font-size:12px;line-height:1.5;color:${MUTED}">
-          Sent by ${esc(body.product)}, an Evomedia.net LLC product.<br/>
+          Sent by ${esc(body.product)}, an ${esc(config.brand.company)} product.<br/>
           This is an automated message about your account — you cannot reply to it.
         </p>
       </td></tr>
@@ -134,7 +136,7 @@ export function renderEmail(body: EmailBody): { html: string; text: string } {
     ...body.outro.map(plain),
     '',
     '—',
-    `Sent by ${body.product}, an Evomedia.net LLC product.`,
+    `Sent by ${body.product}, an ${config.brand.company} product.`,
     'This is an automated message about your account — you cannot reply to it.',
   ].join('\n');
 

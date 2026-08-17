@@ -26,7 +26,10 @@ export interface Product {
   signInUrl: string;
 }
 
-const PLATFORM: Product = { name: 'EvoPlatform', signInUrl: `${config.publicBaseUrl}/` };
+const PLATFORM: Product = {
+  name: config.brand.platformName,
+  signInUrl: `${config.publicBaseUrl}/`,
+};
 
 /** Title-case a registry slug: "swag-estimates" -> "Swag Estimates". */
 function titleize(slug: string): string {
