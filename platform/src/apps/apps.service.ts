@@ -16,6 +16,10 @@ const PUBLIC_FIELDS = {
   name: true,
   displayName: true,
   callbackUrls: true,
+  // The console edits this as raw JSON, so it has to come back with the app.
+  // Never secret: it is the product name and support addresses an app already
+  // renders publicly.
+  brand: true,
   autoEnroll: true,
   createdAt: true,
   deletedAt: true,

@@ -31,6 +31,21 @@ const PLATFORM: Product = {
   signInUrl: `${config.publicBaseUrl}/`,
 };
 
+/**
+ * The product name inside a stored brand record, if it has one.
+ *
+ * Read defensively rather than through a type: the column is operator-authored
+ * JSON, so every level of it can be missing or the wrong shape, and an email
+ * must still go out.
+ */
+function brandName(brand: unknown): string {
+  if (!brand || typeof brand !== 'object' || Array.isArray(brand)) return '';
+  const product = (brand as Record<string, unknown>).product;
+  if (!product || typeof product !== 'object' || Array.isArray(product)) return '';
+  const name = (product as Record<string, unknown>).name;
+  return typeof name === 'string' ? name.trim() : '';
+}
+
 /** Title-case a registry slug: "swag-estimates" -> "Swag Estimates". */
 function titleize(slug: string): string {
   return slug
@@ -47,14 +62,19 @@ export async function resolveProduct(
   if (!clientId) return PLATFORM;
   const app = await prisma.app.findFirst({
     where: { clientId, deletedAt: null },
-    select: { name: true, displayName: true, callbackUrls: true },
+    select: { name: true, displayName: true, callbackUrls: true, brand: true },
   });
   if (!app) return PLATFORM;
 
+  // Order matters, and it is the same order the brand service composes with
+  // (#91 stage 3). Once an app can carry a brand record, that record and
+  // displayName both name the product — so the name is resolved in one place
+  // or an email subject drifts from what the app's own header renders.
+  //
   // displayName is what a customer should read ("SWAG Estimates"); name is the
   // registry slug. Falling back to a titleized slug beats showing "swag-estimates"
   // to someone deciding whether this email is genuine.
-  const name = app.displayName?.trim() || titleize(app.name);
+  const name = brandName(app.brand) || app.displayName?.trim() || titleize(app.name);
   const url = app.callbackUrls.find((u) => /^https?:\/\//i.test(u));
   return { name, signInUrl: url ?? PLATFORM.signInUrl };
 }

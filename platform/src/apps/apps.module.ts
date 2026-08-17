@@ -3,13 +3,14 @@
 // Licensed under the MIT License. See LICENSE.
 
 import { Module } from '@nestjs/common';
-import { AppsController } from './apps.controller';
+import { AppsController, BrandController } from './apps.controller';
 import { AppsService } from './apps.service';
+import { BrandService } from './brand.service';
 import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [BillingModule],
-  controllers: [AppsController],
-  providers: [AppsService],
+  controllers: [AppsController, BrandController],
+  providers: [AppsService, BrandService],
 })
 export class AppsModule {}

@@ -15,6 +15,7 @@ export type {
   AskResult,
   AskSource,
   AppPrice,
+  BrandRecord,
   Claims,
   Entitlement,
   EvoPlatformOptions,

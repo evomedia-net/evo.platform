@@ -11,17 +11,24 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
+import { App } from '@prisma/client';
+import { ClientGuard } from '../auth/client.guard';
 import { AppsService } from './apps.service';
+import { BrandService } from './brand.service';
 import { AddPriceDto, CreateAppDto, CreateRoleDto, UpdateAppDto, UpdateRoleDto } from './dto';
 
 @Controller('admin/apps')
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
 export class AppsController {
-  constructor(private apps: AppsService) {}
+  constructor(
+    private apps: AppsService,
+    private brand: BrandService,
+  ) {}
 
   @Get()
   list(@Query('includeDeleted') includeDeleted?: string) {
@@ -107,5 +114,38 @@ export class AppsController {
   @Delete(':id/roles/:roleId')
   removeRole(@Param('id') id: string, @Param('roleId') roleId: string) {
     return this.apps.removeRole(id, roleId);
+  }
+
+  @Get(':id/brand')
+  getBrand(@Param('id') id: string) {
+    return this.brand.get(id);
+  }
+
+  /** Body is the record itself; `null` clears it. */
+  @Patch(':id/brand')
+  setBrand(
+    @Param('id') id: string,
+    @Body() body: { brand?: unknown },
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    return this.brand.set(id, body?.brand ?? null, req.user?.sub);
+  }
+}
+
+
+/**
+ * What a running app reads. Authenticated by client credentials, so an app
+ * gets its own brand and nobody else's — the record names support addresses
+ * and a legal entity, which is not something to serve to any caller who knows
+ * a client id.
+ */
+@Controller('brand')
+export class BrandController {
+  constructor(private brand: BrandService) {}
+
+  @Get()
+  @UseGuards(ClientGuard)
+  mine(@Req() req: { clientApp: App }) {
+    return this.brand.forClient(req.clientApp.clientId);
   }
 }

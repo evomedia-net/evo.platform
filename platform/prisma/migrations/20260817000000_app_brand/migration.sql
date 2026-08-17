@@ -1,0 +1,11 @@
+-- Brand identity served to an app: product name, wordmark halves, domains,
+-- support addresses, legal entity (EvoPlatform#91 stage 3).
+--
+-- JSONB rather than a column per field: the record is nested and grows by
+-- field, so typed columns would mean a migration every time a brand gains
+-- one. The shape matches the brand.json each app already ships as its
+-- offline fallback, so the same parser handles both sources.
+--
+-- Nullable, and null means genuinely absent — an app with no brand configured
+-- here falls back to its own file. It is not encoding a kind.
+ALTER TABLE "apps" ADD COLUMN "brand" JSONB;
