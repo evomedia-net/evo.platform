@@ -322,7 +322,13 @@ export function MembersManager() {
       <ul className="divide-y divide-zinc-100">
         {members.map((m) => (
           <li key={m.id} className="py-3 flex flex-wrap items-center gap-3">
-            <div className="min-w-0 flex-1">
+            {/* basis-full puts the name and email on their own line when the row
+                is narrow, and sm:min-w-* makes the role controls wrap below
+                rather than squeezing it. With only min-w-0 + flex-1 the identity
+                block absorbed every pixel the selects wanted, so a member showed
+                as "De..." over "dem..." - a members list that cannot tell you
+                which member it means. */}
+            <div className="min-w-0 basis-full sm:basis-auto sm:flex-1 sm:min-w-[14rem]">
               <p className="text-sm font-medium text-zinc-800 truncate">
                 {m.name || m.email}
                 {m.isTenantAdmin && (
