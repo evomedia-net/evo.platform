@@ -41,3 +41,7 @@ Thumbs.db
 # Python build artifacts (sdk-python)
 build/
 *.egg-info/
+
+# Local console screenshots — not referenced by any doc, and swept in twice
+# by "git add docs". Ignored so it cannot happen a third time.
+docs/console-*.png
