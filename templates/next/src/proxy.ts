@@ -11,7 +11,29 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIES = ["evoapp.session-token", "__Secure-evoapp.session-token"];
-const PUBLIC_PATHS = ["/login", "/signup"];
+
+/**
+ * Reachable without a session. Account recovery belongs here for the obvious
+ * reason: everyone who needs it is by definition signed out, and a recovery
+ * page behind the sign-in redirect is a page nobody can ever reach.
+ */
+const PUBLIC_PATHS = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/forgot-workspace",
+  "/reset-password",
+];
+
+/**
+ * Public pages that a signed-in user is still allowed to open.
+ *
+ * Bouncing them to "/" also strips the query string, which would swallow the
+ * token on a reset link — and a stale session cookie is common in exactly the
+ * situation that produced the reset request. Completing the reset has to win
+ * over the tidiness of redirecting a signed-in user away from an auth page.
+ */
+const PUBLIC_WITH_SESSION = ["/reset-password"];
 
 export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -24,7 +46,10 @@ export default function proxy(req: NextRequest) {
     url.search = "";
     return NextResponse.redirect(url);
   }
-  if (hasSession && isPublic) {
+  const keepsSession = PUBLIC_WITH_SESSION.some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
+  if (hasSession && isPublic && !keepsSession) {
     const url = req.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

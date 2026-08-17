@@ -47,7 +47,7 @@ trigger), update `src/lib/sync/protocol.ts` / `server.ts` / `client.ts` /
 prisma/                schema + hand-written init migration (sync trigger lives here)
 src/auth.ts            Auth.js v5, dual-mode credentials + passkey provider
 src/proxy.ts           optimistic cookie redirects (enforcement is in the DAL)
-src/lib/auth/          password hashing, DAL (verifySession / requireApiSession)
+src/lib/auth/          password hashing, DAL, reset tokens, cross-screen handoff
 src/lib/platform.ts    EvoPlatform SDK + JIT provisioning (platform mode)
 src/lib/sync/          wire protocol, server apply/pull, client drain loop
 src/lib/offline/       per-tenant Dexie db + outbox
@@ -56,14 +56,41 @@ src/lib/audit.ts       app audit trail (+ platform push in platform mode)
 src/lib/email/         mailer: platform → local SMTP → logged no-op
 src/app/api/sync/      the sync endpoint (advisory lock + GC horizon)
 src/app/api/platform/  passkey proxies (sudo-mode management)
+src/app/(auth)/        login, signup, and the three recovery screens
+src/lib/product.ts     PRODUCT_NAME — rename your app here
 ```
 
 ## Tests
 
-`npm test` — outbox semantics (fake-indexeddb) + password hashing. The sync server logic
-is exercised end-to-end by the app; add DB-backed tests as your domain grows.
+`npm test` — outbox semantics (fake-indexeddb), password hashing and policy, the
+recovery actions (both modes), and proxy route protection. The sync server logic is
+exercised end-to-end by the app; add DB-backed tests as your domain grows.
+
+## Account recovery
+
+Three screens, all reachable signed-out (they are in the proxy's `PUBLIC_PATHS` — a
+recovery page behind the sign-in redirect is one nobody can reach):
+
+| Route | Standalone | Platform mode |
+| --- | --- | --- |
+| `/forgot-password` | mails a local one-hour token | delegates to the platform, which mails its own link |
+| `/reset-password` | completes the reset, then signs in | explains the link belongs to the platform's page |
+| `/forgot-workspace` | says there is only one workspace | asks the platform to email the list |
+
+Three things here are deliberate and worth keeping if you edit them:
+
+- **The answer never depends on whether the account exists.** Same copy, same code
+  path — otherwise the form becomes a way to enumerate your users.
+- **The workspace slug is sent with the platform lookup.** Without it the platform
+  searches platform-level accounts only, so tenant users silently get no mail.
+- **A failed auto-sign-in after a reset renders as a form message.** The password is
+  already changed at that point; a 500 there sends people back to reset it again.
+
+Email and workspace carry across all the auth screens via `sessionStorage`
+(`src/lib/auth/useAuthHandoff.ts`) so nobody retypes an address they just entered.
+Passwords are never stored there.
 
 ## Not included (yet)
 
-Standalone-mode password reset and invites (in platform mode the platform provides
-both), tombstone GC script, tenant settings admin UI (model exists).
+Invites (in platform mode the platform provides them), tombstone GC script, tenant
+settings admin UI (model exists).

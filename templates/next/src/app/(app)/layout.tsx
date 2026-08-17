@@ -2,6 +2,7 @@
 // Created by Kelly Michels · dev@evomedia.net
 // Licensed under the MIT License. See LICENSE.
 
+import { PRODUCT_NAME } from "@/lib/product";
 import Link from "next/link";
 import { verifySession } from "@/lib/auth/dal";
 import { isPlatformMode } from "@/lib/platform";
@@ -24,7 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="min-h-screen flex flex-col">
         <header className="bg-white border-b border-zinc-200 px-4 py-2.5 flex items-center gap-3">
           <Link href="/" className="font-bold text-zinc-900">
-            Evo App
+            {PRODUCT_NAME}
           </Link>
           <div className="ml-auto flex items-center gap-2">
             {isPlatformMode() && (
