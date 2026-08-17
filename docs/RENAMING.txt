@@ -26,6 +26,22 @@ No deploy. Setting that one field renamed ProvenSheet's entire email and
 recovery surface in about ten seconds. Do it first: it is the cheapest,
 highest-visibility part of a rename.
 
+Since #91 (https://github.com/evomedia-net/evo.platform/issues/91) the console
+also carries a brand config per app — the product name, the two wordmark
+halves, domains, support addresses and the legal entity. An app fetches it at
+startup and merges it over the brand.json it ships, so the strings inside the
+product move with the same edit that moves its email.
+
+The two cannot disagree: when a brand record names the product, that name is
+what displayName resolves to as well. Set displayName alone for a simple
+rename; author the JSON when the wordmark, domains or support addresses move
+too.
+
+An app never depends on it. The precedence ends at the app's own code
+constant — operator override, then the platform, then its local file, then the
+constant — so an unreachable platform changes nothing about whether the product
+starts.
+
 Everything else below is work the platform cannot do for you.
 
 What must never be renamed

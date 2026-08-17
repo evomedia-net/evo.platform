@@ -271,3 +271,25 @@ export interface AskResult {
    *  them at setup rather than telling them to try again. */
   unconfigured: boolean;
 }
+
+/**
+ * Brand identity for an app (EvoPlatform#91).
+ *
+ * The shape matches the `brand.json` an app ships as its offline fallback,
+ * field for field, so the same reader handles either source. Every section
+ * except `product` is optional: a partial record is normal, and a consumer
+ * merges it over its local file rather than replacing it.
+ */
+export interface BrandRecord {
+  product: {
+    name: string;
+    tagline?: string;
+    /** Two halves because they render in different colours; a single string
+     *  cannot express that. Whitespace inside a half is significant. */
+    wordmark?: { lead: string; accent: string };
+  };
+  domains?: { primary?: string; docs?: string };
+  email?: { support?: string; contact?: string; sender?: string };
+  repo?: { feedback_issues?: string };
+  legal?: { company?: string; copyright_since?: number };
+}

@@ -141,6 +141,16 @@ model App {
   deletedAt        DateTime?
   roles            Role[]
   appTenants       AppTenant[]
+  /// Brand identity served to this app: product name, wordmark halves,
+  /// domains, support addresses, legal entity. The schema matches the
+  /// brand.json each app ships as its offline fallback (#91), so the same
+  /// shape works whether it came from here or from disk.
+  ///
+  /// Json rather than columns because the record is nested and grows by
+  /// field, not by row - a typed column per key would mean a migration every
+  /// time a brand gains one. Null means "not configured", which is a genuine
+  /// absence, not a kind: an app with no row falls back to its own file.
+  brand            Json?
   // What this app sells. No row = not sellable yet.
   prices           AppPrice[]
 

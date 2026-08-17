@@ -958,6 +958,11 @@ async function viewApps() {
         <label style="flex:1 1 260px" data-tip="What customers read: 'SWAG Estimates', not the 'swag-estimates' registry slug. Used in email subject lines, the sender name, and the password-reset page - where a slug undermines the legitimacy the message needs. Empty falls back to a title-cased slug.">Display name <input name="displayName" placeholder="SWAG Estimates" value="${esc(a.displayName ?? "")}" /></label>
         <button class="btn sm grow0">Save</button>
       </form>
+      <form data-app-brand="${a.id}" style="margin-top:6px">
+        <label style="display:block" data-tip="Brand identity served to this app at startup (#91): product name, wordmark halves, domains, support addresses, legal entity. The app merges it over the brand.json it ships, so anything left out here keeps whatever the app's own file says. Leave empty to serve nothing and let the app run entirely on its file.">Brand config (JSON)</label>
+        <textarea name="brand" rows="10" spellcheck="false" placeholder='{"product":{"name":"evo.ehs","wordmark":{"lead":"evo.","accent":"ehs"}}}' style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">${esc(a.brand ? JSON.stringify(a.brand, null, 2) : "")}</textarea>
+        <button class="btn sm grow0" style="margin-top:6px">Save brand</button>
+      </form>
       <form class="inline" data-app-callbacks="${a.id}" style="margin-top:6px">
         <label style="flex:1 1 340px" data-tip="Where this app may receive auth codes, comma-separated. Billing enforces these: checkout and portal redirect URLs must share an origin with one of them, so an app with none registered cannot start a checkout.">Callback URLs <input name="callbacks" placeholder="https://app.example.com/cb" value="${esc(a.callbackUrls.join(", "))}" /></label>
         <button class="btn sm grow0">Save</button>
@@ -1159,6 +1164,31 @@ async function viewApps() {
         await api("PATCH", `/admin/apps/${dispForm.dataset.appDisplay}`, { displayName });
         toast("Display name saved"); route();
       } catch (err) { toast(err.message, true); }
+      return;
+    }
+
+    const brandForm = e.target.closest("form[data-app-brand]");
+    if (brandForm) {
+      e.preventDefault();
+      const raw = String(new FormData(brandForm).get("brand") || "").trim();
+      let brand = null;
+      if (raw) {
+        try {
+          brand = JSON.parse(raw);
+        } catch (err) {
+          // Refuse locally rather than posting invalid JSON: the operator
+          // needs the parser's own message to find the missing comma.
+          toast("Brand config is not valid JSON: " + err.message, true);
+          return;
+        }
+      }
+      try {
+        await api("PATCH", `/admin/apps/${brandForm.dataset.appBrand}/brand`, { brand });
+        toast(brand ? "Brand saved" : "Brand cleared - this app now uses its own file");
+        await loadApps();
+      } catch (err) {
+        toast(err.message, true);
+      }
       return;
     }
 

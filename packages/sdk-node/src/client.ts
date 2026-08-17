@@ -8,6 +8,7 @@ import { ConfigError, PlatformError, TokenError } from './errors';
 import {
   AcceptInviteParams,
   AppPrice,
+  BrandRecord,
   Claims,
   CreateInviteParams,
   CreateMemberParams,
@@ -311,6 +312,19 @@ export class EvoPlatform {
 
   async sendEmail(params: SendEmailParams): Promise<{ ok: boolean; messageId: string }> {
     return this.post('/email/send', params, this.clientHeaders());
+  }
+
+  /**
+   * This app's brand identity, or null when the platform has none configured
+   * for it (EvoPlatform#91).
+   *
+   * **null is the useful answer, not an error.** It means "keep using your own
+   * brand.json" — handing back a half-empty record instead would blank fields
+   * the local file had filled. Callers should treat a thrown error the same
+   * way: branding must never be able to stop an app from starting.
+   */
+  getBrand(): Promise<BrandRecord | null> {
+    return this.request('GET', '/brand', undefined, this.clientHeaders());
   }
 
   async pushEvent(params: PushEventParams): Promise<{ id: string }> {

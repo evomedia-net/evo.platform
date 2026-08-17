@@ -345,6 +345,20 @@ class EvoPlatform:
     def push_event(self, **params: Any) -> dict[str, Any]:
         return self._post("/events", _camel(params), self._client_headers())
 
+    def get_brand(self) -> dict[str, Any] | None:
+        """This app's brand identity, or None when the platform has none.
+
+        EvoPlatform#91. The returned shape matches the ``brand.json`` an app
+        ships as its offline fallback, field for field, so one reader handles
+        either source.
+
+        **None is the useful answer, not an error.** It means "keep using your
+        own file" — a half-empty record would blank fields the file had
+        filled. Callers should treat a raised error the same way: branding
+        must never be able to stop an app from starting.
+        """
+        return self._request("GET", "/brand", None, self._client_headers())
+
     # ---- internals ----
 
     def _client_headers(self) -> dict[str, str]:
