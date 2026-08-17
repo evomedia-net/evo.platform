@@ -955,12 +955,12 @@ async function viewApps() {
           : `<button class="btn sm" data-act="rotate" data-id="${a.id}" data-tip="Replace this app's client secret — do it if the secret may have leaked, when someone with access leaves, or on a rotation schedule. The old secret stops working immediately, so update the app's config right away.">Rotate secret</button>
              <button class="btn sm danger" data-act="app-delete" data-id="${a.id}" data-name="${esc(a.name)}" data-tip="Soft-delete: sign-in through this app stops immediately, but nothing is destroyed and it can be restored. The client id stays reserved so it cannot be re-registered underneath.">Delete</button>`}</p>
       <form class="inline" data-app-display="${a.id}" style="margin-top:6px">
-        <label style="flex:1 1 260px" data-tip="What customers read: 'SWAG Estimates', not the 'swag-estimates' registry slug. Used in email subject lines, the sender name, and the password-reset page - where a slug undermines the legitimacy the message needs. Empty falls back to a title-cased slug.">Display name <input name="displayName" placeholder="SWAG Estimates" value="${esc(a.displayName ?? "")}" /></label>
+        <label style="flex:1 1 260px" data-tip="What customers read: 'Acme Widgets', not the 'acme-widgets' registry slug. Used in email subject lines, the sender name, and the password-reset page - where a slug undermines the legitimacy the message needs. Empty falls back to a title-cased slug.">Display name <input name="displayName" placeholder="Acme Widgets" value="${esc(a.displayName ?? "")}" /></label>
         <button class="btn sm grow0">Save</button>
       </form>
       <form data-app-brand="${a.id}" style="margin-top:6px">
         <label style="display:block" data-tip="Brand identity served to this app at startup (#91): product name, wordmark halves, domains, support addresses, legal entity. The app merges it over the brand.json it ships, so anything left out here keeps whatever the app's own file says. Leave empty to serve nothing and let the app run entirely on its file.">Brand config (JSON)</label>
-        <textarea name="brand" rows="10" spellcheck="false" placeholder='{"product":{"name":"evo.ehs","wordmark":{"lead":"evo.","accent":"ehs"}}}' style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">${esc(a.brand ? JSON.stringify(a.brand, null, 2) : "")}</textarea>
+        <textarea name="brand" rows="10" spellcheck="false" placeholder='{"product":{"name":"Acme Widgets","wordmark":{"lead":"Acme","accent":" Widgets"}}}' style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">${esc(a.brand ? JSON.stringify(a.brand, null, 2) : "")}</textarea>
         <button class="btn sm grow0" style="margin-top:6px">Save brand</button>
       </form>
       <form class="inline" data-app-callbacks="${a.id}" style="margin-top:6px">
