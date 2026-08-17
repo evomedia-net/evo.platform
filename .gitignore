@@ -42,6 +42,9 @@ Thumbs.db
 build/
 *.egg-info/
 
-# Local console screenshots — not referenced by any doc, and swept in twice
-# by "git add docs". Ignored so it cannot happen a third time.
-docs/console-*.png
+# Console screenshots under docs/console-*.png are now DOCUMENTATION ASSETS and
+# are tracked deliberately. They were ignored while nothing referenced them,
+# after being swept in twice by "git add docs" — but the fix for an accidental
+# sweep is staging files by name, not ignoring content the docs need.
+#
+# Scratch captures that are not part of the docs go in the scratchpad, not here.
