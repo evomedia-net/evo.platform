@@ -2,11 +2,12 @@
 // Created by Kelly Michels · dev@evomedia.net
 // Licensed under the MIT License. See LICENSE.
 
+import { PRODUCT_NAME } from "@/lib/product";
 import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Evo App",
+  title: PRODUCT_NAME,
   description: "EvoPlatform Next.js starter — multi-tenant, offline-first",
 };
 

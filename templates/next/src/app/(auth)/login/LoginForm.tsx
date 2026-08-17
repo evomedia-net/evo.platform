@@ -11,6 +11,7 @@ import { signIn } from "next-auth/react";
 import { login, type AuthFormState } from "../actions";
 import { passkeysSupported, webauthnGet } from "@/lib/webauthn-browser";
 import { PasswordInput } from "@/components/auth/PasswordInput";
+import { clearAuthHandoff, useAuthHandoff } from "@/lib/auth/useAuthHandoff";
 
 const initialState: AuthFormState = { error: null };
 
@@ -26,9 +27,13 @@ export default function LoginForm({ platformMode }: { platformMode: boolean }) {
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
   const [passkeyPending, setPasskeyPending] = useState(false);
   // Controlled so a failed sign-in doesn't wipe them (React resets
-  // uncontrolled form fields after a server action).
-  const [workspace, setWorkspace] = useState("");
-  const [email, setEmail] = useState("");
+  // uncontrolled form fields after a server action), and held in the shared
+  // handoff so whoever just mistyped a password doesn't have to retype their
+  // address on the way to asking for a reset.
+  const [handoff, setHandoff] = useAuthHandoff();
+  const { workspace, email } = handoff;
+  const setWorkspace = (v: string) => setHandoff({ workspace: v });
+  const setEmail = (v: string) => setHandoff({ email: v });
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
@@ -65,6 +70,7 @@ export default function LoginForm({ platformMode }: { platformMode: boolean }) {
       if (result?.error) {
         setPasskeyError("Passkey sign-in could not be verified");
       } else {
+        clearAuthHandoff();
         router.push("/");
         router.refresh();
       }
@@ -150,6 +156,14 @@ export default function LoginForm({ platformMode }: { platformMode: boolean }) {
           Forgot password?
         </Link>
       </p>
+      {platformMode && (
+        <p className="text-sm text-zinc-500 text-center">
+          Not sure which workspace?{" "}
+          <Link href="/forgot-workspace" className="text-blue-600 hover:underline">
+            Look it up
+          </Link>
+        </p>
+      )}
       <p className="text-sm text-zinc-500 text-center">
         No account?{" "}
         <Link href="/signup" className="text-blue-600 hover:underline">
