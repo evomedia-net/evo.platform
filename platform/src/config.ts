@@ -32,6 +32,19 @@ export function resolvePublicBaseUrl(
 
 export const config = {
   port: Number(process.env.PORT ?? 8200),
+  /**
+   * Who this installation belongs to. It appears in the footer of every
+   * platform email, so a self-hosted instance can say its own name instead of
+   * ours - the same need #91 raised, met as deployment config rather than a
+   * runtime record, because it changes when an installation is set up and
+   * never afterwards. Platform-level only: products are named per app by
+   * App.displayName, and neither is per-tenant.
+   */
+  brand: {
+    company: process.env.BRAND_COMPANY ?? 'Evomedia.net LLC',
+    /** Platform's own display name, for mail it sends about itself. */
+    platformName: process.env.BRAND_PLATFORM_NAME ?? 'evo.platform',
+  },
   /** Public URL of this service — used in email links (verify, reset). */
   publicBaseUrl: resolvePublicBaseUrl(),
   signup: {
@@ -69,7 +82,7 @@ export const config = {
     graceDays: Number(process.env.BILLING_GRACE_DAYS ?? 7),
   },
   webauthn: {
-    rpName: process.env.WEBAUTHN_RP_NAME ?? 'EvoPlatform',
+    rpName: process.env.WEBAUTHN_RP_NAME ?? 'evo.platform',
     // Registrable base domains allowed for passkey ceremonies (loopback is
     // always allowed for dev). One passkey then works from the apex and any
     // subdomain, mirroring subdomain-per-tenant routing.
