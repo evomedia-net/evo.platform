@@ -260,6 +260,45 @@ details.fold details.fold { margin-top: 12px; }
 .login-card .btn + .btn { margin-left: 8px; }
 .small { font-size: 12px; margin-top: 8px; }
 
+/* ── Rich text editor (email copy) ───────────────────────────────────────
+   Zero-dependency contenteditable, the same shape evo.ehs uses for its
+   templates. Themed through the console's variables rather than hardcoded
+   light, because this console has both themes and a white editor on a navy
+   page is worse than no editor. */
+.rte { border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  background: var(--panel2); }
+.rte-toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px;
+  background: var(--panel); border-bottom: 1px solid var(--border); align-items: center; }
+.rte-toolbar button { min-width: 28px; height: 28px; padding: 0 6px; cursor: pointer;
+  border: 1px solid transparent; border-radius: 4px; background: none;
+  color: var(--text); font-size: 13px; line-height: 1; }
+.rte-toolbar button:hover { background: var(--panel2); border-color: var(--border); }
+.rte-toolbar button.on { background: var(--panel2); border-color: var(--accent); color: var(--accent); }
+.rte-toolbar select { height: 28px; font-size: 12px; padding: 0 4px; width: auto;
+  margin: 0; border-radius: 4px; }
+.rte-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+/* The editing surface. min-height rather than a fixed height so a long
+   template grows instead of scrolling inside a letterbox. */
+.rte-body { min-height: 180px; max-height: 460px; overflow-y: auto; padding: 12px 14px;
+  outline: none; font-size: 14px; line-height: 1.6; color: var(--text); }
+.rte-body:focus { box-shadow: inset 0 0 0 2px var(--accent); }
+.rte-body p { margin: 0 0 10px; }
+.rte-src { display: none; width: 100%; box-sizing: border-box; min-height: 180px;
+  padding: 12px 14px; border: 0; outline: none; resize: vertical;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+  background: var(--tip-bg); color: var(--tip-text); }
+.rte.src-open .rte-body { display: none; }
+.rte.src-open .rte-src { display: block; }
+
+/* Template form: the global `label` is inline, so a 100%-width input pushed
+   the label text off its own line and clipped it ("eading", "ntro"). */
+.tpl-form label { display: block; margin: 14px 0 0; font-weight: 600; color: var(--text); }
+.tpl-form label .muted { font-weight: 400; }
+.tpl-form input[type="text"] { margin-top: 6px; font-size: 14px; padding: 9px 10px; }
+.tpl-form .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.tpl-vars { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 0; }
+.tpl-vars code { cursor: pointer; user-select: all; }
+
 /* ── Revenue view ────────────────────────────────────────────────────── */
 .stat-tiles { display: flex; flex-wrap: wrap; gap: 12px; }
 .stat { flex: 1 1 140px; background: var(--panel2); border: 1px solid var(--border);

@@ -58,9 +58,9 @@ describe('renderEmail', () => {
   const body = {
     product: 'SWAG Estimates',
     heading: 'Reset your SWAG Estimates password',
-    intro: ['Someone asked to reset the password.'],
+    intro: '<p>Someone asked to reset the password.</p>',
     action: { label: 'Reset my password', url: 'https://platform.test/auth/reset-page?token=abc' },
-    outro: ['The link is valid for 30 minutes and can be used once.'],
+    outro: '<p>The link is valid for 30 minutes and can be used once.</p>',
   };
 
   it('names the product and identifies the sender — the report was that it read as phishing', () => {
@@ -95,7 +95,7 @@ describe('renderEmail', () => {
   it('strips markup from the text part instead of printing the tags', () => {
     const { html, text } = renderEmail({
       ...body,
-      intro: ['Reset the password for <strong>kelly@evomedia.net</strong>.'],
+      intro: '<p>Reset the password for <strong>kelly@evomedia.net</strong>.</p>',
     });
     expect(html).toContain('<strong>kelly@evomedia.net</strong>');
     expect(text).toContain('kelly@evomedia.net');
@@ -119,6 +119,30 @@ describe('renderEmail', () => {
     const { html, text } = renderEmail(body);
     expect(html).toContain(`an ${config.brand.company} product`);
     expect(text).toContain(`an ${config.brand.company} product`);
+  });
+
+  // Copy authored in the console editor arrives as bare <p>. Without an inline
+  // style Outlook renders the spacing as a wall of text.
+  it('gives editor-authored paragraphs the inline style mail clients need', () => {
+    const { html } = renderEmail({ ...body, intro: '<p>One.</p><p>Two.</p>' });
+    expect(html).toContain('<p style="margin:0 0 14px;font-size:15px');
+    expect(html).not.toContain('<p>One.</p>');
+  });
+
+  it('keeps a style the author set rather than overriding it', () => {
+    const { html } = renderEmail({ ...body, intro: '<p style="color:red">Mine.</p>' });
+    expect(html).toContain('<p style="color:red">Mine.</p>');
+  });
+
+  it('breaks paragraphs into lines in the text part, instead of running them together', () => {
+    const { text } = renderEmail({ ...body, intro: '<p>One.</p><p>Two.</p>' });
+    expect(text.replace(/\r/g, '')).toContain('One.\nTwo.');
+  });
+
+  it('renders a list as dashes in the text part', () => {
+    const { text } = renderEmail({ ...body, intro: '<ul><li>alpha</li><li>beta</li></ul>' });
+    expect(text).toContain('- alpha');
+    expect(text).toContain('- beta');
   });
 
   it('omits the button entirely when there is nothing to click', () => {
