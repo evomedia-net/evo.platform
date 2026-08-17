@@ -4,6 +4,7 @@
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma.service';
+import { config } from '../config';
 import { AuditService } from '../audit/audit.service';
 import { EmailBody, esc, renderEmail } from './email-layout';
 import { isUsable, TEMPLATE_BY_CODE, TEMPLATES, TemplateCopy } from './email-templates';
@@ -56,20 +57,33 @@ export class EmailTemplateService {
     });
   }
 
+  /**
+   * Copy to an HTML block.
+   *
+   * Two shapes reach this. The console's editor emits HTML; the built-in
+   * defaults — and any row saved before that editor existed — are plain lines,
+   * one paragraph each. Detecting rather than migrating means the seeds stay
+   * readable as prose in source, and no stored row has to be rewritten.
+   */
+  private toHtml(text: string): string {
+    if (/<(p|div|ul|ol|br|h[1-6])\b/i.test(text)) return text;
+    return text
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => `<p>${l}</p>`)
+      .join('');
+  }
+
   private toBody(copy: TemplateCopy, vars: Record<string, string>, actionUrl?: string): EmailBody {
-    const lines = (s: string) =>
-      s
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean);
     return {
-      product: vars.productName ?? 'EvoPlatform',
+      product: vars.productName ?? config.brand.platformName,
       heading: this.fill(copy.heading, vars, true),
-      intro: lines(this.fill(copy.intro, vars, true)),
+      intro: this.toHtml(this.fill(copy.intro, vars, true)),
       ...(actionUrl && copy.actionLabel
         ? { action: { label: this.fill(copy.actionLabel, vars, true), url: actionUrl } }
         : {}),
-      outro: lines(this.fill(copy.outro, vars, true)),
+      outro: this.toHtml(this.fill(copy.outro, vars, true)),
     };
   }
 

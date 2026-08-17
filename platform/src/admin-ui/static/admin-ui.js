@@ -182,6 +182,132 @@ document.addEventListener("toggle", (e) => {
   }
 }, true);
 
+
+// ── rich text editor ────────────────────────────────────────────────────────
+//
+// contenteditable + document.execCommand, no dependency and no CDN — the same
+// approach evo.ehs uses for its templates, which matters here because the
+// console must keep working on a box with no outbound internet.
+//
+// execCommand is deprecated but unreplaced: there is still no standard API for
+// "make the selection bold" in a contenteditable, and every browser we target
+// implements it. The alternative is shipping a 200KB editor to format four
+// paragraphs of email copy.
+
+const RTE_BUTTONS = [
+  ["bold", "<b>B</b>", "Bold"],
+  ["italic", "<i>I</i>", "Italic"],
+  ["underline", "<u>U</u>", "Underline"],
+  ["|"],
+  ["insertUnorderedList", "&bull;&mdash;", "Bullet list"],
+  ["insertOrderedList", "1.", "Numbered list"],
+  ["|"],
+  ["createLink", "&#128279;", "Insert link"],
+  ["unlink", "&#128279;&#x20e0;", "Remove link"],
+  ["|"],
+  ["removeFormat", "&#10005;", "Clear formatting"],
+];
+
+/**
+ * Mount an editor into `host`. Returns { getHTML }.
+ *
+ * `tags` are the template's variables: picking one inserts it at the cursor,
+ * which is the difference between an editor someone can use and one where they
+ * have to remember that it is {{productName}} and not {{product_name}}.
+ */
+function mountRte(host, { value = "", tags = [] } = {}) {
+  const buttons = RTE_BUTTONS.map(([cmd, label, title]) =>
+    cmd === "|"
+      ? '<span class="rte-sep"></span>'
+      : `<button type="button" data-cmd="${cmd}" title="${title}">${label}</button>`,
+  ).join("");
+  const tagSelect = tags.length
+    ? `<span class="rte-sep"></span>
+       <select data-rte="tag" title="Insert a value the platform fills in when the mail is sent">
+         <option value="">Insert variable…</option>
+         ${tags.map((t) => `<option value="{{${esc(t)}}}">${esc(t)}</option>`).join("")}
+       </select>`
+    : "";
+
+  host.innerHTML = `
+    <div class="rte">
+      <div class="rte-toolbar">
+        ${buttons}${tagSelect}
+        <span class="rte-sep"></span>
+        <button type="button" data-rte="source" title="Edit the HTML directly">&lt;/&gt;</button>
+      </div>
+      <div class="rte-body" contenteditable="true"></div>
+      <textarea class="rte-src" spellcheck="false"></textarea>
+    </div>`;
+
+  const wrap = host.querySelector(".rte");
+  const body = host.querySelector(".rte-body");
+  const src = host.querySelector(".rte-src");
+  body.innerHTML = value || "<p></p>";
+
+  // Toolbar state has to follow the caret, or the buttons lie about what the
+  // selection already is.
+  const sync = () => {
+    for (const b of host.querySelectorAll("button[data-cmd]")) {
+      let on = false;
+      try { on = document.queryCommandState(b.dataset.cmd); } catch { /* not queryable */ }
+      b.classList.toggle("on", on);
+    }
+  };
+  body.addEventListener("keyup", sync);
+  body.addEventListener("mouseup", sync);
+
+  host.addEventListener("mousedown", (e) => {
+    // Keep the selection: focus must not leave the body when a button is hit.
+    if (e.target.closest("button[data-cmd], button[data-rte]")) e.preventDefault();
+  });
+
+  host.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-cmd]");
+    if (btn) {
+      e.preventDefault();
+      const cmd = btn.dataset.cmd;
+      if (cmd === "createLink") {
+        const url = prompt("Link to:");
+        if (!url) return;
+        document.execCommand("createLink", false, url);
+      } else {
+        document.execCommand(cmd, false, null);
+      }
+      body.focus();
+      sync();
+      return;
+    }
+    const act = e.target.closest('button[data-rte="source"]');
+    if (act) {
+      e.preventDefault();
+      // Moving between the two views has to carry the content across, or
+      // whichever one is hidden silently becomes the stale copy.
+      if (wrap.classList.contains("src-open")) {
+        body.innerHTML = src.value;
+        wrap.classList.remove("src-open");
+        body.focus();
+      } else {
+        src.value = body.innerHTML;
+        wrap.classList.add("src-open");
+        src.focus();
+      }
+    }
+  });
+
+  host.addEventListener("change", (e) => {
+    const sel = e.target.closest('select[data-rte="tag"]');
+    if (!sel || !sel.value) return;
+    body.focus();
+    document.execCommand("insertText", false, sel.value);
+    sel.value = "";
+  });
+
+  return {
+    getHTML: () => (wrap.classList.contains("src-open") ? src.value : body.innerHTML).trim(),
+  };
+}
+
 // ── login / shell ───────────────────────────────────────────────────────────
 
 function showLogin() {
@@ -1341,19 +1467,30 @@ async function viewEmailTemplates() {
         <span class="muted">${esc(t.description)}${t.customized ? " · edited" : " · default"}</span>
       </summary>
       <div class="fold-body">
-        <p class="muted small">Variables: ${t.variables.map((v) => `<code>{{${esc(v)}}}</code>`).join(" ")}
-          &mdash; values are escaped when substituted, so they cannot inject markup.</p>
-        <form data-tpl="${t.code}">
-          <label>Subject <input name="subject" value="${esc(t.subject)}" required /></label>
-          <label>Heading <input name="heading" value="${esc(t.heading)}" required /></label>
-          <label data-tip="One paragraph per line. Light HTML is allowed here.">Intro
-            <textarea name="intro" rows="3" required>${esc(t.intro)}</textarea></label>
-          <label>Button label <input name="actionLabel" value="${esc(t.actionLabel)}" /></label>
-          <label>Closing <textarea name="outro" rows="3" required>${esc(t.outro)}</textarea></label>
+        <form class="tpl-form" data-tpl="${t.code}">
+          <p class="tpl-vars muted small">Variables:
+            ${t.variables.map((v) => `<code>{{${esc(v)}}}</code>`).join(" ")}
+            &mdash; escaped when substituted, so they cannot inject markup.</p>
+
+          <label>Subject
+            <input type="text" name="subject" value="${esc(t.subject)}" required /></label>
+
+          <label>Heading
+            <input type="text" name="heading" value="${esc(t.heading)}" required /></label>
+
+          <label>Intro <span class="muted">(above the button)</span></label>
+          <div data-rte-for="intro"></div>
+
+          <label>Button label
+            <input type="text" name="actionLabel" value="${esc(t.actionLabel)}" /></label>
+
+          <label>Closing <span class="muted">(below the button)</span></label>
+          <div data-rte-for="outro"></div>
+
           <div class="row">
             <button class="btn primary">Save</button>
             <button type="button" class="btn" data-tpl-act="preview" data-code="${t.code}">Preview</button>
-            <button type="button" class="btn" data-tpl-act="test" data-code="${t.code}" data-tip="Sends the preview to an address you choose, which is the only way to see how it actually arrives.">Send test</button>
+            <button type="button" class="btn" data-tpl-act="test" data-code="${t.code}" data-tip="Sends the sample to an address you choose, which is the only way to see how it actually arrives.">Send test</button>
             ${t.customized ? `<button type="button" class="btn danger" data-tpl-act="reset" data-code="${t.code}">Revert to default</button>` : ""}
           </div>
         </form>
@@ -1370,18 +1507,29 @@ async function viewEmailTemplates() {
     </div>
     ${templates.map(card).join("")}`;
 
+  // One editor per body field, keyed so the submit handler can read them back.
+  const editors = new Map();
+  for (const t of templates) {
+    const form = $(`form[data-tpl="${t.code}"]`);
+    for (const field of ["intro", "outro"]) {
+      const host = form.querySelector(`[data-rte-for="${field}"]`);
+      editors.set(`${t.code}:${field}`, mountRte(host, { value: t[field], tags: t.variables }));
+    }
+  }
+
   $("#content").addEventListener("submit", async (e) => {
     const form = e.target.closest("form[data-tpl]");
     if (!form) return;
     e.preventDefault();
+    const code = form.dataset.tpl;
     const f = new FormData(form);
     try {
-      await api("PUT", `/admin/email-templates/${form.dataset.tpl}`, {
+      await api("PUT", `/admin/email-templates/${code}`, {
         subject: String(f.get("subject") || ""),
         heading: String(f.get("heading") || ""),
-        intro: String(f.get("intro") || ""),
+        intro: editors.get(`${code}:intro`).getHTML(),
         actionLabel: String(f.get("actionLabel") || ""),
-        outro: String(f.get("outro") || ""),
+        outro: editors.get(`${code}:outro`).getHTML(),
       });
       toast("Saved"); route();
     } catch (err) { toast(err.message, true); }
