@@ -4,6 +4,13 @@ Ported from evo.ehs's scripts/capture_docs_shots.py — same pipeline (own
 headless Chrome on a private port, scripted login, CDP screenshots written
 to disk), retargeted at the platform console's hash-routed views.
 
+Same split as evo.ehs, too: the script lives with the app it drives, and the
+images it writes belong to the docs site. Output filenames match the
+references in evo.docs at docs/public/images/screenshots/console-<name>.png,
+consumed by docs/evoplatform/admin.md — so point the output dir there:
+
+    python platform/scripts/capture_console_shots.py         ../evodocs/docs/public/images/screenshots
+
 Point it at a LOCAL instance. The console shows real workspace names, member
 addresses, audit trails, mail config and revenue; a docs screenshot of a
 production console publishes all of it.
@@ -41,15 +48,29 @@ SHOT_WORKSPACE = os.environ.get("CONSOLE_SHOT_WORKSPACE", "")
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
 ONLY = set(sys.argv[2:])
 
-# (name, hash route). Order matches the console's own nav.
+# (name, hash route, pre-shot JS or None). Order matches the console's nav.
+# The two overlay shots open a modal first: admin.md documents the create
+# forms, and they only exist while their dialog is up.
+OPEN_MODAL = r"""
+(() => {
+  const btn = [...document.querySelectorAll('button, .btn')]
+    .find(b => /^\+?\s*New %s$/i.test((b.textContent || '').trim()));
+  if (!btn) return 'button not found';
+  btn.click();
+  return 'opened';
+})()
+"""
+
 PAGES = [
-    ("tenants", "#/tenants"),
-    ("users", "#/users"),
-    ("apps", "#/apps"),
-    ("revenue", "#/revenue"),
-    ("audit", "#/audit"),
-    ("smtp", "#/smtp"),
-    ("email-copy", "#/email"),
+    ("tenants", "#/tenants", None),
+    ("new-tenant", "#/tenants", OPEN_MODAL % "tenant"),
+    ("users", "#/users", None),
+    ("new-user", "#/users", OPEN_MODAL % "user"),
+    ("apps", "#/apps", None),
+    ("revenue", "#/revenue", None),
+    ("audit", "#/audit", None),
+    ("smtp", "#/smtp", None),
+    ("email-copy", "#/email", None),
 ]
 
 # Fills the console's own form and submits it, rather than posting to
@@ -176,10 +197,17 @@ async def main():
                 print(f"login failed: {err.strip() or 'still on the login card'}")
                 return 1
 
-            for name, route in PAGES:
+            for name, route, pre_js in PAGES:
                 if ONLY and name not in ONLY:
                     continue
                 await goto(f"{BASE}/{route}", 2.5)
+                if pre_js:
+                    result = await js(pre_js)
+                    print(f"{name}: {result}")
+                    if result != "opened":
+                        print(f"  skipped {name} — its dialog never opened")
+                        continue
+                    await asyncio.sleep(1.0)
                 await shot(name)
         return 0
     finally:
