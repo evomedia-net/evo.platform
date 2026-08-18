@@ -11,7 +11,7 @@ cloning a starter template — tenancy, auth, RBAC, audit logging, and deploymen
 > `--stack next` only. **Setup: [docs/INSTALL.md](docs/INSTALL.md)** · deploy:
 > [docs/DEPLOY.md](docs/DEPLOY.md) · design:
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/TEMPLATE_CONTRACT.md](docs/TEMPLATE_CONTRACT.md) · flows:
-> [docs/FLOWS.md](docs/FLOWS.md).
+> [docs/FLOWS.md](docs/FLOWS.md) · console tour: [docs/CONSOLE.md](docs/CONSOLE.md).
 
 ## The idea
 

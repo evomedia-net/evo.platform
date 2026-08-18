@@ -1,21 +1,26 @@
-# Evomedia.net EvoPlatform — https://github.com/evomedia-net/evo.platform
-# Created by Kelly Michels · dev@evomedia.net
-# Licensed under the MIT License. See LICENSE.
-
 """Capture admin-console screenshots via headless Chrome + CDP.
 
-Feeds the documentation site's EvoPlatform pages. Runs against the LOCAL DEV
-server and its seeded, fictional data (Acme/Globex demo tenants) — never a
-real deployment, so nothing customer-identifying can land in public docs.
+Ported from evo.ehs's scripts/capture_docs_shots.py — same pipeline (own
+headless Chrome on a private port, scripted login, CDP screenshots written
+to disk), retargeted at the platform console's hash-routed views.
 
-Prereqs: dev stack up (`docker compose up -d`, `npm run start:dev`), seeded
-demo data, and `pip install websockets`.
+Point it at a LOCAL instance. The console shows real workspace names, member
+addresses, audit trails, mail config and revenue; a docs screenshot of a
+production console publishes all of it.
 
-Usage: python scripts/capture_console_shots.py <output-dir> [only-name ...]
+Credentials come from the environment and are never written to this file:
+
+    CONSOLE_SHOT_USER      admin email
+    CONSOLE_SHOT_PASSWORD  its password
+    CONSOLE_SHOT_BASE      default http://localhost:8200
+    CONSOLE_SHOT_WORKSPACE blank for a platform-level account
+
+Usage: python platform/scripts/capture_console_shots.py <output-dir> [only-name ...]
 """
 import asyncio
 import base64
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -25,36 +30,53 @@ from pathlib import Path
 
 import websockets
 
-CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-PORT = 9336
-BASE = "http://127.0.0.1:8200"
-EMAIL = "admin@example.com"
-PASSWORD = "EvoDevAdmin!2026"
+CHROME = os.environ.get(
+    "CHROME_PATH", r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+)
+PORT = int(os.environ.get("CONSOLE_SHOT_PORT", "9335"))
+BASE = os.environ.get("CONSOLE_SHOT_BASE", "http://localhost:8200").rstrip("/")
+SHOT_USER = os.environ.get("CONSOLE_SHOT_USER", "")
+SHOT_PASSWORD = os.environ.get("CONSOLE_SHOT_PASSWORD", "")
+SHOT_WORKSPACE = os.environ.get("CONSOLE_SHOT_WORKSPACE", "")
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
 ONLY = set(sys.argv[2:])
 
-# (name, hash-route, optional pre-shot JS)
+# (name, hash route). Order matches the console's own nav.
 PAGES = [
-    ("console-tenants", "#/tenants", None),
-    ("console-users", "#/users", None),
-    ("console-apps", "#/apps", None),
-    ("console-audit", "#/audit", None),
-    ("console-smtp", "#/smtp", None),
-    # Overlays: open, let the animation settle, then shoot.
-    ("console-new-tenant", "#/tenants", "document.querySelector('#new-tenant-btn').click(), 'opened'"),
-    ("console-new-user", "#/users", "document.querySelector('#new-user-btn').click(), 'opened'"),
+    ("tenants", "#/tenants"),
+    ("users", "#/users"),
+    ("apps", "#/apps"),
+    ("revenue", "#/revenue"),
+    ("audit", "#/audit"),
+    ("smtp", "#/smtp"),
+    ("email-copy", "#/email"),
 ]
 
-LOGIN_JS = f"""
-(() => {{
+# Fills the console's own form and submits it, rather than posting to
+# /auth/login directly: the SPA keeps its tokens in memory after a real
+# submit, so a scripted fetch would leave the app still showing the login
+# card. Values are injected as JSON literals so a password containing quotes
+# or backslashes cannot break out of the expression.
+LOGIN_JS_TEMPLATE = """
+(() => {
   const email = document.querySelector('#login-email');
-  const pass = document.querySelector('#login-password');
-  if (!email || !pass) return 'no login form (already signed in?)';
-  email.value = {EMAIL!r};
-  pass.value = {PASSWORD!r};
-  document.querySelector('form').requestSubmit();
+  const workspace = document.querySelector('#login-workspace');
+  const password = document.querySelector('#login-password');
+  const form = document.querySelector('#login-form');
+  if (!email || !password || !form) return 'login form not found';
+  const set = (el, v) => {
+    const proto = Object.getPrototypeOf(el);
+    const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+    desc.set.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  set(email, __USER__);
+  if (workspace) set(workspace, __WORKSPACE__);
+  set(password, __PASS__);
+  form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(
+    new Event('submit', { bubbles: true, cancelable: true }));
   return 'submitted';
-}})()
+})()
 """
 
 
@@ -76,10 +98,20 @@ class CDP:
 
 
 async def main():
+    if not SHOT_USER or not SHOT_PASSWORD:
+        print("Set CONSOLE_SHOT_USER and CONSOLE_SHOT_PASSWORD in the environment.")
+        return 2
+    if "localhost" not in BASE and "127.0.0.1" not in BASE:
+        print(f"Refusing to shoot {BASE}: point this at a local instance.")
+        print("A console screenshot publishes real workspaces, members and revenue.")
+        print("Override deliberately with CONSOLE_SHOT_ALLOW_REMOTE=1.")
+        if os.environ.get("CONSOLE_SHOT_ALLOW_REMOTE") != "1":
+            return 2
+
     profile = tempfile.mkdtemp(prefix="evo-console-shots-")
     proc = subprocess.Popen([
         CHROME, "--headless=new", f"--remote-debugging-port={PORT}",
-        f"--user-data-dir={profile}", "--window-size=1500,950",
+        f"--user-data-dir={profile}", "--window-size=1600,1000",
         "--hide-scrollbars", "about:blank",
     ])
     try:
@@ -103,7 +135,7 @@ async def main():
             await cdp.cmd("Page.enable")
             await cdp.cmd("Runtime.enable")
             await cdp.cmd("Emulation.setDeviceMetricsOverride", {
-                "width": 1500, "height": 950, "deviceScaleFactor": 2, "mobile": False,
+                "width": 1600, "height": 1000, "deviceScaleFactor": 2, "mobile": False,
             })
 
             async def goto(url, settle=2.5):
@@ -114,65 +146,45 @@ async def main():
                 r = await cdp.cmd("Runtime.evaluate", {"expression": expr, "returnByValue": True})
                 return r.get("result", {}).get("value")
 
-            # Crop to where content actually ends — the console's cards rarely
-            # fill a 950px viewport, and docs shouldn't ship the dead space.
-            CONTENT_HEIGHT_JS = """
-            (() => {
-              const modal = document.querySelector('#modal');
-              if (modal && !modal.hidden) return 0;            // overlay: full frame
-              // #content stretches to fill the viewport, so measure the cards
-              // inside it — the last one's bottom is where content really ends.
-              const kids = [...document.querySelectorAll('#content > *')]
-                .filter((k) => k.getBoundingClientRect().height > 0);
-              if (!kids.length) return 0;
-              return Math.ceil(Math.max(...kids.map((k) => k.getBoundingClientRect().bottom))) + 20;
-            })()
-            """
-
             async def shot(name):
-                params = {"format": "png", "fromSurface": True}
-                height = await js(CONTENT_HEIGHT_JS)
-                if height:
-                    params["clip"] = {
-                        "x": 0, "y": 0, "width": 1500,
-                        "height": min(max(int(height), 320), 950), "scale": 1,
-                    }
                 data = base64.b64decode(
-                    (await cdp.cmd("Page.captureScreenshot", params))["data"]
+                    (await cdp.cmd("Page.captureScreenshot",
+                                   {"format": "png", "fromSurface": True}))["data"]
                 )
-                out = OUT / f"{name}.png"
+                out = OUT / f"console-{name}.png"
                 out.write_bytes(data)
                 print(f"saved {out} ({len(data)//1024} KB)")
 
             OUT.mkdir(parents=True, exist_ok=True)
 
-            # Sign-in screen first — it can't be captured once a session exists.
-            if not ONLY or "console-login" in ONLY:
-                await goto(BASE, 2.5)
-                await shot("console-login")
+            # Signed out first — the login card is gone once a session exists.
+            await goto(BASE, 2.0)
+            if not ONLY or "login" in ONLY:
+                await shot("login")
 
-            await goto(BASE, 2.5)
-            print("login:", await js(LOGIN_JS))
-            await asyncio.sleep(3)
-            # The sign-in view is hidden rather than removed, so presence of the
-            # form proves nothing — the stored session token does.
-            if not await js("sessionStorage.getItem('evoadmin.access')"):
-                raise RuntimeError("login failed — no session token stored")
+            print("login:", await js(
+                LOGIN_JS_TEMPLATE
+                .replace("__USER__", json.dumps(SHOT_USER))
+                .replace("__PASS__", json.dumps(SHOT_PASSWORD))
+                .replace("__WORKSPACE__", json.dumps(SHOT_WORKSPACE))
+            ))
+            await asyncio.sleep(3.0)
 
-            for name, route, pre_js in PAGES:
+            signed_in = await js("!document.querySelector('#app-view').hidden")
+            if not signed_in:
+                err = await js("(document.querySelector('#login-error')||{}).textContent || ''")
+                print(f"login failed: {err.strip() or 'still on the login card'}")
+                return 1
+
+            for name, route in PAGES:
                 if ONLY and name not in ONLY:
                     continue
-                # Force a re-render even when the hash is unchanged.
-                await js("location.hash = '#/'")
-                await asyncio.sleep(0.4)
-                await js(f"location.hash = {route!r}")
-                await asyncio.sleep(2.5)
-                if pre_js:
-                    print(f"{name} pre-shot:", await js(pre_js))
-                    await asyncio.sleep(1.2)
+                await goto(f"{BASE}/{route}", 2.5)
                 await shot(name)
+        return 0
     finally:
         proc.terminate()
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))
