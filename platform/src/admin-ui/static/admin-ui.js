@@ -910,6 +910,42 @@ function secretModal(clientId, secret) {
 
 const ACCESS_STATUSES = ["TRIAL", "ACTIVE", "PAST_DUE", "SUSPENDED"];
 
+/**
+ * A brand example for THIS app, not a generic one.
+ *
+ * The placeholder used to be a fully-formed record for evo.ehs, so opening any
+ * other app showed a different product's branding and read as saved data
+ * (#114). Replacing it with a fictional company fixed the misreading but made
+ * the example useless — nobody's brand is Acme Widgets.
+ *
+ * Deriving it from the app's own display name gives an example worth copying.
+ * The wordmark splits the two ways the fleet actually names things:
+ *
+ *   - at a dot, keeping it on the lead half:  evo.ehs -> "evo." + "ehs"
+ *   - at an interior capital:                 DocketMail -> "Docket" + "Mail"
+ *
+ * A name matching neither gets no accent half, which is the correct shape for
+ * a brand that is not a two-tone lockup.
+ */
+function brandExample(app) {
+  const name =
+    (app.displayName || "").trim() ||
+    String(app.name || "app")
+      .split(/[-_\s]+/)
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  const bare = name.replace(/\s+/g, "");
+  // The dot belongs to the lead half — "evo." then "ehs", never "evo" + ".ehs".
+  const dotted = /^([^.]+\.)([^.]+)$/.exec(bare);
+  // Otherwise split before an interior capital: "DocketMail" -> Docket + Mail.
+  const camel = /^(.+?)([A-Z][a-z0-9]*)$/.exec(bare);
+  let wordmark = { lead: name, accent: "" };
+  if (dotted) wordmark = { lead: dotted[1], accent: dotted[2] };
+  else if (camel && camel[1].length > 1) wordmark = { lead: camel[1], accent: camel[2] };
+  return JSON.stringify({ product: { name, wordmark } });
+}
+
 async function viewApps() {
   await loadApps();
   await loadTenants();
@@ -960,7 +996,10 @@ async function viewApps() {
       </form>
       <form data-app-brand="${a.id}" style="margin-top:6px">
         <label style="display:block" data-tip="Brand identity served to this app at startup (#91): product name, wordmark halves, domains, support addresses, legal entity. The app merges it over the brand.json it ships, so anything left out here keeps whatever the app's own file says. Leave empty to serve nothing and let the app run entirely on its file.">Brand config (JSON)</label>
-        <textarea name="brand" rows="10" spellcheck="false" placeholder='{"product":{"name":"Acme Widgets","wordmark":{"lead":"Acme","accent":" Widgets"}}}' style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">${esc(a.brand ? JSON.stringify(a.brand, null, 2) : "")}</textarea>
+        <textarea name="brand" rows="10" spellcheck="false" placeholder="${esc(brandExample(a))}" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">${esc(a.brand ? JSON.stringify(a.brand, null, 2) : "")}</textarea>
+        ${a.brand
+          ? ""
+          : `<p class="muted" style="margin:4px 0 0;font-size:12px">Empty — ${esc(a.name)} is using the brand it ships with. The greyed text is an example, not saved.</p>`}
         <button class="btn sm grow0" style="margin-top:6px">Save brand</button>
       </form>
       <form class="inline" data-app-callbacks="${a.id}" style="margin-top:6px">
