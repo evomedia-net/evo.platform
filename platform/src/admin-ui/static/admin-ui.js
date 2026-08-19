@@ -943,7 +943,11 @@ function brandExample(app) {
   let wordmark = { lead: name, accent: "" };
   if (dotted) wordmark = { lead: dotted[1], accent: dotted[2] };
   else if (camel && camel[1].length > 1) wordmark = { lead: camel[1], accent: camel[2] };
-  return JSON.stringify({ product: { name, wordmark } });
+  // Indented to two spaces, matching how a SAVED record renders
+  // (JSON.stringify(a.brand, null, 2) below). A one-line example beside a
+  // pretty-printed value looks like a different kind of thing, and the point
+  // of the example is that you can paste it and get that value.
+  return JSON.stringify({ product: { name, wordmark } }, null, 2);
 }
 
 async function viewApps() {
