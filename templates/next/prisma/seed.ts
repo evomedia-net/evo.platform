@@ -27,7 +27,7 @@ async function main() {
 
   const email = "demo@example.com";
   const password = process.env.SEED_PASSWORD || "demo-password-1";
-  let user = await prisma.user.findUnique({ where: { email } });
+  let user = await prisma.user.findFirst({ where: { email, platformUserId: null } });
   if (!user) {
     user = await prisma.user.create({
       data: { email, name: "Demo User", passwordHash: bcrypt.hashSync(password, 12) },

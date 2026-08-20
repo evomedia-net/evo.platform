@@ -18,7 +18,7 @@ vi.mock("@/lib/platform", () => ({
   defaultWorkspace: vi.fn(() => undefined),
 }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { findUnique: vi.fn(), updateMany: vi.fn() } },
+  prisma: { user: { findFirst: vi.fn(), updateMany: vi.fn() } },
 }));
 vi.mock("@/lib/auth/tokens", () => ({
   consumeToken: vi.fn(),
@@ -63,10 +63,10 @@ describe("requestPasswordReset", () => {
   // The point of the generic answer: a different response for a known address
   // turns this form into a way to enumerate accounts.
   it("answers identically for a known and an unknown address", async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ id: "u1" } as never);
+    vi.mocked(prisma.user.findFirst).mockResolvedValueOnce({ id: "u1" } as never);
     const known = await requestPasswordReset(state, form({ email: "real@example.com" }));
 
-    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null as never);
+    vi.mocked(prisma.user.findFirst).mockResolvedValueOnce(null as never);
     const unknown = await requestPasswordReset(state, form({ email: "ghost@example.com" }));
 
     expect(known).toEqual(unknown);
@@ -74,17 +74,17 @@ describe("requestPasswordReset", () => {
   });
 
   it("only sends mail when the account exists", async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null as never);
+    vi.mocked(prisma.user.findFirst).mockResolvedValueOnce(null as never);
     await requestPasswordReset(state, form({ email: "ghost@example.com" }));
     expect(sendMail).not.toHaveBeenCalled();
 
-    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ id: "u1" } as never);
+    vi.mocked(prisma.user.findFirst).mockResolvedValueOnce({ id: "u1" } as never);
     await requestPasswordReset(state, form({ email: "real@example.com" }));
     expect(sendMail).toHaveBeenCalledTimes(1);
   });
 
   it("builds a link carrying both the address and the token", async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ id: "u1" } as never);
+    vi.mocked(prisma.user.findFirst).mockResolvedValueOnce({ id: "u1" } as never);
     await requestPasswordReset(state, form({ email: "real@example.com" }));
     const link = vi.mocked(passwordResetEmail).mock.calls[0]![1];
     expect(link).toContain("/reset-password?");
@@ -171,7 +171,10 @@ describe("resetPassword", () => {
     vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 1 } as never);
     await resetPassword(state, form(good));
     expect(prisma.user.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { email: good.email } }),
+      // platformUserId: null scopes the write to standalone accounts. Without
+      // it a local reset could overwrite a platform-provisioned row, whose
+      // password the platform owns and this app must never set.
+      expect.objectContaining({ where: { email: good.email, platformUserId: null } }),
     );
   });
 

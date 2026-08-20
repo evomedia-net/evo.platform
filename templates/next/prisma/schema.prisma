@@ -26,7 +26,17 @@ model Tenant {
 
 model User {
   id            String       @id @default(cuid())
-  email         String       @unique
+  /// The platform's user id (the access token's `sub`) in platform mode; null
+  /// standalone. This is the identity, NOT the email: the platform scopes
+  /// accounts per workspace (`@@unique([tenantId, email])`), so one address is
+  /// a DIFFERENT person with a different password in each workspace. Keying
+  /// local rows on the address collapsed them into one account.
+  platformUserId String?     @unique
+  /// Unique only among standalone accounts, enforced by a partial index in the
+  /// migration (`WHERE "platformUserId" IS NULL`) — Prisma cannot express a
+  /// partial unique, and a plain @unique here would forbid the same person
+  /// holding accounts in two workspaces.
+  email         String
   name          String?
   passwordHash  String? // null in platform mode — the platform owns the password
   emailVerified DateTime?

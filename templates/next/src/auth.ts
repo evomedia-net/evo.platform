@@ -64,15 +64,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               : defaultWorkspace();
           try {
             const result = await getPlatform().login({ tenantSlug: workspace, email, password });
-            const user = await provisionFromPlatform(result);
-            return user ? { id: user.id, email: user.email, name: user.name } : null;
+            const provisioned = await provisionFromPlatform(result);
+            if (!provisioned) return null;
+            const { user, tenantId } = provisioned;
+            return { id: user.id, email: user.email, name: user.name, tenantId };
           } catch {
             return null; // invalid credentials / suspended tenant / platform unreachable
           }
         }
 
         // Standalone mode: local credentials.
-        const user = await prisma.user.findUnique({ where: { email } });
+        // Standalone accounts only — a platform-provisioned row has no
+        // passwordHash and is identified by platformUserId, not by address.
+        const user = await prisma.user.findFirst({ where: { email, platformUserId: null } });
         if (!user?.passwordHash) return null;
         const ok = await verifyPassword(password, user.passwordHash);
         if (!ok) return null;
@@ -93,8 +97,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             credential: JSON.parse(String(credentials?.credential ?? "")),
             challengeToken: String(credentials?.challengeToken ?? ""),
           });
-          const user = await provisionFromPlatform(result);
-          return user ? { id: user.id, email: user.email, name: user.name } : null;
+          const provisioned = await provisionFromPlatform(result);
+          if (!provisioned) return null;
+          const { user, tenantId } = provisioned;
+          return { id: user.id, email: user.email, name: user.name, tenantId };
         } catch {
           return null;
         }
@@ -103,13 +109,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // First sign-in: resolve tenant context from the user's membership.
+      // First sign-in: bind the session to the workspace that was actually
+      // authenticated against. In platform mode authorize() carries it here,
+      // because the user may belong to several and only one of them just
+      // proved a password. Falling back to "their oldest membership" is what
+      // let a sign-in to workspace B hand out a session scoped to workspace A.
       if (user?.id) {
         token.uid = user.id;
-        const membership = await prisma.membership.findFirst({
-          where: { userId: user.id },
-          orderBy: { createdAt: "asc" },
-        });
+        const authenticatedTenantId = (user as { tenantId?: string }).tenantId;
+        const membership = authenticatedTenantId
+          ? await prisma.membership.findUnique({
+              where: { userId_tenantId: { userId: user.id, tenantId: authenticatedTenantId } },
+            })
+          : // Standalone: a single implicit workspace, so there is nothing to
+            // disambiguate and the sole membership is the right one.
+            await prisma.membership.findFirst({
+              where: { userId: user.id },
+              orderBy: { createdAt: "asc" },
+            });
+        // No membership for the workspace just signed into means the session
+        // has no legitimate scope — refuse rather than guess at another one.
         token.tenantId = membership?.tenantId ?? null;
         token.role = membership?.role ?? null;
       }

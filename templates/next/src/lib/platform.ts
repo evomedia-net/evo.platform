@@ -56,12 +56,17 @@ export async function provisionFromPlatform(result: LoginResult) {
     create: { slug: claims.tenant_slug, name: result.user.tenant.name },
   });
 
+  // Keyed on the platform's user id, never the address. The platform scopes
+  // accounts per workspace (@@unique([tenantId, email])), so the same address
+  // is a different person — different password, different workspace — in each
+  // one. Upserting on email merged them into a single local account, and
+  // whoever signed in second inherited the first one's tenant and data.
   const email = claims.email.toLowerCase();
   const user = await prisma.user.upsert({
-    where: { email },
-    update: { name: result.user.name ?? undefined },
+    where: { platformUserId: claims.sub },
+    update: { email, name: result.user.name ?? undefined },
     // No passwordHash: in platform mode the platform owns the password.
-    create: { email, name: result.user.name },
+    create: { platformUserId: claims.sub, email, name: result.user.name },
   });
 
   const existing = await prisma.membership.findUnique({
@@ -77,5 +82,10 @@ export async function provisionFromPlatform(result: LoginResult) {
     });
   }
   // An existing membership keeps its local role (never downgrade an OWNER).
-  return user;
+
+  // The tenant is returned, not looked up later: the session must be bound to
+  // the workspace that was actually authenticated against. Resolving it from
+  // the user's memberships instead is what let a second workspace's sign-in
+  // land in the first one.
+  return { user, tenantId: tenant.id };
 }
