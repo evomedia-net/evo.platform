@@ -4,7 +4,8 @@
 
 A standalone platform service owns tenancy, auth, billing, and email. Apps stay in their
 native stack and talk to it through a JWT-authenticated SDK. Each app owns its own domain
-database with a `tenant_id` foreign key on every row.
+database with a `tenant_id` foreign key on every row. Three production apps run on it
+today: ProvenSheet and CivilCode (Next.js), and DocketMail (FastAPI + React).
 
 ```
                     ┌──────────────────────────┐
@@ -17,7 +18,7 @@ database with a `tenant_id` foreign key on every row.
               ┌─────────────────┼─────────────────┐
         ┌─────┴─────┐     ┌─────┴─────┐     ┌─────┴─────┐
         │  App A    │     │  App B    │     │  App C    │
-        │ (Next.js) │     │ (NiceGUI) │     │  (any)    │
+        │ (Next.js) │     │ (FastAPI) │     │  (any)    │
         │  own DB   │     │  own DB   │     │  own DB   │
         └───────────┘     └───────────┘     └───────────┘
 ```

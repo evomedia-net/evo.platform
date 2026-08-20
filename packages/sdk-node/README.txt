@@ -3,7 +3,8 @@
 
 Node SDK for EvoPlatform. Verifies platform-issued JWTs locally (cached JWKS — no
 per-request platform call), proxies auth, and exposes the client-credential services
-(audit events, email). Mirrored by evoplatform-sdk (Python).
+(audit events, email). Mirrored by evoplatform-sdk (Python). In production under ProvenSheet and
+CivilCode; DocketMail uses the Python mirror.
 
 Install
 -------
