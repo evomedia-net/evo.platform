@@ -102,7 +102,9 @@ Responsibility split
 Integrating a new app
 ---------------------
 
-1. Install the SDK (npm i @evoplatform/sdk-node, or the Python wheel for a Python app).
+1. Add the SDK — @evoplatform/sdk-node (Node) or evoplatform-sdk (Python). Each
+   package's README covers install; apps inside this repo use a file: path to
+   packages/sdk-node, which is what the templates ship with.
 2. Add middleware that validates the JWT and attaches tenant context.
 3. Put a tenant_id column on every domain table; auto-scope queries
    (Prisma middleware / SQLAlchemy event listener).

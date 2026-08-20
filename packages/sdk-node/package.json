@@ -1,15 +1,39 @@
 {
   "name": "@evoplatform/sdk-node",
-  "version": "0.3.0",
-  "description": "Node SDK for EvoPlatform: local JWT verification via cached JWKS, auth proxy, email and audit clients",
+  "version": "0.4.0",
+  "description": "Node SDK for EvoPlatform: local JWT verification via cached JWKS, auth proxy, billing entitlements, brand, email and audit clients",
   "license": "MIT",
+  "author": "Kelly Michels <dev@evomedia.net>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evomedia-net/evo.platform.git",
+    "directory": "packages/sdk-node"
+  },
+  "homepage": "https://github.com/evomedia-net/evo.platform/tree/main/packages/sdk-node#readme",
+  "bugs": "https://github.com/evomedia-net/evo.platform/issues",
+  "keywords": [
+    "evoplatform",
+    "multi-tenant",
+    "saas",
+    "auth",
+    "jwt",
+    "jwks",
+    "tenancy",
+    "sdk"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test",
     "test": "jest",
     "integration": "tsx scripts/integration.ts"
   },

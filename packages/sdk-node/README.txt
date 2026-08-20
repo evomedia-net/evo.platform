@@ -5,6 +5,19 @@ Node SDK for EvoPlatform. Verifies platform-issued JWTs locally (cached JWKS —
 per-request platform call), proxies auth, and exposes the client-credential services
 (audit events, email). Mirrored by evoplatform-sdk (Python).
 
+Install
+-------
+
+    npm install @evoplatform/sdk-node
+
+From a checkout of this repo — which is what the bundled templates do — point a
+file: dependency at the package instead:
+
+    "@evoplatform/sdk-node": "file:../../packages/sdk-node"
+
+The package builds itself on install (prepare), so a checkout is never
+serving a stale dist/.
+
 Setup
 -----
 
@@ -35,7 +48,7 @@ Auth proxy (apps that render their own login form)
 --------------------------------------------------
 
     const session = await platform.login({ tenantSlug, email, password });
-    // -> { accessToken, refreshToken, expiresIn, user } — store in an httpOnly cookie
+    // → { accessToken, refreshToken, expiresIn, user } — store in an httpOnly cookie
     const next = await platform.refresh(session.refreshToken); // rotates
     await platform.logout(next.refreshToken);
 
@@ -49,7 +62,7 @@ Passkeys (WebAuthn)
 
     // Login
     const start = await platform.passkeyLoginOptions({ tenantSlug, email });
-    if (start.options) { // null -> user has no passkeys; hide the button
+    if (start.options) { // null → user has no passkeys; hide the button
       const credential = await startAuthentication({ optionsJSON: start.options });
       const session = await platform.passkeyLoginVerify({ credential, challengeToken: start.challengeToken! });
     }
@@ -64,7 +77,7 @@ same session shape.
 Services
 --------
 
-    await platform.sendEmail({ to, subject, html });          // tenant SMTP -> default -> env
+    await platform.sendEmail({ to, subject, html });          // tenant SMTP → default → env
     await platform.pushEvent({ action: 'thing.created', tenantId, detail });
 
 Billing (client credentials)
@@ -73,6 +86,7 @@ Billing (client credentials)
     const prices = await platform.listPrices();
     // [{ stripeProductId, stripePriceId, productName, tier, unitAmount, currency,
     //    interval, intervalCount, trialDays }] — cheapest first, archived tiers omitted.
+    // Enough to render a pricing table without holding any Stripe ids in your code.
 
     const ent = await platform.getEntitlement({ tenantId });
     // { enabled, status, plan, trialEndsAt, graceUntil, daysLeft }
@@ -90,7 +104,7 @@ Billing (client credentials)
     const portal = await platform.createBillingPortal({ tenantId, returnUrl: appUrl });
 
 The platform's Stripe webhook then drives the tenant's access to the app
-(paid -> active, failed -> grace -> suspended).
+(paid → active, failed → grace → suspended).
 
 Billing calls are scoped: the tenant must already have the calling app enabled,
 and every redirect URL (successUrl, cancelUrl, returnUrl) must share an
@@ -126,8 +140,8 @@ Two auth modes, matching the two ways an app is built:
 
 | Your app | Pass | evo-ai gets the tenant from |
 |---|---|---|
-| Has its own login | `serviceKey` on the client + `tenantId` per call | your `X-Data-Tenant` header |
-| Is in platform mode | `accessToken` per call | the token's verified claims |
+| Has its own login | serviceKey on the client + tenantId per call | your X-Data-Tenant header |
+| Is in platform mode | accessToken per call | the token's verified claims |
 
 The service key authenticates the application, not the customer — so tenantId
 is required with it, and must come from your own session. A holder of the key can
