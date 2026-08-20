@@ -1,13 +1,26 @@
 # evoplatform-sdk (Python)
 
 Python SDK for EvoPlatform, mirrored method-for-method with
-[`@evoplatform/sdk-node`](../sdk-node). Verifies platform-issued JWTs
+[`@evoplatform/sdk-node`](https://github.com/evomedia-net/evo.platform/tree/main/packages/sdk-node). Verifies platform-issued JWTs
 **locally** (cached JWKS — no per-request platform call), proxies auth, and
 exposes the client-credential services (billing, email, events) plus the
 Ask AI client for evo-ai.
 
-Synchronous by design: the first consumer is SmartPlant EHS, whose service
-code runs sync (NiceGUI hands blocking work to `run.io_bound`).
+Synchronous by design: the consuming apps call it from blocking service code
+(DocketMail runs it inside FastAPI `def` endpoints, which execute on a worker
+thread).
+
+## Install
+
+```bash
+pip install evoplatform-sdk
+```
+
+From a checkout of this repo:
+
+```bash
+pip install ./packages/sdk-python
+```
 
 ## Setup
 

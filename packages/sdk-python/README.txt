@@ -2,13 +2,23 @@ evoplatform-sdk (Python)
 ========================
 
 Python SDK for EvoPlatform, mirrored method-for-method with
-@evoplatform/sdk-node (../sdk-node). Verifies platform-issued JWTs
+@evoplatform/sdk-node (https://github.com/evomedia-net/evo.platform/tree/main/packages/sdk-node). Verifies platform-issued JWTs
 locally (cached JWKS — no per-request platform call), proxies auth, and
 exposes the client-credential services (billing, email, events) plus the
 Ask AI client for evo-ai.
 
-Synchronous by design: the first consumer is SmartPlant EHS, whose service
-code runs sync (NiceGUI hands blocking work to run.io_bound).
+Synchronous by design: the consuming apps call it from blocking service code
+(DocketMail runs it inside FastAPI def endpoints, which execute on a worker
+thread).
+
+Install
+-------
+
+    pip install evoplatform-sdk
+
+From a checkout of this repo:
+
+    pip install ./packages/sdk-python
 
 Setup
 -----
@@ -70,7 +80,7 @@ Billing (client credentials)
     portal = platform.create_billing_portal(tenant_id=tenant_id, return_url=app_url)
 
 The platform's Stripe webhook then drives the tenant's access to the app
-(paid -> active, failed -> grace -> suspended).
+(paid → active, failed → grace → suspended).
 
 Billing calls are scoped: the tenant must already have the calling app
 enabled, and every redirect URL (success_url, cancel_url, return_url)

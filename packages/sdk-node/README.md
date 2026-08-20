@@ -4,6 +4,22 @@ Node SDK for EvoPlatform. Verifies platform-issued JWTs **locally** (cached JWKS
 per-request platform call), proxies auth, and exposes the client-credential services
 (audit events, email). Mirrored by `evoplatform-sdk` (Python).
 
+## Install
+
+```bash
+npm install @evoplatform/sdk-node
+```
+
+From a checkout of this repo — which is what the bundled templates do — point a
+`file:` dependency at the package instead:
+
+```json
+"@evoplatform/sdk-node": "file:../../packages/sdk-node"
+```
+
+The package builds itself on install (`prepare`), so a checkout is never
+serving a stale `dist/`.
+
 ## Setup
 
 ```ts
