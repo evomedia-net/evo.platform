@@ -2,9 +2,8 @@ evo-app-next
 ============
 
 EvoPlatform's Next.js starter. Multi-tenant, offline-first, standalone by default,
-platform mode with one env flag. Extracted from a production app (SWAG Estimates) — every
+platform mode with one env flag. Extracted from a production app (ProvenSheet) — every
 pattern here has shipped.
-
 
 Quickstart (standalone — no platform needed)
 --------------------------------------------
@@ -18,7 +17,6 @@ Quickstart (standalone — no platform needed)
 
 Sign up creates a workspace (Tenant + OWNER Membership); everything is tenant-scoped.
 
-
 Platform mode
 -------------
 
@@ -27,18 +25,16 @@ to the EvoPlatform service; local Tenant/User/Membership rows are JIT-provisione
 verified JWT claims; email routes through the platform. Remove the flag and the app is
 standalone again — same build.
 
-
 Offline-first sync (the flagship)
 ---------------------------------
 
 - Reads come from a per-tenant Dexie (IndexedDB) replica — instant, works offline.
 - Writes hit Dexie plus an append-only outbox; UI never waits on the network.
-- The sync client drains the outbox to /api/sync and pulls changes by rowVersion
-  cursor (one global Postgres sequence, trigger-assigned; see the init migration).
+- The sync client drains the outbox to /api/sync and pulls changes by **rowVersion
+  cursor** (one global Postgres sequence, trigger-assigned; see the init migration).
 - Conflicts: server-receive-order last-write-wins. Deletes are tombstones. Stale clients
   past the GC horizon get resyncRequired and re-pull from scratch.
 - Multi-tab safe (Web Locks), mid-flight edits never clobbered (outbox coalescing).
-
 
 Replace the example domain
 --------------------------
@@ -47,7 +43,6 @@ Project + Task exist to show the pattern (client-generated ids, tenant scoping,
 tombstones, rowVersion). To adapt: rename the models (keep the last four columns + the
 trigger), update src/lib/sync/protocol.ts / server.ts / client.ts /
 offline/tenantDb.ts field maps, and copy src/lib/data/projects.ts for your writes.
-
 
 Layout
 ------
@@ -67,14 +62,12 @@ Layout
     src/app/(auth)/        login, signup, and the three recovery screens
     src/lib/product.ts     PRODUCT_NAME — rename your app here
 
-
 Tests
 -----
 
 npm test — outbox semantics (fake-indexeddb), password hashing and policy, the
 recovery actions (both modes), and proxy route protection. The sync server logic is
 exercised end-to-end by the app; add DB-backed tests as your domain grows.
-
 
 Account recovery
 ----------------
@@ -100,7 +93,6 @@ Three things here are deliberate and worth keeping if you edit them:
 Email and workspace carry across all the auth screens via sessionStorage
 (src/lib/auth/useAuthHandoff.ts) so nobody retypes an address they just entered.
 Passwords are never stored there.
-
 
 Not included (yet)
 ------------------

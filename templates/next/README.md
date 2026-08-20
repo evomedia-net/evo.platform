@@ -1,7 +1,7 @@
 # evo-app-next
 
 EvoPlatform's Next.js starter. Multi-tenant, **offline-first**, standalone by default,
-platform mode with one env flag. Extracted from a production app (SWAG Estimates) — every
+platform mode with one env flag. Extracted from a production app (ProvenSheet) — every
 pattern here has shipped.
 
 ## Quickstart (standalone — no platform needed)

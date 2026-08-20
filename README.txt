@@ -8,7 +8,7 @@ cloning a starter template — tenancy, auth, RBAC, audit logging, and deploymen
 
 > Status: working v1. The platform service (with admin console), both SDKs (Node and
 > Python), the Next.js template, and the evo new CLI all run and are tested, and are in
-> use by shipped apps. Not yet built: the NiceGUI template — evo new accepts
+> production under three apps: ProvenSheet, CivilCode, and DocketMail. Not yet built: the NiceGUI template — evo new accepts
 > --stack next only. Setup: docs/INSTALL.md (docs/INSTALL.md) · deploy:
 > docs/DEPLOY.md (docs/DEPLOY.md) · design:
 > docs/ARCHITECTURE.md (docs/ARCHITECTURE.md), docs/TEMPLATE_CONTRACT.md (docs/TEMPLATE_CONTRACT.md) · flows:
