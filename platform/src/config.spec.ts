@@ -7,7 +7,7 @@
  * runtime: the service starts, mail sends, and every emailed link is
  * unreachable. Production ran that way for weeks. These pin the fail-fast.
  */
-import { resolvePublicBaseUrl, resolveTrustProxy } from './config';
+import { DEV_SECRET_KEY, resolvePublicBaseUrl, resolveSecretKey, resolveTrustProxy } from './config';
 
 describe('resolvePublicBaseUrl', () => {
   it('falls back to localhost outside production', () => {
@@ -103,5 +103,45 @@ describe('resolveTrustProxy', () => {
     for (const env of [{ NODE_ENV: 'production' }, { TRUST_PROXY: '3' }, {}]) {
       expect(typeof resolveTrustProxy(env as NodeJS.ProcessEnv)).toBe('number');
     }
+  });
+});
+
+describe('resolveSecretKey', () => {
+  const env = (o: Record<string, string>) => o as unknown as NodeJS.ProcessEnv;
+
+  it('falls back to the dev default outside production', () => {
+    expect(resolveSecretKey(env({}))).toBe(DEV_SECRET_KEY);
+    expect(resolveSecretKey(env({ NODE_ENV: 'development' }))).toBe(DEV_SECRET_KEY);
+  });
+
+  // The dev default is published with this repository, so in production it is
+  // a globally known key protecting every tenant's stored SMTP password.
+  it('refuses to start in production when unset', () => {
+    expect(() => resolveSecretKey(env({ NODE_ENV: 'production' }))).toThrow(/not set in production/);
+  });
+
+  it('refuses the dev default in production even when set explicitly', () => {
+    expect(() =>
+      resolveSecretKey(env({ NODE_ENV: 'production', SECRET_KEY: DEV_SECRET_KEY })),
+    ).toThrow(/development default/);
+  });
+
+  // A short key is the other silent failure: it encrypts fine and reads back
+  // fine, so nothing surfaces until someone brute-forces a backup.
+  it('refuses a too-short key in production', () => {
+    expect(() => resolveSecretKey(env({ NODE_ENV: 'production', SECRET_KEY: 'short' }))).toThrow(
+      /at least 32/,
+    );
+  });
+
+  it('accepts a real key in production', () => {
+    const key = 'x'.repeat(48);
+    expect(resolveSecretKey(env({ NODE_ENV: 'production', SECRET_KEY: key }))).toBe(key);
+  });
+
+  it('trims surrounding whitespace, so a copy-paste newline is not a short key', () => {
+    const key = 'y'.repeat(40);
+    expect(resolveSecretKey(env({ NODE_ENV: 'production', SECRET_KEY: `  ${key}
+` }))).toBe(key);
   });
 });

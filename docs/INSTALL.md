@@ -64,7 +64,11 @@ cp .env.example .env
 
 Edit `.env` and set at minimum:
 
-- `SECRET_KEY` — long random string (encrypts stored SMTP passwords).
+- `SECRET_KEY` — long random string (encrypts stored SMTP passwords, signs
+  password-reset tokens). **Production refuses to start** on the dev default
+  or on anything shorter than 32 characters. Generate with
+  `openssl rand -base64 48`, set it once before first use, and back it up:
+  changing it later makes already-stored secrets undecryptable.
   Generate one: `openssl rand -base64 32` or
   `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`
 
@@ -272,7 +276,7 @@ wiring a full login flow is exactly what `templates/next` implements — copy
 |---|---|---|
 | `PORT` | `8200` | HTTP port |
 | `DATABASE_URL` | compose Postgres | platform DB |
-| `SECRET_KEY` | — (**set it**) | AES key for stored SMTP passwords |
+| `SECRET_KEY` | — (**required in production**) | AES key for stored SMTP passwords + reset-token HMAC. Service refuses to start on the dev default or under 32 chars |
 | `KEYS_DIR` | `./keys` | RSA signing keypair location |
 | `JWT_ISSUER` | `evoplatform` | token issuer claim |
 | `ACCESS_TOKEN_TTL_SEC` | `900` | access token lifetime |

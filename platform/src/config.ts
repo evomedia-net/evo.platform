@@ -56,6 +56,51 @@ export function resolvePublicBaseUrl(
   return value;
 }
 
+/** The dev-only default. Named so the guard below can recognise it. */
+export const DEV_SECRET_KEY = 'dev-only-secret-change-me';
+
+/**
+ * The key behind every secret this platform stores at rest.
+ *
+ * It derives the AES-256-GCM key used by encryptSecret/decryptSecret - i.e.
+ * every tenant's SMTP password - and the HMAC behind password-reset tokens.
+ *
+ * The failure mode is why this is guarded rather than merely documented:
+ * unlike PUBLIC_BASE_URL, a wrong value here breaks nothing visible. Mail
+ * still sends, resets still work, and the only symptom appears the day
+ * someone reads a backup. On top of that, this repository is going public,
+ * which turns the dev default into a globally known constant - any
+ * deployment that forgot SECRET_KEY would have every stored SMTP credential
+ * encrypted under a key printed in its own source tree.
+ *
+ * So production refuses to start on the default or on anything too short to
+ * be a real key, the same way it already refuses to email localhost links.
+ */
+export function resolveSecretKey(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = env.SECRET_KEY?.trim();
+  const value = raw || DEV_SECRET_KEY;
+  if (env.NODE_ENV === 'production') {
+    if (value === DEV_SECRET_KEY) {
+      throw new Error(
+        `SECRET_KEY is ${raw ? 'set to the development default' : 'not set'} in production. ` +
+          'It encrypts every stored SMTP password and signs password-reset ' +
+          'tokens, and this default is published in the public repository. ' +
+          'Set it to a long random value (e.g. openssl rand -base64 48). ' +
+          'Changing it later makes existing stored secrets undecryptable, so ' +
+          'set it once, before first use, and keep it backed up.',
+      );
+    }
+    if (value.length < 32) {
+      throw new Error(
+        `SECRET_KEY is ${value.length} characters; production requires at least 32. ` +
+          'It encrypts every stored SMTP password and signs password-reset tokens. ' +
+          'Generate one with: openssl rand -base64 48',
+      );
+    }
+  }
+  return value;
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 8200),
   /**
@@ -108,7 +153,7 @@ export const config = {
     email: process.env.BOOTSTRAP_ADMIN_EMAIL,
     password: process.env.BOOTSTRAP_ADMIN_PASSWORD,
   },
-  secretKey: process.env.SECRET_KEY ?? 'dev-only-secret-change-me',
+  secretKey: resolveSecretKey(),
   keysDir: process.env.KEYS_DIR ?? './keys',
   jwtIssuer: process.env.JWT_ISSUER ?? 'evoplatform',
   accessTtlSec: Number(process.env.ACCESS_TOKEN_TTL_SEC ?? 900),
