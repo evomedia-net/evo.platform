@@ -14,8 +14,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   if (config.trustProxy) {
-    // Behind nginx: rate limiting must see the real client IP, not the proxy's.
-    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+    // Behind nginx: rate limiting and the audit log must see the real client
+    // IP, not the proxy's. A hop count, never `true` - see config.trustProxy.
+    app.getHttpAdapter().getInstance().set('trust proxy', config.trustProxy);
   }
   await app.listen(config.port);
   console.log(`EvoPlatform service listening on :${config.port}`);
