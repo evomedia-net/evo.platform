@@ -31,6 +31,15 @@ function makeDeps(user: Partial<typeof baseUser> | null = {}) {
   return {
     prisma: {
       tenant: { findFirst: jest.fn().mockResolvedValue({ id: 't1', slug: 'acme' }) },
+      // resolveProduct reads the registry: the product name and the sign-in
+      // URL in platform mail come from here, never from the request.
+      app: {
+        findFirst: jest.fn().mockResolvedValue({
+          name: 'acme-app',
+          displayName: 'Acme App',
+          callbackUrls: ['https://acme.example/login'],
+        }),
+      },
       user: {
         findFirst: jest.fn().mockResolvedValue(row),
         findUnique: jest.fn().mockResolvedValue(row),
@@ -210,6 +219,42 @@ describe('workspace lookup', () => {
     deps.prisma.user.findMany = jest.fn().mockResolvedValue([]);
     expect(await makeSvc(deps).listWorkspaces({ email: 'ghost@x.example' })).toEqual({ ok: true });
     expect(deps.email.send).not.toHaveBeenCalled();
+  });
+
+  // An unauthenticated caller used to supply appName and appUrl, which became
+  // the From display name and the button href of a mail sent with the
+  // platform's own SPF/DKIM-aligned identity - listing the victim's real
+  // workspaces, so it read as genuine. Both now come from the app registry.
+  it('takes the product name and sign-in link from the registry, not the caller', async () => {
+    const deps = makeDeps();
+    deps.prisma.user.findMany = jest.fn().mockResolvedValue([
+      { id: 'u1', tenant: { slug: 'acme', name: 'Acme', deletedAt: null } },
+    ]);
+
+    await makeSvc(deps).listWorkspaces({
+      email: 'owner@acme.example',
+      clientId: 'app_1',
+      // Anything else a caller sends is not part of the input type and is
+      // stripped by the global whitelist pipe before it ever gets here.
+    });
+
+    const sent = deps.email.send.mock.calls[0][0];
+    expect(sent.fromName).toBe('Acme App');
+    expect(sent.html).toContain('https://acme.example/login');
+    expect(sent.html).not.toContain('evil');
+  });
+
+  it('falls back to the platform identity when no app is named', async () => {
+    const deps = makeDeps();
+    deps.prisma.user.findMany = jest.fn().mockResolvedValue([
+      { id: 'u1', tenant: { slug: 'acme', name: 'Acme', deletedAt: null } },
+    ]);
+
+    await makeSvc(deps).listWorkspaces({ email: 'owner@acme.example' });
+
+    // No clientId means resolveProduct never touches the registry at all.
+    expect(deps.prisma.app.findFirst).not.toHaveBeenCalled();
+    expect(deps.email.send.mock.calls[0][0].fromName).toBe(config.brand.platformName);
   });
 
   it('never returns the workspaces in the response body', async () => {

@@ -119,12 +119,16 @@ export class EvoPlatform {
    * map an address to its workspaces. appName/appUrl are echoed into the email
    * so the user knows which product to go back to.
    */
-  forgotWorkspace(params: {
-    email: string;
-    appName?: string;
-    appUrl?: string;
-  }): Promise<{ ok: boolean }> {
-    return this.post('/auth/workspaces', params);
+  forgotWorkspace(params: { email: string }): Promise<{ ok: boolean }> {
+    // The client's own id rides along, exactly as forgotPassword does, so the
+    // platform names the product and links home from its own registry. This
+    // took appName/appUrl until the endpoint - which is unauthenticated - was
+    // found to let any caller choose the sender name and link target of a
+    // platform-sent email.
+    return this.post('/auth/workspaces', {
+      ...params,
+      ...(this.opts.clientId ? { clientId: this.opts.clientId } : {}),
+    });
   }
 
   /** Starts recovery. The client's own id rides along so the platform can name
