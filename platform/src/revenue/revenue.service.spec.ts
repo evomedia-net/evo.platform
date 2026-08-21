@@ -189,6 +189,25 @@ describe('RevenueService', () => {
     expect(report.snapshot).toBeNull();
   });
 
+  // Quoting is not a defence against formula injection: Excel and LibreOffice
+  // strip the quotes and evaluate a leading = anyway.
+  //
+  // The by_plan key is built as `${app}|${plan}|${interval}`, so the cell
+  // always starts with the APP name - a nickname can never begin it. That
+  // makes the app name the realistic trigger, and it is set by a platform
+  // admin, so this is defence in depth rather than an attacker path. The
+  // exposed one is the audit export, where the `action` column IS the whole
+  // cell and any client-credentialed app writes it via POST /events.
+  it('csv neutralises a cell that starts with a formula character', async () => {
+    const svc = service(makeStripe({ subs: [sub({}, { id: 'price_x' })] }), [
+      { name: '=HYPERLINK("https://evil.test","open")', stripePriceId: 'price_x' },
+    ]);
+    const csv = svc.toCsv(await svc.report());
+    // Apostrophe-prefixed so a spreadsheet treats it as text, inside the
+    // quoting the commas already required.
+    expect(csv).toContain(`"'=HYPERLINK`);
+  });
+
   it('csv flattens without corrupting keys that carry commas or quotes', async () => {
     const svc = service(
       makeStripe({

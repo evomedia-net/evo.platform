@@ -230,3 +230,48 @@ describe("UsersService.update email", () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 });
+
+
+describe('UsersService.update revokes sessions', () => {
+  // A password change is incident response. Refresh tokens rotate themselves,
+  // so without revocation an attacker keeps minting tokens for the full
+  // REFRESH_TOKEN_TTL_DAYS while the admin believes the account is secured.
+  // The self-service reset already did this; the admin path did not (#129).
+  const makePrisma = () => ({
+    user: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.test',
+        tenantId: 't1',
+        isPlatformAdmin: true,
+      }),
+      update: jest.fn().mockResolvedValue({ id: 'u1', email: 'a@b.test' }),
+      count: jest.fn().mockResolvedValue(5),
+    },
+    refreshToken: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+  });
+
+  it('revokes live refresh tokens when the password is changed', async () => {
+    const prisma = makePrisma();
+    await makeSvc(prisma).update('u1', { password: 'a new long passphrase' });
+
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it('revokes live refresh tokens when a platform admin is demoted', async () => {
+    const prisma = makePrisma();
+    await makeSvc(prisma).update('u1', { isPlatformAdmin: false });
+
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalled();
+  });
+
+  it('leaves sessions alone for an unrelated profile edit', async () => {
+    const prisma = makePrisma();
+    await makeSvc(prisma).update('u1', { firstName: 'Renamed' });
+
+    expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
+  });
+});

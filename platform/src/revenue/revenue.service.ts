@@ -226,7 +226,13 @@ export class RevenueService {
   /** The same figures, flat, for a spreadsheet. */
   toCsv(report: RevenueReport): string {
     const lines: string[] = ['section,key,currency,value'];
-    const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    // A leading = + - @ tab or CR makes a spreadsheet treat the cell as a
+    // formula, and quoting is not a defence: Excel and LibreOffice strip the
+    // quotes and evaluate anyway. Prefixing an apostrophe forces text.
+    const esc = (v: string) => {
+      const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+      return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+    };
     const push = (section: string, key: string, currency: string, value: number | string) =>
       lines.push([esc(section), esc(key), esc(currency), String(value)].join(','));
 

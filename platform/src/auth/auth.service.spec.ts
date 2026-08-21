@@ -190,3 +190,67 @@ describe('AuthService.login', () => {
     expect(prisma.appTenant.findUnique).not.toHaveBeenCalled();
   });
 });
+
+describe('AuthService.refresh tenant gate', () => {
+  const keys = new KeysService();
+  const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  const keysDir = () => mkdtempSync(join(tmpdir(), 'evokeys-'));
+  const user = {
+    id: 'u1',
+    email: 'owner@acme.example',
+    deletedAt: null,
+    emailVerifiedAt: new Date(),
+    isPlatformAdmin: false,
+    isTenantAdmin: true,
+    roles: [],
+    tenantId: 't1',
+  };
+
+  const storedFor = (tenant: Record<string, unknown>) => ({
+    id: 'rt1',
+    revokedAt: null,
+    expiresAt: new Date(Date.now() + 60_000),
+    appClientId: null,
+    user: { ...user, tenant },
+  });
+
+  const makeSvc = (tenant: Record<string, unknown>) => {
+    const prisma = {
+      refreshToken: {
+        findUnique: jest.fn().mockResolvedValue(storedFor(tenant)),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      app: { findFirst: jest.fn().mockResolvedValue(null) },
+      appTenant: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { svc: new AuthService(prisma as any, keys, audit as any), prisma };
+  };
+
+  beforeAll(() => keys.loadOrGenerate(keysDir()));
+
+  // The gate existed on login and not on refresh, so a tenant whose PAST_DUE
+  // grace window had closed kept working indefinitely for anyone holding a
+  // refresh token: each call rotates a fresh 30-day token, and the billing
+  // lockout only ever reached users who fully signed out (security #129).
+  it('refuses once the PAST_DUE grace window has closed', async () => {
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const { svc } = makeSvc({ id: 't1', status: 'PAST_DUE', graceUntil: past, deletedAt: null });
+
+    await expect(svc.refresh('raw')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('still refreshes while the grace window is open', async () => {
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const { svc } = makeSvc({ id: 't1', status: 'PAST_DUE', graceUntil: future, deletedAt: null });
+
+    await expect(svc.refresh('raw')).resolves.toBeDefined();
+  });
+
+  it('still refreshes an ACTIVE tenant', async () => {
+    const { svc } = makeSvc({ id: 't1', status: 'ACTIVE', graceUntil: null, deletedAt: null });
+
+    await expect(svc.refresh('raw')).resolves.toBeDefined();
+  });
+});

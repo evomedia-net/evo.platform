@@ -1505,7 +1505,14 @@ function toCsv(events) {
   const cols = ["createdAt", "action", "tenantId", "userId", "appClientId", "ip", "detail"];
   const cell = (v) => {
     const s = v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    // A leading = + - @ tab or CR makes a spreadsheet treat the cell as a
+    // formula, and quoting is not a defence: Excel and LibreOffice strip the
+    // quotes and evaluate anyway. Prefixing an apostrophe forces text.
+    // The audit `action` column is written by any client-credentialed app via
+    // POST /events, so this is attacker-controlled from an unprivileged
+    // surface; adjacent cells hold tenant ids and detail to exfiltrate.
+    const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+    return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
   };
   return [cols.join(","), ...events.map((e) => cols.map((c) => cell(e[c])).join(","))].join("\r\n");
 }

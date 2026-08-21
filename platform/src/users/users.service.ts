@@ -148,6 +148,27 @@ export class UsersService {
       select: PUBLIC_FIELDS,
     });
 
+    // A password change is incident response: whoever knew the old one may
+    // still hold a refresh token, and refresh rotates itself, so without this
+    // an attacker keeps minting tokens for the full REFRESH_TOKEN_TTL_DAYS
+    // while the admin believes the account is secured. The self-service reset
+    // already does this (account-flows.service.ts, "A reset means the old
+    // credentials may be compromised: end every session"); the admin path did
+    // not. Demoting a platform admin is the same argument.
+    if (dto.password || dto.isPlatformAdmin === false) {
+      const { count } = await this.prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (count > 0) {
+        await this.audit.record('auth.sessions_revoked', {
+          tenantId: existing.tenantId ?? undefined,
+          userId: id,
+          detail: { count, reason: dto.password ? 'password_changed' : 'admin_demoted' },
+        });
+      }
+    }
+
     if (email !== undefined && email !== existing.email) {
       // Recorded because it changes who can sign in. Both addresses are kept:
       // the old one is what makes an unexpected change traceable afterwards.
