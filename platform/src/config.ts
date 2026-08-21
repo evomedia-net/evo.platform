@@ -13,6 +13,32 @@ const LOCAL_BASE_URL = 'http://localhost:8200';
  * localhost links because this quietly fell back to the dev default, so
  * production now refuses to start rather than send unusable mail.
  */
+/**
+ * How many proxy hops to believe in X-Forwarded-For.
+ *
+ * Every deployment of this platform runs behind a reverse proxy, so on is the
+ * useful default. It was previously opt-in via TRUST_PROXY=1, which meant
+ * production ran with it off — and the failure is silent in both places it
+ * matters: `audit_events` recorded the proxy's container address for every
+ * sign-in, and the throttler keyed every client to that same address, so the
+ * whole estate shared one rate-limit bucket instead of one per visitor.
+ *
+ * Returns a hop count, never `true`. X-Forwarded-For is written by the client
+ * and appended to by each proxy; trusting the whole chain lets anyone prepend a
+ * forged address and choose what lands in the audit log. Trusting exactly one
+ * hop means only the address our own proxy appended is believed.
+ *
+ * TRUST_PROXY overrides: "0" disables it (direct exposure, or local dev); any
+ * positive integer sets a deeper chain. Anything unparseable is treated as 0 —
+ * a bad value must not silently grant trust.
+ */
+export function resolveTrustProxy(env: NodeJS.ProcessEnv): number {
+  const raw = (env.TRUST_PROXY ?? '').trim();
+  if (raw === '') return env.NODE_ENV === 'production' ? 1 : 0;
+  const hops = Number(raw);
+  return Number.isInteger(hops) && hops >= 0 ? hops : 0;
+}
+
 export function resolvePublicBaseUrl(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
@@ -59,8 +85,25 @@ export const config = {
     /** Per-IP requests per minute on the public auth surface. */
     authPerMin: Number(process.env.RATE_LIMIT_AUTH_PER_MIN ?? 30),
   },
-  /** Set behind a reverse proxy so throttling sees the real client IP. */
-  trustProxy: process.env.TRUST_PROXY === '1',
+  /**
+   * Whether to believe X-Forwarded-For, i.e. how many proxy hops to trust.
+   *
+   * Every deployment of this platform runs behind a reverse proxy, so the
+   * useful default is on. It used to be opt-in via TRUST_PROXY=1, which meant
+   * production ran with it off - and the failure is silent in both the places
+   * it matters: audit_events recorded the proxy's container address for every
+   * sign-in, and the throttler keyed every client to that same address, so the
+   * whole estate shared one rate-limit bucket instead of one per visitor.
+   *
+   * Deliberately a hop count, never `true`. X-Forwarded-For is written by the
+   * client and appended to by each proxy; trusting the whole chain lets anyone
+   * prepend a forged address and choose what lands in the audit log. Trusting
+   * exactly one hop means only the address our own proxy appended is believed.
+   *
+   * TRUST_PROXY overrides: "0" disables it (direct exposure, or local dev),
+   * any positive integer sets a different hop count for deeper chains.
+   */
+  trustProxy: resolveTrustProxy(process.env),
   bootstrapAdmin: {
     email: process.env.BOOTSTRAP_ADMIN_EMAIL,
     password: process.env.BOOTSTRAP_ADMIN_PASSWORD,
