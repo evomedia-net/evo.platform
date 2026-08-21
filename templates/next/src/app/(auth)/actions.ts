@@ -312,11 +312,10 @@ export async function requestWorkspaceList(
     return { error: "This deployment has a single workspace — leave it blank when signing in" };
   }
   try {
-    await getPlatform().forgotWorkspace({
-      email,
-      appName: PRODUCT_NAME,
-      appUrl: `${appBaseUrl()}/login`,
-    });
+    // No product name or URL: the platform resolves both from the app
+    // registry using the SDK's configured client id. A caller-supplied pair
+    // let anyone put their own sender name and link into platform mail.
+    await getPlatform().forgotWorkspace({ email });
   } catch {
     return { error: "Couldn't reach the sign-in service — try again in a few minutes" };
   }

@@ -149,11 +149,13 @@ export class AccountFlowsService {
    * anyone map an address to the workspaces it belongs to, which is worse
    * than plain account enumeration - it leaks the customer relationship.
    *
-   * ``appName`` lets the calling app say where to sign in, since one platform
-   * serves several and the workspace list alone would not tell the user which
-   * product they were trying to reach.
+   * The calling app is named so the user knows which product they were trying
+   * to reach - one platform serves several. It is identified by ``clientId``
+   * and resolved through the registry: this endpoint is unauthenticated, so a
+   * caller-supplied product name or return URL would let anyone put their own
+   * sender name and link into a mail carrying the platform's identity.
    */
-  async listWorkspaces(input: { email: string; appName?: string; appUrl?: string }) {
+  async listWorkspaces(input: { email: string; clientId?: string }) {
     const ok = { ok: true };
     const email = input.email.toLowerCase();
     if (!allowSend(`workspaces:${email}`)) return ok;
@@ -171,18 +173,20 @@ export class AccountFlowsService {
     // One line per workspace. Kept as text rather than a <ul> so the same
     // value reads correctly in both parts of the message.
     const lines = tenants.map((t) => `${t.slug} — ${t.name}`).join('\n');
-    const productName = input.appName || 'EvoPlatform';
+    // Registry-owned, exactly as requestReset does it: the name and the
+    // link both come from the app record, never from the request body.
+    const product = await resolveProduct(this.prisma, input.clientId);
     const msg = await this.templates.render(
       'workspace_list',
-      { productName, workspaces: lines, signInUrl: input.appUrl ?? '' },
-      input.appUrl,
+      { productName: product.name, workspaces: lines, signInUrl: product.signInUrl },
+      product.signInUrl,
     );
     await this.email.send({
       to: email,
       subject: msg.subject,
       text: msg.text,
       html: msg.html,
-      fromName: productName,
+      fromName: product.name,
     });
     await this.audit.record('auth.workspaces_listed', { userId: users[0]?.id });
     return ok;

@@ -34,15 +34,21 @@ export class WorkspaceLookupDto {
   @IsEmail()
   email!: string;
 
-  /** Shown in the email so the user knows which product they were signing in
-   *  to - one platform serves several apps. */
+  /**
+   * The app asking on the user's behalf. Only the id is accepted - never a
+   * product name or return URL. Both are looked up in the app registry, so
+   * nothing a caller supplies can put an arbitrary sender name or destination
+   * inside a platform-sent email.
+   *
+   * This DTO used to take `appName` and `appUrl` directly. The endpoint is
+   * unauthenticated, so that let anyone send a named victim a mail from the
+   * platform's own SPF/DKIM-aligned identity, listing their real workspaces,
+   * with a sign-in button pointing wherever the caller liked. EmailFlowDto
+   * below was hardened for exactly this; its sibling was missed.
+   */
   @IsOptional()
   @IsString()
-  appName?: string;
-
-  @IsOptional()
-  @IsString()
-  appUrl?: string;
+  clientId?: string;
 }
 
 export class EmailFlowDto {
