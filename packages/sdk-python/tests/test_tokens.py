@@ -19,7 +19,7 @@ import jwt as pyjwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from evoplatform_sdk import EvoPlatform, TokenError
+from evoplatform_sdk import ConfigError, EvoPlatform, TokenError
 
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 KID = "key-1"
@@ -99,6 +99,39 @@ def test_a_token_for_a_different_app_is_rejected():
         p.verify_token(_sign(app="app_other"))
     # ...unless deliberately inspecting foreign tokens.
     assert p.verify_token(_sign(app="app_other"), audience=False)["app"] == "app_other"
+
+
+# Single-purpose tokens are signed with the SAME key and kid as access tokens.
+# The platform refuses them for itself (auth/jwt.guard.ts); the SDK did not, so
+# every app built on it was missing that guard. The passkey login-options
+# endpoint is unauthenticated and hands one to any caller (security #126).
+@pytest.mark.parametrize(
+    "purpose",
+    ["email_verify", "password_reset", "signup_link", "webauthn_auth", "webauthn_reg"],
+)
+def test_a_single_purpose_token_is_not_an_access_token(purpose):
+    p = make_platform(JwksServer())
+    with pytest.raises(TokenError, match="single-purpose"):
+        p.verify_token(_sign(purpose=purpose))
+
+
+def test_the_audience_opt_out_does_not_admit_a_purpose_token():
+    """audience=False is for foreign AUDIENCE, not for a different token type."""
+    p = make_platform(JwksServer())
+    with pytest.raises(TokenError, match="single-purpose"):
+        p.verify_token(_sign(purpose="webauthn_auth"), audience=False)
+
+
+def test_verifying_without_a_client_id_refuses_rather_than_skipping():
+    """Silently skipping degraded verification to "any token this platform ever
+    issued", with no way for a caller to notice. Role names are unique only per
+    app, so a token minted for app A carrying roles:['admin'] then granted admin
+    in app B. Opting out has to be deliberate."""
+    p = make_platform(JwksServer(), client_id=None)
+    with pytest.raises(ConfigError, match="client_id"):
+        p.verify_token(_sign(app="app_any"))
+    # The explicit opt-out still works.
+    assert p.verify_token(_sign(app="app_any"), audience=False)["app"] == "app_any"
 
 
 def test_a_tampered_token_is_rejected():

@@ -49,7 +49,8 @@ describe('EvoPlatform.verifyToken', () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
     const token = signToken({ sub: 'u1', tenant_slug: 'acme', roles: ['admin'] });
-    const claims = (await platform.verifyToken(token)) as Claims;
+    // audience: false - this test is about claim decoding, not app binding.
+    const claims = (await platform.verifyToken(token, { audience: false })) as Claims;
     expect(claims.sub).toBe('u1');
     expect(claims.tenant_slug).toBe('acme');
     expect(claims.roles).toEqual(['admin']);
@@ -58,8 +59,8 @@ describe('EvoPlatform.verifyToken', () => {
   it('caches the JWKS across verifications', async () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
-    await platform.verifyToken(signToken({ sub: 'u1' }));
-    await platform.verifyToken(signToken({ sub: 'u2' }));
+    await platform.verifyToken(signToken({ sub: 'u1' }), { audience: false });
+    await platform.verifyToken(signToken({ sub: 'u2' }), { audience: false });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
@@ -67,7 +68,7 @@ describe('EvoPlatform.verifyToken', () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
     await expect(
-      platform.verifyToken(signToken({ sub: 'u1' }, { expiresIn: -10 })),
+      platform.verifyToken(signToken({ sub: 'u1' }, { expiresIn: -10 }), { audience: false }),
     ).rejects.toBeInstanceOf(TokenError);
   });
 
@@ -102,18 +103,61 @@ describe('EvoPlatform.verifyToken', () => {
     expect(foreign.app).toBe('app_other');
   });
 
-  it('does not enforce audience when the client has no clientId', async () => {
+  // Was: "does not enforce audience when the client has no clientId". Skipping
+  // silently degraded verification to "any token this platform ever issued",
+  // with no way for a caller to notice - and role names are unique only per
+  // app, so a token minted for app A carrying roles:['admin'] then granted
+  // admin in app B. Opting out must be deliberate (security review #126).
+  it('refuses to verify without a clientId rather than skipping the audience check', async () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
-    const claims = await platform.verifyToken(signToken({ sub: 'u1', app: 'app_any' }));
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1', app: 'app_any' })),
+    ).rejects.toBeInstanceOf(ConfigError);
+    // The explicit opt-out still works, for deliberately inspecting foreign tokens.
+    const claims = await platform.verifyToken(signToken({ sub: 'u1', app: 'app_any' }), {
+      audience: false,
+    });
     expect(claims.app).toBe('app_any');
+  });
+
+  // Single-purpose tokens are signed with the same key and kid as access
+  // tokens. The platform refuses them for itself (auth/jwt.guard.ts); the SDK
+  // did not, so every app built on it was missing that guard. The passkey
+  // login-options endpoint is unauthenticated and hands one to any caller.
+  it.each(['email_verify', 'password_reset', 'signup_link', 'webauthn_auth', 'webauthn_reg'])(
+    'rejects a single-purpose %s token presented as an access token',
+    async (purpose) => {
+      const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+      const platform = new EvoPlatform({
+        platformUrl: 'http://platform.test',
+        clientId: 'app_mine',
+        fetchFn,
+      });
+      await expect(
+        platform.verifyToken(signToken({ sub: 'u1', app: 'app_mine', purpose })),
+      ).rejects.toThrow(/single-purpose/);
+    },
+  );
+
+  // The opt-out is for foreign AUDIENCE, not for a different token type.
+  it('rejects a purpose token even when the audience check is opted out', async () => {
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1', purpose: 'webauthn_auth' }), {
+        audience: false,
+      }),
+    ).rejects.toBeInstanceOf(TokenError);
   });
 
   it('rejects a token from another issuer', async () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
     await expect(
-      platform.verifyToken(signToken({ sub: 'u1' }, { issuer: 'someone-else' })),
+      platform.verifyToken(signToken({ sub: 'u1' }, { issuer: 'someone-else' }), {
+        audience: false,
+      }),
     ).rejects.toBeInstanceOf(TokenError);
   });
 
@@ -121,17 +165,19 @@ describe('EvoPlatform.verifyToken', () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
     const token = signToken({ sub: 'u1' });
-    await expect(platform.verifyToken(token.slice(0, -3) + 'abc')).rejects.toBeInstanceOf(
-      TokenError,
-    );
+    await expect(
+      platform.verifyToken(token.slice(0, -3) + 'abc', { audience: false }),
+    ).rejects.toBeInstanceOf(TokenError);
   });
 
   it('re-fetches the JWKS when it sees an unknown kid', async () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
-    await platform.verifyToken(signToken({ sub: 'u1' }));
+    await platform.verifyToken(signToken({ sub: 'u1' }), { audience: false });
     await expect(
-      platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'rotated-kid' })),
+      platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'rotated-kid' }), {
+        audience: false,
+      }),
     ).rejects.toBeInstanceOf(TokenError);
     expect(fetchFn).toHaveBeenCalledTimes(2); // second call = rotation attempt
   });
