@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { newPassword } from "@/lib/auth/password";
 import { getPlatform } from "@/lib/platform";
 import { memberProxyGate, platformErrorResponse } from "@/lib/member-proxy";
 
@@ -20,7 +21,10 @@ export async function GET(req: NextRequest) {
 
 const createSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(8).max(200),
+  // The platform re-validates with its own IsStrongPassword decorator, so
+  // this fails closed either way - but using the shared policy surfaces
+  // the real rule in the form instead of an opaque 400 from the platform.
+  password: newPassword(),
   firstName: z.string().trim().max(100).optional(),
   lastName: z.string().trim().max(100).optional(),
   phone: z.string().trim().max(40).optional(),
