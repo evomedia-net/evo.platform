@@ -87,7 +87,7 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
     }
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findFirst({ where: { email, platformUserId: null } });
   if (existing) {
     return { error: "An account with this email already exists" };
   }
@@ -210,7 +210,7 @@ export async function requestPasswordReset(
     return { error: null };
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findFirst({ where: { email, platformUserId: null } });
   if (user) {
     const raw = await createToken("reset", email, RESET_TTL_MS);
     const link = `${appBaseUrl()}/reset-password?email=${encodeURIComponent(email)}&token=${raw}`;
@@ -262,7 +262,10 @@ export async function resetPassword(
   }
 
   const passwordHash = await hashPassword(password);
-  const updated = await prisma.user.updateMany({ where: { email }, data: { passwordHash } });
+  const updated = await prisma.user.updateMany({
+    where: { email, platformUserId: null },
+    data: { passwordHash },
+  });
   if (updated.count === 0) return { error: "Account not found" };
   await audit("auth.password_reset", { detail: { email } });
 

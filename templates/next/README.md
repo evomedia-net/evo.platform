@@ -24,6 +24,13 @@ to the EvoPlatform service; local Tenant/User/Membership rows are JIT-provisione
 verified JWT claims; email routes through the platform. Remove the flag and the app is
 standalone again — same build.
 
+**Identity in platform mode is `platformUserId`, not the email address.** The platform
+scopes accounts per workspace (`@@unique([tenantId, email])`), so one address is a
+different person, with a different password, in each workspace. Local rows are keyed on
+the access token's `sub`; `email` stays unique only among standalone accounts, via a
+partial index. The session is bound to the workspace that was actually authenticated
+against — never resolved from the user's other memberships.
+
 ## Offline-first sync (the flagship)
 
 - Reads come from a **per-tenant Dexie (IndexedDB) replica** — instant, works offline.
