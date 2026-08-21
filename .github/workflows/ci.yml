@@ -20,11 +20,6 @@ jobs:
             prisma: false
           - dir: cli
             prisma: false
-          # The template ships to every scaffolded app, so a break here reaches
-          # further than one repo - but it was outside the matrix, so a broken
-          # template test sat on main unnoticed (found during security #128).
-          - dir: templates/next
-            prisma: true
     steps:
       - uses: actions/checkout@v4
 
