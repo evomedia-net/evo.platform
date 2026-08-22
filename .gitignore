@@ -48,3 +48,11 @@ build/
 # sweep is staging files by name, not ignoring content the docs need.
 #
 # Scratch captures that are not part of the docs go in the scratchpad, not here.
+
+# Test coverage output
+coverage/
+
+# Local working notes (plans, diagrams, scratch exports). Anything here that
+# should outlive the machine belongs in docs/ under its own name, not in a
+# folder git is told to ignore.
+md/
