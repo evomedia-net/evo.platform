@@ -63,14 +63,7 @@ export class AuthService {
     if (!user.emailVerifiedAt) {
       throw new ForbiddenException('Email not verified');
     }
-    if (tenant) {
-      // PAST_DUE keeps working until the billing grace window closes
-      const graceExpired =
-        tenant.status === 'PAST_DUE' && tenant.graceUntil != null && tenant.graceUntil < new Date();
-      if (tenant.deletedAt || tenant.status === 'SUSPENDED' || graceExpired) {
-        throw new ForbiddenException('Tenant is suspended');
-      }
-    }
+    this.assertTenantUsable(tenant);
     await this.assertAppEnabled(tenant, clientId);
     const result = await this.issueTokens(user, tenant, clientId);
     await this.audit.record('auth.login', {
@@ -102,9 +95,12 @@ export class AuthService {
     if (user.deletedAt) throw new UnauthorizedException('Invalid refresh token');
     if (!user.emailVerifiedAt) throw new ForbiddenException('Email not verified');
     const tenant = user.tenant;
-    if (tenant && (tenant.deletedAt || tenant.status === 'SUSPENDED')) {
-      throw new ForbiddenException('Tenant is suspended');
-    }
+    // The SAME gate login applies. Refresh used to check only deletedAt and
+    // SUSPENDED, so a tenant whose PAST_DUE grace window had closed kept
+    // working forever for anyone holding a refresh token: each call rotates a
+    // fresh 30-day token, and the billing lockout only ever reached users who
+    // fully signed out.
+    this.assertTenantUsable(tenant ?? null);
     await this.assertAppEnabled(tenant ?? null, stored.appClientId ?? undefined);
     // Rotate: revoke the used token, issue a fresh pair
     await this.prisma.refreshToken.update({
@@ -128,6 +124,23 @@ export class AuthService {
    * tenant) and tenant logins without an app scope are not gated here —
    * those are governed by the tenant checks above.
    */
+  /**
+   * Whether a tenant may hold a session at all.
+   *
+   * Shared by login and refresh so the two cannot drift: a check that exists
+   * on one path and not the other is a lockout that only applies to people
+   * who sign out.
+   */
+  private assertTenantUsable(tenant: Tenant | null): void {
+    if (!tenant) return;
+    // PAST_DUE keeps working until the billing grace window closes.
+    const graceExpired =
+      tenant.status === 'PAST_DUE' && tenant.graceUntil != null && tenant.graceUntil < new Date();
+    if (tenant.deletedAt || tenant.status === 'SUSPENDED' || graceExpired) {
+      throw new ForbiddenException('Tenant is suspended');
+    }
+  }
+
   private async assertAppEnabled(tenant: Tenant | null, clientId?: string) {
     if (!tenant || !clientId) return;
     // A soft-deleted app is not enabled for anyone. findFirst because deletedAt

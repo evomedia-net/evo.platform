@@ -305,7 +305,13 @@ model EmailTemplate {
 
 model SmtpConfig {
   id          String  @id @default(uuid())
-  tenantId    String? @unique // null = platform default config
+  /// null = the platform default config. Postgres treats NULLs as distinct, so
+  /// this @unique constrains tenant rows but permits UNLIMITED default rows -
+  /// the same NULL-as-a-kind gap User was fixed for. A partial unique index in
+  /// 20260821000000_smtp_default_unique closes it; Prisma cannot express one,
+  /// so the index lives in the migration and this attribute stays for the
+  /// per-tenant case.
+  tenantId    String? @unique
   tenant      Tenant? @relation(fields: [tenantId], references: [id])
   host        String
   port        Int
