@@ -1,5 +1,10 @@
 {
   "extends": "./tsconfig.json",
+  // Explicit rather than inferred. With the specs excluded, the common
+  // source directory is ./src, and newer TypeScript refuses to guess it
+  // (TS5011) - which only surfaced when the template began running the
+  // package's prepare script through a file: install in CI.
+  "compilerOptions": { "rootDir": "./src" },
   "include": ["src"],
   "exclude": ["src/**/*.spec.ts"]
 }

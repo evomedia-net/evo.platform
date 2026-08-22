@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifySession } from "@/lib/auth/dal";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { hashPassword, newPassword, verifyPassword } from "@/lib/auth/password";
 import { audit } from "@/lib/audit";
 import { isPlatformMode } from "@/lib/platform";
 
@@ -19,7 +19,13 @@ export interface AccountActionState {
 const schema = z
   .object({
     current: z.string().min(1, "Current password is required"),
-    next: z.string().min(8, "Password must be at least 8 characters").max(200),
+    // newPassword() is the NIST/OWASP policy - 12 chars, common-password
+    // blocklist, leet/padding normalization, sequence screening - and the
+    // policy's own rule is "applied when a password is SET or CHANGED".
+    // A bare min(8) here let an authenticated user set "password", which
+    // is 8 characters and a literal member of COMMON_PASSWORDS, defeating
+    // the screening every other path applies.
+    next: newPassword(),
     confirm: z.string(),
   })
   .refine((v) => v.next === v.confirm, {

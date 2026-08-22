@@ -37,7 +37,6 @@ import { defaultWorkspace, getPlatform, isPlatformMode } from "@/lib/platform";
 import { prisma } from "@/lib/prisma";
 import { consumeToken, createToken } from "@/lib/auth/tokens";
 import { passwordResetEmail, sendMail } from "@/lib/email/mailer";
-import { PRODUCT_NAME } from "@/lib/product";
 import { requestPasswordReset, requestWorkspaceList, resetPassword } from "./actions";
 
 function form(fields: Record<string, string>): FormData {
@@ -225,11 +224,11 @@ describe("requestWorkspaceList", () => {
     const res = await requestWorkspaceList(state, form({ email: "Kelly@Example.com" }));
 
     expect(res).toEqual({ error: null });
-    expect(forgotWorkspace).toHaveBeenCalledWith({
-      email: "kelly@example.com",
-      appName: PRODUCT_NAME,
-      appUrl: "http://test.local/login",
-    });
+    // No product name or URL: the platform resolves both from the app
+    // registry via the SDK's configured client id. Passing them let any
+    // caller choose the sender name and link target of platform mail
+    // (security review #124).
+    expect(forgotWorkspace).toHaveBeenCalledWith({ email: "kelly@example.com" });
   });
 
   it("reports an outage rather than confirming mail that never went", async () => {
