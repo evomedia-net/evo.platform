@@ -18,7 +18,9 @@ export class EmailController {
   @HttpCode(200)
   @UseGuards(ClientGuard)
   send(@Body() dto: SendEmailDto, @Req() req: { clientApp: App }) {
-    return this.email.send(dto, req.clientApp.clientId);
+    // The whole app record, not just its client id: the service needs the
+    // primary key to check this app is enabled for the tenant named.
+    return this.email.send(dto, req.clientApp);
   }
 }
 
