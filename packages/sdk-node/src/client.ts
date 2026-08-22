@@ -68,11 +68,41 @@ export class EvoPlatform {
     } catch (err) {
       throw new TokenError(err instanceof Error ? err.message : 'Token verification failed');
     }
-    // Audience check: this app only ever accepts tokens minted for it.
-    if (opts.audience !== false && this.opts.clientId && claims.app !== this.opts.clientId) {
+    // Single-purpose tokens are signed with the SAME key and kid as access
+    // tokens - email_verify, password_reset, signup_link, and the WebAuthn
+    // challenge tokens. The platform refuses them for itself in
+    // auth/jwt.guard.ts; without the same check here, every app built on this
+    // SDK is missing a guard the platform considered necessary.
+    //
+    // It matters because one of those tokens is handed to anyone who asks:
+    // POST /auth/passkeys/login/options is unauthenticated and returns a live
+    // challengeToken for any address. Presented as a Bearer token it would
+    // otherwise satisfy requireAuth.
+    const purpose = (claims as { purpose?: unknown }).purpose;
+    if (purpose !== undefined) {
       throw new TokenError(
-        `Token was issued for app "${claims.app ?? 'none'}", not "${this.opts.clientId}"`,
+        `Token is a single-purpose "${String(purpose)}" token, not an access token`,
       );
+    }
+    // Audience check: this app only ever accepts tokens minted for it.
+    //
+    // Without a clientId there is nothing to compare against, and silently
+    // skipping would degrade verification to "any token this platform ever
+    // issued" with no way for a caller to notice. Refuse instead: opting out
+    // has to be deliberate (`audience: false`), never accidental.
+    if (opts.audience !== false) {
+      if (!this.opts.clientId) {
+        throw new ConfigError(
+          'verifyToken requires clientId so the token can be bound to this app. ' +
+            'Pass clientId to the constructor, or verifyToken(token, { audience: false }) ' +
+            'to deliberately accept tokens minted for any app.',
+        );
+      }
+      if (claims.app !== this.opts.clientId) {
+        throw new TokenError(
+          `Token was issued for app "${claims.app ?? 'none'}", not "${this.opts.clientId}"`,
+        );
+      }
     }
     return claims;
   }

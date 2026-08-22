@@ -77,11 +77,36 @@ class EvoPlatform:
             )
         except pyjwt.PyJWTError as exc:
             raise TokenError(str(exc)) from exc
-        if audience and self._client_id and claims.get("app") != self._client_id:
+        # Single-purpose tokens are signed with the SAME key and kid as access
+        # tokens - email_verify, password_reset, signup_link, and the WebAuthn
+        # challenge tokens. The platform refuses them for itself in
+        # auth/jwt.guard.ts; without the same check here every app built on
+        # this SDK is missing a guard the platform considered necessary.
+        #
+        # One of those tokens is handed to anyone who asks: the passkey
+        # login-options endpoint is unauthenticated and returns a live
+        # challenge token for any address.
+        purpose = claims.get("purpose")
+        if purpose is not None:
             raise TokenError(
-                f'Token was issued for app "{claims.get("app") or "none"}", '
-                f'not "{self._client_id}"'
+                f'Token is a single-purpose "{purpose}" token, not an access token'
             )
+        if audience:
+            # Without a client_id there is nothing to compare against, and
+            # silently skipping would degrade verification to "any token this
+            # platform ever issued". Refuse: opting out must be deliberate.
+            if not self._client_id:
+                raise ConfigError(
+                    "verify_token requires client_id so the token can be bound to "
+                    "this app. Pass client_id to the constructor, or "
+                    "verify_token(token, audience=False) to deliberately accept "
+                    "tokens minted for any app."
+                )
+            if claims.get("app") != self._client_id:
+                raise TokenError(
+                    f'Token was issued for app "{claims.get("app") or "none"}", '
+                    f'not "{self._client_id}"'
+                )
         return claims
 
     # ---- auth proxy (for apps that render their own login form) ----
