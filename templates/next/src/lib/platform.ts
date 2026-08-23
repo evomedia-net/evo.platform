@@ -72,16 +72,28 @@ export async function provisionFromPlatform(result: LoginResult) {
   const existing = await prisma.membership.findUnique({
     where: { userId_tenantId: { userId: user.id, tenantId: tenant.id } },
   });
+  // In platform mode the platform owns roles, so the local row follows the
+  // token's claims -- in BOTH directions. Only raising it (which is what
+  // "never downgrade" amounted to) means a platform-side demotion never
+  // reaches the app: revoke someone's admin there and they keep it here for
+  // as long as the row survives, which is forever.
+  const platformRole = claims.roles.includes("admin") ? "ADMIN" : "MEMBER";
   if (!existing) {
     await prisma.membership.create({
-      data: {
-        userId: user.id,
-        tenantId: tenant.id,
-        role: claims.roles.includes("admin") ? "ADMIN" : "MEMBER",
-      },
+      data: { userId: user.id, tenantId: tenant.id, role: platformRole },
+    });
+  } else if (existing.role !== "OWNER" && existing.role !== platformRole) {
+    // OWNER is exempt, and that is not the old carve-out returning: the
+    // platform has no OWNER concept -- it grants "admin" or nothing -- so it
+    // cannot be the authority for a role it never issues. Reconciling OWNER
+    // against these claims would demote every workspace owner on their next
+    // login. ADMIN and MEMBER are exactly what the platform does say, so
+    // those it decides.
+    await prisma.membership.update({
+      where: { userId_tenantId: { userId: user.id, tenantId: tenant.id } },
+      data: { role: platformRole },
     });
   }
-  // An existing membership keeps its local role (never downgrade an OWNER).
 
   // The tenant is returned, not looked up later: the session must be bound to
   // the workspace that was actually authenticated against. Resolving it from
