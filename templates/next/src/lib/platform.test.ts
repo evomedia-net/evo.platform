@@ -32,7 +32,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     tenant: { upsert: vi.fn() },
     user: { upsert: vi.fn() },
-    membership: { findUnique: vi.fn(), create: vi.fn() },
+    membership: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   },
 }));
 
@@ -106,5 +106,57 @@ describe("provisionFromPlatform", () => {
 
     expect(out).toBeNull();
     expect(prisma.user.upsert).not.toHaveBeenCalled();
+  });
+
+  // The platform owns roles in platform mode, so a demotion there has to reach
+  // the app. Only ever RAISING the local role -- which is what "never
+  // downgrade an OWNER" amounted to in practice -- meant revoking someone's
+  // admin on the platform left them admin here for the life of the row.
+  describe("role reconciliation", () => {
+    beforeEach(() => {
+      verifyToken.mockResolvedValue({
+        sub: "platform-user-1",
+        email: "a@b.test",
+        tenant_slug: "acme",
+        roles: [],
+      });
+    });
+
+    it("lowers ADMIN to MEMBER when the platform no longer grants admin", async () => {
+      vi.mocked(prisma.membership.findUnique).mockResolvedValue({ role: "ADMIN" } as never);
+      await provisionFromPlatform(loginResult("a@b.test", "acme"));
+      expect(prisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { role: "MEMBER" } }),
+      );
+    });
+
+    it("raises MEMBER to ADMIN when the platform grants admin", async () => {
+      verifyToken.mockResolvedValue({
+        sub: "platform-user-1",
+        email: "a@b.test",
+        tenant_slug: "acme",
+        roles: ["admin"],
+      });
+      vi.mocked(prisma.membership.findUnique).mockResolvedValue({ role: "MEMBER" } as never);
+      await provisionFromPlatform(loginResult("a@b.test", "acme"));
+      expect(prisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { role: "ADMIN" } }),
+      );
+    });
+
+    // Not the old carve-out returning: the platform grants "admin" or nothing
+    // and has no OWNER, so reconciling OWNER against these claims would demote
+    // every workspace owner on their next login.
+    it("leaves OWNER alone, because the platform never issues that role", async () => {
+      vi.mocked(prisma.membership.findUnique).mockResolvedValue({ role: "OWNER" } as never);
+      await provisionFromPlatform(loginResult("a@b.test", "acme"));
+      expect(prisma.membership.update).not.toHaveBeenCalled();
+    });
+
+    it("writes nothing when the role already matches", async () => {
+      vi.mocked(prisma.membership.findUnique).mockResolvedValue({ role: "MEMBER" } as never);
+      await provisionFromPlatform(loginResult("a@b.test", "acme"));
+      expect(prisma.membership.update).not.toHaveBeenCalled();
+    });
   });
 });
