@@ -13,7 +13,9 @@ import {
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
 import { PasskeyCredential, User } from '@prisma/client';
+import { createHmac } from 'crypto';
 import { PrismaService } from '../core/prisma.service';
+import { decryptSecret, encryptSecret } from '../core/crypto.util';
 import { KeysService } from '../core/keys.service';
 import { AuditService } from '../audit/audit.service';
 import { config } from '../config';
@@ -42,7 +44,11 @@ export class PasskeysService {
 
   private challengeToken(purpose: string, userId: string, challenge: string, rp: RpContext) {
     return this.keys.sign(
-      { purpose, uid: userId, challenge, rp_id: rp.rpId, origin: rp.origin },
+      // Encrypted, not raw. The token is handed to an UNAUTHENTICATED caller
+      // and a JWT is signed, not secret — anyone who asks for login options
+      // could read the payload. A raw `uid` there hands out the victim's
+      // internal user id for the price of knowing their email address.
+      { purpose, uid: encryptSecret(userId), challenge, rp_id: rp.rpId, origin: rp.origin },
       config.webauthn.challengeTtlSec,
     );
   }
@@ -63,7 +69,22 @@ export class PasskeysService {
     ) {
       throw new UnauthorizedException('Passkey ceremony expired — try again');
     }
-    return claims as { uid: string; challenge: string; rp_id: string; origin: string };
+    let uid: string;
+    try {
+      uid = decryptSecret(claims.uid);
+    } catch {
+      // Not decryptable means not minted by us — including the decoy token an
+      // unknown account gets, whose uid is deliberately undecryptable so it
+      // fails here rather than at a database lookup that would take a
+      // measurably different amount of time.
+      throw new UnauthorizedException('Passkey ceremony expired — try again');
+    }
+    return { ...claims, uid } as {
+      uid: string;
+      challenge: string;
+      rp_id: string;
+      origin: string;
+    };
   }
 
   // ---- registration ----
@@ -144,13 +165,48 @@ export class PasskeysService {
 
   // ---- login ceremony (account gating happens in AuthService.completeLogin) ----
 
-  /** Returns null options when the user has no passkeys — callers hide the option. */
+  /**
+   * Build a login ceremony. ALWAYS returns options, for a known account
+   * and an unknown one alike — the response must not tell the caller which
+   * it was. An unknown account gets decoys that are stable for that
+   * (workspace, email); see decoyCredentials.
+   */
   async loginOptions(tenantSlug: string | undefined, email: string, rp: RpContext) {
     const user = await this.findLoginUser(tenantSlug, email);
     const creds = user
       ? await this.prisma.passkeyCredential.findMany({ where: { userId: user.id } })
       : [];
-    if (!user || creds.length === 0) return { options: null };
+
+    // No `options: null` for an unknown account. That answer proved the
+    // address exists in this workspace AND has a passkey, to anyone who cared
+    // to type it — every other recovery flow here is deliberately
+    // non-enumerating (account-flows.service.ts:40, client.guard.ts:21) and
+    // this one was the exception.
+    if (!user || creds.length === 0) {
+      const options = await generateAuthenticationOptions({
+        rpID: rp.rpId,
+        userVerification: 'preferred',
+        allowCredentials: decoyCredentials(tenantSlug, email),
+      });
+      return {
+        options,
+        // Deliberately not a real ticket: `decoy:` is not ciphertext, so
+        // readChallengeToken fails to decrypt and rejects it the same way an
+        // expired ceremony is rejected. The browser will fail first anyway —
+        // no authenticator holds these credential ids — which is exactly what
+        // a real account with the wrong authenticator looks like.
+        challengeToken: this.keys.sign(
+          {
+            purpose: 'webauthn_auth',
+            uid: `decoy:${options.challenge}`,
+            challenge: options.challenge,
+            rp_id: rp.rpId,
+            origin: rp.origin,
+          },
+          config.webauthn.challengeTtlSec,
+        ),
+      };
+    }
 
     const options = await generateAuthenticationOptions({
       rpID: rp.rpId,
@@ -270,4 +326,37 @@ function strToTransports(raw: string | null): AuthenticatorTransportFuture[] | u
   if (!raw) return undefined;
   const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
   return parts.length ? (parts as AuthenticatorTransportFuture[]) : undefined;
+}
+
+/**
+ * Credential ids for an account that does not exist, or has no passkey.
+ *
+ * Derived, not random, and that is the whole point: random decoys move the
+ * oracle rather than closing it. Ask twice about a real account and the
+ * credential ids match; ask twice about an unknown one and random decoys would
+ * differ, which answers the same question a `null` did.
+ *
+ * HMAC'd with the platform secret so the ids cannot be computed offline to
+ * re-identify which addresses are decoys, and keyed on (workspace, email) —
+ * the same pair the real lookup uses — so one address is one answer forever.
+ *
+ * The count varies 1..3 by the same digest, because a fixed count would itself
+ * be a tell once anyone noticed real accounts rarely have exactly two.
+ */
+function decoyCredentials(
+  tenantSlug: string | undefined,
+  email: string,
+): { id: string; transports?: AuthenticatorTransportFuture[] }[] {
+  const seed = createHmac('sha256', config.secretKey)
+    .update(`webauthn_decoy:${tenantSlug ?? ''}:${email.trim().toLowerCase()}`)
+    .digest();
+  const count = (seed[0] % 3) + 1;
+  return Array.from({ length: count }, (_, i) => ({
+    // base64url, the same shape @simplewebauthn emits for a real credential id.
+    id: createHmac('sha256', config.secretKey)
+      .update(seed)
+      .update(String(i))
+      .digest('base64url')
+      .slice(0, 43),
+  }));
 }

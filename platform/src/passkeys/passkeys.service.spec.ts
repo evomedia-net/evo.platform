@@ -89,9 +89,12 @@ describe('PasskeysService', () => {
     expect(out.options).toEqual({ challenge: 'chal-reg' });
     const claims = keys.verify<Record<string, string>>(out.challengeToken);
     expect(claims.purpose).toBe('webauthn_reg');
-    expect(claims.uid).toBe('u1');
     expect(claims.challenge).toBe('chal-reg');
     expect(claims.rp_id).toBe('localhost');
+    // The token goes to an unauthenticated caller and a JWT is signed, not
+    // secret, so the user id must not be readable in it.
+    expect(claims.uid).not.toBe('u1');
+    expect(claims.uid).not.toContain('u1');
   });
 
   it('challenge tokens never pass the access-token guard', async () => {
@@ -147,11 +150,63 @@ describe('PasskeysService', () => {
     );
   });
 
-  it('hides the passkey option when the user has none', async () => {
+  // The point of these three: POST /auth/passkeys/login/options is public, so
+  // any difference between a real account and an invented one answers "does
+  // this address have an account here" for anyone who asks.
+  it('answers an account with no passkeys the same shape as one with them', async () => {
     prisma.user.findFirst.mockResolvedValue(user);
     prisma.passkeyCredential.findMany.mockResolvedValue([]);
     const out = await svc.loginOptions(undefined, 'owner@acme.example', rp);
-    expect(out).toEqual({ options: null });
+    expect(out.options).not.toBeNull();
+    expect(out.challengeToken).toBeTruthy();
+  });
+
+  it('answers an unknown address with options rather than null', async () => {
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.passkeyCredential.findMany.mockResolvedValue([]);
+    const unknown = await svc.loginOptions(undefined, 'nobody@acme.example', rp);
+
+    prisma.user.findFirst.mockResolvedValue(user);
+    prisma.passkeyCredential.findMany.mockResolvedValue([
+      { credentialId: 'cred-abc', transports: null },
+    ]);
+    const known = await svc.loginOptions(undefined, 'owner@acme.example', rp);
+
+    expect(Object.keys(unknown).sort()).toEqual(Object.keys(known).sort());
+    expect(unknown.options).not.toBeNull();
+  });
+
+  // Random decoys would move the oracle rather than close it: ask twice about
+  // a real account and the credential ids match, so decoys that changed
+  // between calls would answer the same question a null did.
+  it('gives an unknown address the SAME decoys every time', async () => {
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.passkeyCredential.findMany.mockResolvedValue([]);
+    // The generator is mocked and returns a fixed object, so the decoys are
+    // read from what was PASSED to it rather than from the result.
+    const passedIds = (call: number) =>
+      ((generateAuthenticationOptions as jest.Mock).mock.calls[call][0].allowCredentials ?? []).map(
+        (c: { id: string }) => c.id,
+      );
+
+    (generateAuthenticationOptions as jest.Mock).mockClear();
+    await svc.loginOptions(undefined, 'nobody@acme.example', rp);
+    await svc.loginOptions(undefined, 'nobody@acme.example', rp);
+    await svc.loginOptions(undefined, 'someone-else@acme.example', rp);
+
+    expect(passedIds(0)).toEqual(passedIds(1));      // same address, same decoys
+    expect(passedIds(0).length).toBeGreaterThan(0);
+    expect(passedIds(2)).not.toEqual(passedIds(0));  // different address, different decoys
+  });
+
+  it('refuses a decoy challenge token, so the ceremony cannot be completed', async () => {
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.passkeyCredential.findMany.mockResolvedValue([]);
+    const { challengeToken } = await svc.loginOptions(undefined, 'nobody@acme.example', rp);
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      svc.verifyLogin({ id: 'whatever' } as any, challengeToken as string),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('rejects a login assertion for a credential not owned by the challenged user', async () => {
