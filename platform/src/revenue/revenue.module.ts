@@ -7,10 +7,11 @@ import { EmailModule } from '../email/email.module';
 import { RevenueController } from './revenue.controller';
 import { RevenueService } from './revenue.service';
 import { StripeHealthService } from './stripe-health.service';
+import { BillingReadinessService } from './billing-readiness.service';
 
 @Module({
   imports: [EmailModule],
   controllers: [RevenueController],
-  providers: [RevenueService, StripeHealthService],
+  providers: [RevenueService, StripeHealthService, BillingReadinessService],
 })
 export class RevenueModule {}
