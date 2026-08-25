@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import Stripe from 'stripe';
 import { BillingService } from './billing.service';
+import { config, stripeMode } from '../config';
 
 const WEBHOOK_SECRET = 'whsec_test_secret';
 // Real Stripe client (no network calls in these tests) so signature
@@ -69,9 +70,9 @@ const app = { id: 'a1', clientId: 'app_demo', callbackUrls: ['https://app.test/c
 
 // What the app sells. Rows, not a column: two tiers x two billing periods.
 const PRICES = [
-  { id: 'ap1', appId: 'a1', stripePriceId: 'price_app', tier: 'starter', unitAmount: 1000, currency: 'usd', interval: 'month', intervalCount: 1 },
-  { id: 'ap2', appId: 'a1', stripePriceId: 'price_pro_m', tier: 'pro', unitAmount: 5000, currency: 'usd', interval: 'month', intervalCount: 1 },
-  { id: 'ap3', appId: 'a1', stripePriceId: 'price_pro_y', tier: 'pro', unitAmount: 50000, currency: 'usd', interval: 'year', intervalCount: 1 },
+  { id: 'ap1', appId: 'a1', stripePriceId: 'price_app', tier: 'starter', unitAmount: 1000, currency: 'usd', interval: 'month', intervalCount: 1, livemode: false },
+  { id: 'ap2', appId: 'a1', stripePriceId: 'price_pro_m', tier: 'pro', unitAmount: 5000, currency: 'usd', interval: 'month', intervalCount: 1, livemode: false },
+  { id: 'ap3', appId: 'a1', stripePriceId: 'price_pro_y', tier: 'pro', unitAmount: 50000, currency: 'usd', interval: 'year', intervalCount: 1, livemode: false },
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -568,5 +569,95 @@ describe('entitlement', () => {
   it('SUSPENDED is disabled regardless of any deadline', async () => {
     const out = await svcFor({ ...baseAccess, status: 'SUSPENDED' }).entitlement('t1', app);
     expect(out).toMatchObject({ enabled: false, status: 'SUSPENDED' });
+  });
+});
+
+
+// ── Stripe test vs live ──────────────────────────────────────────────────
+//
+// Going live is not one switch: the keys move first, and every price has to be
+// re-registered in the other mode because a test price and a live price are
+// different objects with different ids. The window between those two steps is
+// where a deployment holds prices from the mode it is no longer in — and the
+// only thing worse than checkout failing there is checkout succeeding.
+
+describe('stripeMode', () => {
+  it('reads the mode from the key prefix, so the two cannot disagree', () => {
+    expect(stripeMode('sk_test_abc')).toBe('test');
+    expect(stripeMode('rk_test_abc')).toBe('test');
+    expect(stripeMode('sk_live_abc')).toBe('live');
+    expect(stripeMode('rk_live_abc')).toBe('live');
+  });
+
+  it('reports unset for a missing or unrecognised key rather than guessing', () => {
+    expect(stripeMode(undefined)).toBe('unset');
+    expect(stripeMode('')).toBe('unset');
+    expect(stripeMode('   ')).toBe('unset');
+    expect(stripeMode('pk_test_abc')).toBe('unset'); // publishable key, not a secret
+  });
+});
+
+describe('price mode', () => {
+  const original = config.stripe.mode;
+  afterEach(() => {
+    (config.stripe as { mode: string }).mode = original;
+  });
+  const setMode = (m: 'test' | 'live' | 'unset') => {
+    (config.stripe as { mode: string }).mode = m;
+  };
+
+  it('refuses a test price while running live keys, and says which way round', async () => {
+    setMode('live');
+    const prisma = makePrisma();
+    await expect(
+      makeSvc(prisma).checkout(
+        { priceId: 'price_app', successUrl: 'https://a.test/ok', cancelUrl: 'https://a.test/no' } as never,
+        { id: 'a1', clientId: 'c1', name: 'App' } as never,
+      ),
+    ).rejects.toThrow(/is a test price.*running live keys/s);
+  });
+
+  it('refuses a live price while running test keys', async () => {
+    setMode('test');
+    const live = [{ ...PRICES[0], livemode: true }];
+    const prisma = makePrisma({ ...baseAccess }, live);
+    await expect(
+      makeSvc(prisma).checkout(
+        { priceId: 'price_app', successUrl: 'https://a.test/ok', cancelUrl: 'https://a.test/no' } as never,
+        { id: 'a1', clientId: 'c1', name: 'App' } as never,
+      ),
+    ).rejects.toThrow(/is a live price.*running test keys/s);
+  });
+
+  // Selecting by tier must be gated too: an app that says "pro, yearly" and
+  // never holds a Stripe id is the route this platform recommends.
+  it('refuses a cross-mode price selected by tier, not just by id', async () => {
+    setMode('live');
+    const prisma = makePrisma();
+    await expect(
+      makeSvc(prisma).checkout(
+        { tier: 'pro', interval: 'year', successUrl: 'https://a.test/ok', cancelUrl: 'https://a.test/no' } as never,
+        { id: 'a1', clientId: 'c1', name: 'App' } as never,
+      ),
+    ).rejects.toThrow(/live keys/);
+  });
+
+  it('lists only the prices sellable in the current mode', async () => {
+    setMode('live');
+    const prisma = makePrisma();
+    await makeSvc(prisma).listPrices('a1');
+    expect(prisma.appPrice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ livemode: true }) }),
+    );
+  });
+
+  // An operator registering prices before the key arrives should still see
+  // them, and billing already refuses separately when there is no key.
+  it('filters nothing when no key is configured', async () => {
+    setMode('unset');
+    const prisma = makePrisma();
+    await makeSvc(prisma).listPrices('a1');
+    const where = prisma.appPrice.findMany.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty('livemode');
   });
 });

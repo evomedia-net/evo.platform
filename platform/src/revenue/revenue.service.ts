@@ -61,13 +61,36 @@ export interface RevenueSnapshot {
     refundsYtd: CurrencyAmounts;
     netYtd: CurrencyAmounts;
     refundTreatment: 'refund-month';
+    /** Stripe customer id -> paid invoice totals. Customer ids rather than
+     *  tenant names because this half is a pull from Stripe and knows nothing
+     *  about our tenants; byTenant() does the join. */
+    grossByCustomer: Record<string, CurrencyAmounts>;
+    refundsByCustomer: Record<string, CurrencyAmounts>;
   };
+}
+
+/** One tenant's share of the money, resolved from the Stripe pull. */
+export interface TenantRevenue {
+  tenantId: string;
+  slug: string;
+  name: string;
+  stripeCustomerId: string;
+  grossYtd: CurrencyAmounts;
+  refundsYtd: CurrencyAmounts;
+  netYtd: CurrencyAmounts;
+  subscriptions: { app: string; plan: string; status: string }[];
 }
 
 export interface RevenueReport {
   stale: boolean;
   health: StripeHealth;
   snapshot: RevenueSnapshot | null;
+}
+
+/** Only for ordering a list. Mixing currencies is meaningless as a figure, so
+ *  this is never rendered — the per-currency amounts are what is shown. */
+function sumCents(b: CurrencyAmounts): number {
+  return Object.values(b).reduce((a, c) => a + c, 0);
 }
 
 function addAmount(bucket: CurrencyAmounts, currency: string, cents: number) {
@@ -97,6 +120,82 @@ export class RevenueService {
   ) {
     this.stripe =
       stripeClient ?? (config.stripe.secretKey ? new Stripe(config.stripe.secretKey) : null);
+  }
+
+  /**
+   * The same money, split by tenant instead of by plan.
+   *
+   * Built on top of report() rather than as a second pull: one Stripe fetch
+   * serves both views, so the totals here can never disagree with the totals
+   * on the dashboard — which they would if each ran its own pass over a
+   * moving ledger.
+   *
+   * Attribution is by Stripe customer id, which the platform already stores on
+   * Tenant. A customer with no matching tenant is reported under its own id
+   * rather than dropped: an unattributable payment is a thing an operator
+   * needs to see, not a rounding difference to hide.
+   */
+  async byTenant(): Promise<{ stale: boolean; tenants: TenantRevenue[] }> {
+    const { stale, snapshot } = await this.report();
+    if (!snapshot) return { stale, tenants: [] };
+
+    const customerIds = [
+      ...new Set([
+        ...Object.keys(snapshot.billed.grossByCustomer),
+        ...Object.keys(snapshot.billed.refundsByCustomer),
+      ]),
+    ];
+    if (!customerIds.length) return { stale, tenants: [] };
+
+    const tenants = await this.prisma.tenant.findMany({
+      where: { stripeCustomerId: { in: customerIds } },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        stripeCustomerId: true,
+        appTenants: {
+          where: { stripeSubscriptionId: { not: null } },
+          select: { plan: true, status: true, app: { select: { name: true } } },
+        },
+      },
+    });
+    const byCustomer = new Map(tenants.map((t) => [t.stripeCustomerId as string, t]));
+
+    const rows: TenantRevenue[] = customerIds.map((cust) => {
+      const t = byCustomer.get(cust);
+      const grossYtd = snapshot.billed.grossByCustomer[cust] ?? {};
+      const refundsYtd = snapshot.billed.refundsByCustomer[cust] ?? {};
+      const netYtd: CurrencyAmounts = {};
+      for (const [ccy, cents] of Object.entries(grossYtd)) {
+        netYtd[ccy] = cents - (refundsYtd[ccy] ?? 0);
+      }
+      // A refund in a currency with no gross this year still belongs in net.
+      for (const [ccy, cents] of Object.entries(refundsYtd)) {
+        if (!(ccy in netYtd)) netYtd[ccy] = -cents;
+      }
+      return {
+        tenantId: t?.id ?? '',
+        slug: t?.slug ?? '',
+        // Named rather than blank, so the row reads as "we cannot attribute
+        // this" instead of looking like a tenant whose name failed to load.
+        name: t?.name ?? `(no tenant for ${cust})`,
+        stripeCustomerId: cust,
+        grossYtd,
+        refundsYtd,
+        netYtd,
+        subscriptions: (t?.appTenants ?? []).map((at) => ({
+          app: at.app.name,
+          plan: at.plan,
+          status: at.status,
+        })),
+      };
+    });
+
+    // Biggest payer first: the operator's question is almost always "who is
+    // the revenue", not "who is alphabetically first".
+    rows.sort((a, b) => sumCents(b.netYtd) - sumCents(a.netYtd));
+    return { stale, tenants: rows };
   }
 
   /** The dashboard's one call: figures if possible, cached figures clearly
@@ -170,6 +269,8 @@ export class RevenueService {
     }
 
     const grossByMonth: MonthlyAmounts = {};
+    const grossByCustomer: Record<string, CurrencyAmounts> = {};
+    const refundsByCustomer: Record<string, CurrencyAmounts> = {};
     const grossYtd: CurrencyAmounts = {};
     const taxYtd: CurrencyAmounts = {};
     for await (const invoice of this.stripe.invoices.list({
@@ -186,6 +287,14 @@ export class RevenueService {
       // figure of its own. Older API shapes call it `tax`.
       const tax = (invoice as unknown as { tax: number | null }).tax;
       if (tax) addAmount(taxYtd, invoice.currency, tax);
+      // Who paid it. An invoice with no customer cannot be attributed and is
+      // left out of the per-tenant view rather than guessed at — the system
+      // totals above still count it, so the two may legitimately differ.
+      const cust = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+      if (cust) {
+        grossByCustomer[cust] = grossByCustomer[cust] ?? {};
+        addAmount(grossByCustomer[cust], invoice.currency, invoice.amount_paid);
+      }
     }
 
     const refundsByMonth: MonthlyAmounts = {};
@@ -193,10 +302,26 @@ export class RevenueService {
     for await (const refund of this.stripe.refunds.list({
       created: { gte: since },
       limit: 100,
+      // A Refund references a charge by id; the customer lives on the charge.
+      // Without this expand the per-tenant refund column would silently be
+      // all zeroes, which reads as "nobody was refunded" rather than "we did
+      // not ask".
+      expand: ['data.charge'],
     })) {
       if (refund.status !== 'succeeded') continue;
       addMonthly(refundsByMonth, new Date(refund.created * 1000), refund.currency, refund.amount);
       addAmount(refundsYtd, refund.currency, refund.amount);
+      const ch = refund.charge as unknown as { customer?: string | { id: string } } | string | null;
+      const cust =
+        ch && typeof ch === 'object'
+          ? typeof ch.customer === 'string'
+            ? ch.customer
+            : ch.customer?.id
+          : undefined;
+      if (cust) {
+        refundsByCustomer[cust] = refundsByCustomer[cust] ?? {};
+        addAmount(refundsByCustomer[cust], refund.currency, refund.amount);
+      }
     }
 
     const netYtd: CurrencyAmounts = {};
@@ -219,6 +344,8 @@ export class RevenueService {
         refundsYtd,
         netYtd,
         refundTreatment: 'refund-month',
+        grossByCustomer,
+        refundsByCustomer,
       },
     };
   }

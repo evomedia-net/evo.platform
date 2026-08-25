@@ -26,6 +26,8 @@ export interface PriceFacts {
   /** once | day | week | month | year */
   interval: string;
   intervalCount: number;
+  /** Stripe's own flag for the key that minted this price, not our guess. */
+  livemode: boolean;
 }
 
 /** A one-time price bills in Stripe's payment mode and never renews. */
@@ -97,6 +99,9 @@ export class BillingService {
         currency: 'usd',
         interval: 'month',
         intervalCount: 1,
+        // No key means no way to know, and false is the safe default: a price
+        // recorded as test is refused in live mode rather than charged.
+        livemode: false,
       };
     }
     let price: Stripe.Price;
@@ -122,14 +127,29 @@ export class BillingService {
       currency: price.currency,
       interval: price.recurring?.interval ?? ONCE,
       intervalCount: price.recurring?.interval_count ?? 1,
+      livemode: price.livemode,
     };
   }
 
   /** What an app sells, cheapest first — enough for an app to render its own
-   *  pricing table without holding any Stripe ids in its own code. */
+   *  pricing table without holding any Stripe ids in its own code.
+   *
+   *  Only prices from the mode this deployment is running in. A deployment
+   *  that has registered both a test and a live price for the same tier is the
+   *  normal state during a go-live, and showing both would put two identical
+   *  rows in a customer's pricing table, one of which fails at checkout.
+   *
+   *  When no key is configured the mode is unknowable, so nothing is filtered
+   *  — billing already refuses separately, and an operator setting prices up
+   *  before the key arrives should still see what they registered. */
   listPrices(appId: string) {
+    const mode = config.stripe.mode;
     return this.prisma.appPrice.findMany({
-      where: { appId, sellable: true },
+      where: {
+        appId,
+        sellable: true,
+        ...(mode === 'unset' ? {} : { livemode: mode === 'live' }),
+      },
       orderBy: [{ sortOrder: 'asc' }, { unitAmount: 'asc' }],
       select: {
         stripePriceId: true,
@@ -264,6 +284,27 @@ export class BillingService {
    * what stops a compromised app selling another product, or selling at a
    * price nobody vetted.
    */
+  /**
+   * Refuse a price minted by the other Stripe mode.
+   *
+   * Stripe would refuse it too, but only after the customer has been sent to a
+   * checkout that then fails — and the error it returns names an id, not a
+   * cause. Catching it here turns "checkout is broken" into a sentence that
+   * says which way round the mismatch is, which is the whole difficulty of a
+   * go-live: the keys move first and the prices are re-registered afterwards.
+   */
+  private assertPriceMode(price: { stripePriceId: string; livemode: boolean }) {
+    const mode = config.stripe.mode;
+    if (mode === 'unset') return;
+    const wantLive = mode === 'live';
+    if (price.livemode !== wantLive) {
+      throw new BadRequestException(
+        `Price "${price.stripePriceId}" is a ${price.livemode ? 'live' : 'test'} price, ` +
+          `but this deployment is running ${mode} keys. Register the ${mode} price for this tier.`,
+      );
+    }
+  }
+
   private async resolvePrice(dto: CheckoutDto, app: CallingApp) {
     const prices = await this.prisma.appPrice.findMany({ where: { appId: app.id } });
     if (!prices.length) {
@@ -274,6 +315,7 @@ export class BillingService {
       if (!match) {
         throw new BadRequestException("priceId is not one of this app's registered prices");
       }
+      this.assertPriceMode(match);
       return match;
     }
     if (dto.tier) {
@@ -287,6 +329,7 @@ export class BillingService {
           `This app has no "${dto.tier}" price billed every ${count} ${interval}`,
         );
       }
+      this.assertPriceMode(match);
       return match;
     }
     // One price and no selector is unambiguous; more than one is a real
@@ -294,6 +337,7 @@ export class BillingService {
     if (prices.length > 1) {
       throw new BadRequestException('Specify tier (or priceId): this app sells more than one price');
     }
+    this.assertPriceMode(prices[0]);
     return prices[0];
   }
 

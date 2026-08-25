@@ -179,6 +179,12 @@ model AppPrice {
   // recognises in a pricing table while the price id is what gets charged.
   stripeProductId String
   productName     String
+  // Which Stripe mode this price came from, read from the Price object itself
+  // rather than inferred. A test price and a live price are different objects
+  // with different ids, and a deployment holding both must never offer the
+  // wrong one: test prices in live mode fail at checkout, and live prices in
+  // test mode would be a real charge from a sandbox.
+  livemode        Boolean  @default(false)
   // Cached from Stripe when the price is registered. Safe to cache precisely
   // because Stripe Prices are immutable in these fields - changing an amount
   // or interval means archiving the price and creating a new one - so this

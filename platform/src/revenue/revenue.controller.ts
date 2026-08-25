@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { RevenueService } from './revenue.service';
 import { StripeHealthService } from './stripe-health.service';
+import { BillingReadinessService } from './billing-readiness.service';
 
 /**
  * Operator-only. These read the deployment's own Stripe account, so a tenant
@@ -18,6 +19,7 @@ export class RevenueController {
   constructor(
     private revenue: RevenueService,
     private health: StripeHealthService,
+    private readiness: BillingReadinessService,
   ) {}
 
   /** Figures pulled from Stripe now — or the last good pull, marked stale,
@@ -28,6 +30,21 @@ export class RevenueController {
   }
 
   /** Just the connectivity verdict, cheap enough to poll. */
+  /** Could this deployment take a real payment right now — and if not, what
+   *  is missing. Configuration, not connectivity: /health answers whether
+   *  Stripe is reachable, this answers whether we are set up to use it. */
+  @Get('billing-readiness')
+  billingReadiness() {
+    return this.readiness.check();
+  }
+
+  /** The same money split by tenant instead of by plan — who is paying, what
+   *  they are subscribed to, and what came back as refunds. */
+  @Get('by-tenant')
+  byTenant() {
+    return this.revenue.byTenant();
+  }
+
   @Get('health')
   healthCheck() {
     return this.health.check();
