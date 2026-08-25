@@ -71,8 +71,12 @@ function makeStripe({
 }
 
 // What each price sells, as the registry now records it: price -> app + tier.
-function makePrisma(prices: { name: string; stripePriceId: string; tier?: string }[] = []) {
+function makePrisma(
+  prices: { name: string; stripePriceId: string; tier?: string }[] = [],
+  tenants: unknown[] = [],
+) {
   return {
+    tenant: { findMany: jest.fn().mockResolvedValue(tenants) },
     appPrice: {
       findMany: jest.fn().mockResolvedValue(
         prices.map((p) => ({
@@ -93,8 +97,9 @@ function service(
   stripe: Stripe,
   prices: { name: string; stripePriceId: string; tier?: string }[] = [],
   health = makeHealth(),
+  tenants: unknown[] = [],
 ) {
-  return new RevenueService(makePrisma(prices) as never, health as never, stripe);
+  return new RevenueService(makePrisma(prices, tenants) as never, health as never, stripe);
 }
 
 describe('RevenueService', () => {
@@ -217,5 +222,86 @@ describe('RevenueService', () => {
     const csv = svc.toCsv(await svc.report());
     expect(csv.split('\n')[0]).toBe('section,key,currency,value');
     expect(csv).toContain('"unmapped|Basic, ""Legacy""|month"');
+  });
+});
+
+
+// ── the same money, per tenant ───────────────────────────────────────────
+//
+// "Who is paying us" is a different question from "what are they on", and the
+// answer has to reconcile with the dashboard totals — which it can only do if
+// both come from ONE pull of a ledger that moves.
+
+describe('RevenueService.byTenant', () => {
+  const TENANT = {
+    id: 't1',
+    slug: 'acme',
+    name: 'Acme',
+    stripeCustomerId: 'cus_acme',
+    appTenants: [{ plan: 'pro', status: 'ACTIVE', app: { name: 'Shop' } }],
+  };
+
+  it('attributes paid invoices to the tenant that owns the customer', async () => {
+    const stripe = makeStripe({
+      invoices: [
+        { currency: 'usd', amount_paid: 5000, created: 1, customer: 'cus_acme', status_transitions: { paid_at: 1 } },
+      ],
+    });
+    const out = await service(stripe, [], makeHealth(), [TENANT]).byTenant();
+    expect(out.tenants).toHaveLength(1);
+    expect(out.tenants[0]).toMatchObject({ tenantId: 't1', name: 'Acme', slug: 'acme' });
+    expect(out.tenants[0].grossYtd).toEqual({ usd: 5000 });
+    expect(out.tenants[0].netYtd).toEqual({ usd: 5000 });
+    expect(out.tenants[0].subscriptions).toEqual([{ app: 'Shop', plan: 'pro', status: 'ACTIVE' }]);
+  });
+
+  it('subtracts refunds from that tenant, not from the pool', async () => {
+    const stripe = makeStripe({
+      invoices: [
+        { currency: 'usd', amount_paid: 5000, created: 1, customer: 'cus_acme', status_transitions: { paid_at: 1 } },
+      ],
+      refunds: [
+        { status: 'succeeded', currency: 'usd', amount: 1500, created: 2, charge: { customer: 'cus_acme' } },
+      ],
+    });
+    const out = await service(stripe, [], makeHealth(), [TENANT]).byTenant();
+    expect(out.tenants[0].refundsYtd).toEqual({ usd: 1500 });
+    expect(out.tenants[0].netYtd).toEqual({ usd: 3500 });
+  });
+
+  // Money that cannot be attributed is the operator's problem to see, not
+  // ours to hide by dropping the row.
+  it('shows a paying customer with no matching tenant rather than dropping it', async () => {
+    const stripe = makeStripe({
+      invoices: [
+        { currency: 'usd', amount_paid: 900, created: 1, customer: 'cus_ghost', status_transitions: { paid_at: 1 } },
+      ],
+    });
+    const out = await service(stripe, [], makeHealth(), []).byTenant();
+    expect(out.tenants).toHaveLength(1);
+    expect(out.tenants[0].tenantId).toBe('');
+    expect(out.tenants[0].name).toMatch(/no tenant for cus_ghost/);
+    expect(out.tenants[0].grossYtd).toEqual({ usd: 900 });
+  });
+
+  it('puts the biggest payer first', async () => {
+    const stripe = makeStripe({
+      invoices: [
+        { currency: 'usd', amount_paid: 100, created: 1, customer: 'cus_small', status_transitions: { paid_at: 1 } },
+        { currency: 'usd', amount_paid: 9000, created: 1, customer: 'cus_acme', status_transitions: { paid_at: 1 } },
+      ],
+    });
+    const out = await service(stripe, [], makeHealth(), [TENANT]).byTenant();
+    expect(out.tenants[0].stripeCustomerId).toBe('cus_acme');
+  });
+
+  // An invoice with no customer still counts in the system totals, so the two
+  // views legitimately differ — better than inventing an owner for it.
+  it('leaves an unattributable invoice out of the per-tenant view', async () => {
+    const stripe = makeStripe({
+      invoices: [{ currency: 'usd', amount_paid: 700, created: 1, status_transitions: { paid_at: 1 } }],
+    });
+    const out = await service(stripe, [], makeHealth(), []).byTenant();
+    expect(out.tenants).toEqual([]);
   });
 });

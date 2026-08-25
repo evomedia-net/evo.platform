@@ -38,6 +38,13 @@ export class RevenueController {
     return this.readiness.check();
   }
 
+  /** The same money split by tenant instead of by plan — who is paying, what
+   *  they are subscribed to, and what came back as refunds. */
+  @Get('by-tenant')
+  byTenant() {
+    return this.revenue.byTenant();
+  }
+
   @Get('health')
   healthCheck() {
     return this.health.check();
