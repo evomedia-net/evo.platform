@@ -101,6 +101,15 @@ export function resolveSecretKey(env: NodeJS.ProcessEnv = process.env): string {
   return value;
 }
 
+/** Stripe keys carry their mode in the prefix; read it there rather than
+ *  asking the operator to state it twice and risk the two disagreeing. */
+export function stripeMode(key: string | undefined): 'test' | 'live' | 'unset' {
+  const k = (key ?? '').trim();
+  if (k.startsWith('sk_test_') || k.startsWith('rk_test_')) return 'test';
+  if (k.startsWith('sk_live_') || k.startsWith('rk_live_')) return 'live';
+  return 'unset';
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 8200),
   /**
@@ -168,6 +177,15 @@ export const config = {
     secretKey: process.env.STRIPE_SECRET_KEY,
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
     graceDays: Number(process.env.BILLING_GRACE_DAYS ?? 7),
+    /**
+     * "test" | "live" | "unset", read from the key's own prefix.
+     *
+     * Nothing configures this separately, so the mode and the key can never
+     * disagree — the failure that would matter here is a deployment that
+     * believes it is in test while charging real cards. Same approach evo.ehs
+     * takes (services/plans.py stripe_mode).
+     */
+    mode: stripeMode(process.env.STRIPE_SECRET_KEY),
   },
   webauthn: {
     rpName: process.env.WEBAUTHN_RP_NAME ?? 'evo.platform',
