@@ -166,3 +166,89 @@ describe('TenantsService app access', () => {
     expect(audit.record).toHaveBeenCalledWith('tenant.app_access_removed', expect.anything());
   });
 });
+
+// ── The plain lifecycle: list/get/create/update and the four state moves ────
+//
+// Each state change writes its own audit event; asserting event-per-mutation
+// is what keeps the admin console's history complete rather than "mostly".
+
+describe('TenantsService lifecycle', () => {
+  it('list hides deleted tenants by default and includes them on request', async () => {
+    const prisma: any = makePrisma();
+    prisma.tenant.findMany = jest.fn().mockResolvedValue([tenantRow]);
+    const svc = makeSvc(prisma);
+    await svc.list();
+    expect(prisma.tenant.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { deletedAt: null } }),
+    );
+    await svc.list(true);
+    expect(prisma.tenant.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: {} }),
+    );
+  });
+
+  it('get 404s on an unknown tenant', async () => {
+    const prisma: any = makePrisma();
+    prisma.tenant.findUnique.mockResolvedValue(null);
+    await expect(makeSvc(prisma).get('nope')).rejects.toThrow(NotFoundException);
+  });
+
+  it('create refuses a taken slug', async () => {
+    const prisma: any = makePrisma(); // findUnique resolves an existing tenant
+    await expect(makeSvc(prisma).create({ slug: 'acme', name: 'Acme' } as any))
+      .rejects.toThrow(ConflictException);
+  });
+
+  it('update writes through after the existence check', async () => {
+    const prisma: any = makePrisma();
+    prisma.tenant.update = jest.fn().mockResolvedValue({ ...tenantRow, name: 'Renamed' });
+    const out = await makeSvc(prisma).update('t1', { name: 'Renamed' } as any);
+    expect(out.name).toBe('Renamed');
+    expect(prisma.tenant.update).toHaveBeenCalledWith({ where: { id: 't1' }, data: { name: 'Renamed' } });
+  });
+
+  it.each([
+    ['remove', { deletedAt: expect.any(Date) }, 'tenant.deleted'],
+    ['restore', { deletedAt: null }, 'tenant.restored'],
+    ['suspend', { status: 'SUSPENDED' }, 'tenant.suspended'],
+    ['activate', { status: 'ACTIVE' }, 'tenant.activated'],
+  ] as const)('%s stamps the row and audits it', async (method, data, event) => {
+    const prisma: any = makePrisma();
+    prisma.tenant.update = jest.fn().mockResolvedValue(tenantRow);
+    await (makeSvc(prisma) as any)[method]('t1');
+    expect(prisma.tenant.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 't1' }, data: expect.objectContaining(data) }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(event, expect.objectContaining({ tenantId: 't1' }));
+  });
+});
+
+// ── The access matrix, from the tenant's side ───────────────────────────────
+
+describe('TenantsService.listApps / removeAppAccess', () => {
+  it('lists every app with this tenant’s access state, null where none', async () => {
+    const prisma: any = makePrisma();
+    prisma.appTenant.findMany.mockResolvedValue([{ appId: 'a1', tenantId: 't1', enabled: true }]);
+    const out = await makeSvc(prisma).listApps('t1');
+    expect(out).toHaveLength(2);
+    expect(out[0].access).toMatchObject({ appId: 'a1' });
+    expect(out[1].access).toBeNull();
+  });
+
+  it('removeAppAccess deletes the enablement row and audits app name and client id', async () => {
+    const prisma: any = makePrisma();
+    const out = await makeSvc(prisma).removeAppAccess('t1', 'a1');
+    expect(out).toEqual({ ok: true });
+    expect(prisma.appTenant.deleteMany).toHaveBeenCalledWith({ where: { tenantId: 't1', appId: 'a1' } });
+    expect(audit.record).toHaveBeenCalledWith(
+      'tenant.app_access_removed',
+      expect.objectContaining({ appClientId: 'app_demo' }),
+    );
+  });
+
+  it('removeAppAccess 404s on an unknown app', async () => {
+    const prisma: any = makePrisma();
+    prisma.app.findUnique.mockResolvedValue(null);
+    await expect(makeSvc(prisma).removeAppAccess('t1', 'nope')).rejects.toThrow(NotFoundException);
+  });
+});
