@@ -82,6 +82,26 @@ def test_the_body_uses_evo_ai_field_names():
     assert body["collection"] == "default"
 
 
+# ── the tenant names the customer; user_id names the person ──────────────
+
+def test_the_asking_user_travels_in_the_body_beside_the_tenant_header():
+    """A service key is ONE identity to evo-ai however many humans are behind
+    it. Conversation memory keys on (tenant, user), so without this every user
+    of a customer would share one memory and recall each other's questions."""
+    cap = Capture()
+    ai(cap).ask("q", tenant_id="t1", user_id="u-7")
+    assert cap.last.headers["x-data-tenant"] == "t1"
+    assert json.loads(cap.last.content)["user_id"] == "u-7"
+
+
+def test_omitting_the_user_sends_null_rather_than_dropping_the_field():
+    """Callers with no user context stay valid — evo-ai reads null as the
+    service's own shared memory, not as a malformed request."""
+    cap = Capture()
+    ai(cap).ask("q", tenant_id="t1")
+    assert json.loads(cap.last.content)["user_id"] is None
+
+
 # ── refusals are results, failures are errors ────────────────────────────
 
 def test_gated_and_unconfigured_come_back_as_flags_not_exceptions():

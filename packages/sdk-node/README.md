@@ -141,10 +141,19 @@ const ai = new AskAi({
 const { answer, sources, gated } = await ai.ask({
   question: 'which permits expire this quarter?',
   tenantId: session.tenantId,
+  userId: session.userId,          // who is asking — see below
   sourceTypes: ['permit'],        // inherit your app's permissions
   history: previousTurns,          // so "how many?" resolves
 });
 ```
+
+`tenantId` says whose data to search; `userId` says who is asking. When evo-ai
+has conversation memory enabled it keys remembered turns on the pair — and a
+service key is **one identity** to evo-ai however many humans are behind it, so
+omitting `userId` pools every user of a tenant into a single memory where they
+would recall each other's questions. Derive both from your own session, never
+from the browser. With an `accessToken` the user comes from verified claims and
+`userId` is unnecessary.
 
 Two auth modes, matching the two ways an app is built:
 

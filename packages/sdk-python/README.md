@@ -109,12 +109,20 @@ ai = AskAi(os.environ["EVOAI_URL"], service_key=os.environ["EVOAI_SERVICE_KEY"])
 out = ai.ask(
     "which permits expire this quarter?",
     tenant_id=tenant_id,          # the service key names the app; this names the customer
+    user_id=user_id,              # ...and this names the person asking
     source_types=["permit"],
 )
 out.answer, out.sources
 out.gated         # declined as unrelated to the indexed data — not an error
 out.unconfigured  # no usable model for this tenant — an administrator problem
 ```
+
+`tenant_id` says whose data to search; `user_id` says who is asking. When
+evo-ai has conversation memory enabled it keys remembered turns on the pair —
+and a service key is **one identity** however many humans are behind it, so
+omitting `user_id` pools every user of a tenant into a single memory where they
+would recall each other's questions. Derive both from your own session. With an
+`access_token` the user comes from verified claims and `user_id` is unnecessary.
 
 In platform mode, pass `access_token=` instead of `tenant_id=` and the tenant
 comes from the token's verified claims.

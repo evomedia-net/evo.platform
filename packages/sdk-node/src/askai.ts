@@ -63,6 +63,11 @@ export class AskAi {
       source_types: params.sourceTypes ?? null,
       collection: params.collection ?? 'default',
       allow_actions: params.allowActions ?? false,
+      // Asserts WHICH user is asking, the way X-Data-Tenant asserts which
+      // customer. evo-ai keys conversation memory on the pair; a service key
+      // is one identity, so omitting this pools every user of a tenant into
+      // one memory. Null is the "no user context" case, not an error.
+      user_id: params.userId ?? null,
     };
 
     const res = await this.send('/query', body, this.authHeaders(params));
