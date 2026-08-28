@@ -134,3 +134,75 @@ describe('resolveProduct agrees with the brand record', () => {
     expect(p.name).toBe('evo.ehs');
   });
 });
+
+// ── The database-facing half: forClient, get, set ───────────────────────────
+//
+// compose() above is pure; these three touch prisma and the audit log, and
+// they carry the two behaviours the SDK depends on: null for "use your local
+// file" (never a half-empty record), and clear-by-null in the console.
+
+describe('BrandService against the registry', () => {
+  const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  const appRow = { name: 'swag-estimates', displayName: 'ProvenSheet', brand: null };
+  const makePrisma = (row: unknown = appRow) => ({
+    app: {
+      findFirst: jest.fn().mockResolvedValue(row),
+      findUnique: jest.fn().mockResolvedValue(row),
+      update: jest.fn().mockResolvedValue({}),
+    },
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const make = (prisma: any) => new BrandService(prisma, audit as any);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('forClient answers null for an unknown or deleted client id', async () => {
+    const prisma = makePrisma(null);
+    expect(await make(prisma).forClient('app_gone')).toBeNull();
+    expect(prisma.app.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { clientId: 'app_gone', deletedAt: null } }),
+    );
+  });
+
+  it('forClient composes from the registry row', async () => {
+    const out = await make(makePrisma()).forClient('app_1');
+    expect(out).toEqual({ product: { name: 'ProvenSheet' } });
+  });
+
+  it('get 404s on an unknown app and returns record + resolved otherwise', async () => {
+    await expect(make(makePrisma(null)).get('nope')).rejects.toThrow('App not found');
+    const out = await make(makePrisma()).get('a1');
+    expect(out.brand).toBeNull();
+    expect(out.resolved).toEqual({ product: { name: 'ProvenSheet' } });
+  });
+
+  it('set stores an object record and audits who did it', async () => {
+    const prisma = makePrisma({ id: 'a1' });
+    await make(prisma).set('a1', { product: { name: 'N' } }, 'u7');
+    expect(prisma.app.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { brand: { product: { name: 'N' } } } }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      'app.brand_updated',
+      expect.objectContaining({ userId: 'u7', detail: expect.objectContaining({ cleared: false }) }),
+    );
+  });
+
+  it('set with null clears the record back to the app’s local file', async () => {
+    const prisma = makePrisma({ id: 'a1' });
+    await make(prisma).set('a1', null);
+    const evt = audit.record.mock.calls[0][1] as { detail: { cleared: boolean } };
+    expect(evt.detail.cleared).toBe(true);
+  });
+
+  it('set refuses a non-object record — the reader indexes into product', async () => {
+    const prisma = makePrisma({ id: 'a1' });
+    await expect(make(prisma).set('a1', ['not', 'an', 'object'])).rejects.toThrow('JSON object');
+    await expect(make(prisma).set('a1', 'nope')).rejects.toThrow('JSON object');
+    expect(prisma.app.update).not.toHaveBeenCalled();
+  });
+
+  it('set 404s on an unknown app', async () => {
+    await expect(make(makePrisma(null)).set('nope', {})).rejects.toThrow('App not found');
+  });
+});

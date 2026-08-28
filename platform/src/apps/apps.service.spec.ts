@@ -280,3 +280,135 @@ describe('AppsService.update auditing', () => {
     expect(audit.record).not.toHaveBeenCalledWith('app.updated', expect.anything());
   });
 });
+
+// ── The registration lifecycle: create, update, rotate ──────────────────────
+//
+// The client secret is the sharp edge here: it must come back exactly once,
+// from create (and rotate), while only its bcrypt hash is ever stored. A test
+// asserting that is the difference between "we hash secrets" as a habit and
+// as a checked property.
+
+describe('AppsService create / update / rotateSecret', () => {
+  const appRow = { id: 'a1', clientId: 'app_1', name: 'demo', displayName: 'Demo', deletedAt: null };
+  const makePrisma = (existing: Record<string, unknown> | null = null) => ({
+    app: {
+      findUnique: jest.fn().mockResolvedValue(existing),
+      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...appRow, ...data })),
+      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...appRow, ...data })),
+    },
+  });
+
+  it('refuses a duplicate app name', async () => {
+    const prisma = makePrisma(appRow);
+    await expect(makeSvc(prisma).create({ name: 'demo', displayName: 'Demo' } as any))
+      .rejects.toThrow(ConflictException);
+  });
+
+  it('returns the client secret exactly once and stores only its hash', async () => {
+    const prisma = makePrisma(null);
+    const created = await makeSvc(prisma).create({ name: 'demo', displayName: 'Demo' } as any);
+    expect(created.clientSecret).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+    const stored = prisma.app.create.mock.calls[0][0].data;
+    expect(stored.clientSecretHash).toBeDefined();
+    expect(stored.clientSecretHash).not.toContain(created.clientSecret);
+    expect(stored).not.toHaveProperty('clientSecret');
+    expect(audit.record).toHaveBeenCalledWith('app.created', expect.anything());
+  });
+
+  it('update audits each changed field with its old and new value', async () => {
+    const prisma = makePrisma(null);
+    prisma.app.findUnique.mockResolvedValue({ ...appRow, autoEnroll: true, callbackUrls: [] });
+    await makeSvc(prisma).update('a1', { displayName: 'Renamed', autoEnroll: false } as any);
+    const evt = audit.record.mock.calls.find(([name]) => name === 'app.updated');
+    expect(evt).toBeDefined();
+    const changes = (evt![1] as any).detail;
+    expect(changes.autoEnroll).toEqual({ from: true, to: false });
+    expect(changes.displayName).toMatchObject({ to: 'Renamed' });
+  });
+
+  it('rotateSecret returns a fresh secret and stores only the new hash', async () => {
+    const prisma = makePrisma(null);
+    prisma.app.findUnique.mockResolvedValue(appRow);
+    const out = await makeSvc(prisma).rotateSecret('a1');
+    expect(out.clientId).toBe('app_1');
+    expect(out.clientSecret).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+    const stored = prisma.app.update.mock.calls[0][0].data;
+    expect(stored.clientSecretHash).not.toContain(out.clientSecret);
+    expect(audit.record).toHaveBeenCalledWith('app.secret_rotated', expect.anything());
+  });
+});
+
+// ── The access matrix and the read-side lists ───────────────────────────────
+
+describe('AppsService listTenants / prices / roles', () => {
+  const appRow = { id: 'a1', clientId: 'app_1', name: 'demo', deletedAt: null };
+  const tenants = [
+    { id: 't1', slug: 'acme', name: 'Acme', status: 'active' },
+    { id: 't2', slug: 'beta', name: 'Beta', status: 'active' },
+  ];
+  const makePrisma = () => ({
+    app: { findUnique: jest.fn().mockResolvedValue(appRow) },
+    tenant: { findMany: jest.fn().mockResolvedValue(tenants) },
+    appTenant: { findMany: jest.fn().mockResolvedValue([{ appId: 'a1', tenantId: 't1', enabled: true }]) },
+    appPrice: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockResolvedValue({}),
+    },
+    role: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([roleRow]),
+      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'r2', ...data })),
+    },
+  });
+
+  it('lists every tenant with its access state, null where none granted', async () => {
+    const out = await makeSvc(makePrisma()).listTenants('a1');
+    expect(out).toHaveLength(2);
+    expect(out[0].access).toMatchObject({ tenantId: 't1' });
+    expect(out[1].access).toBeNull();
+  });
+
+  it('listPrices scopes to the app', async () => {
+    const prisma = makePrisma();
+    await makeSvc(prisma).listPrices('a1');
+    expect(prisma.appPrice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { appId: 'a1' } }),
+    );
+  });
+
+  it("removePrice 404s for a price belonging to a different app", async () => {
+    const prisma = makePrisma();
+    prisma.appPrice.findUnique.mockResolvedValue({ id: 'p1', appId: 'OTHER' });
+    await expect(makeSvc(prisma).removePrice('a1', 'p1')).rejects.toThrow(NotFoundException);
+    expect(prisma.appPrice.delete).not.toHaveBeenCalled();
+  });
+
+  it('removePrice deletes and audits the Stripe linkage that went with it', async () => {
+    const prisma = makePrisma();
+    prisma.appPrice.findUnique.mockResolvedValue({
+      id: 'p1', appId: 'a1', tier: 'pro', stripePriceId: 'price_x',
+    });
+    const out = await makeSvc(prisma).removePrice('a1', 'p1');
+    expect(out).toEqual({ ok: true });
+    expect(audit.record).toHaveBeenCalledWith('app.price_removed', expect.anything());
+  });
+
+  it('addRole refuses a duplicate name within the app', async () => {
+    const prisma = makePrisma();
+    prisma.role.findUnique.mockResolvedValue(roleRow);
+    await expect(makeSvc(prisma).addRole('a1', { name: 'admin' } as any))
+      .rejects.toThrow(ConflictException);
+  });
+
+  it('addRole creates and listRoles reads back, both scoped to the app', async () => {
+    const prisma = makePrisma();
+    const role = await makeSvc(prisma).addRole('a1', { name: 'viewer', description: 'ro' } as any);
+    expect(role).toMatchObject({ appId: 'a1', name: 'viewer' });
+    const roles = await makeSvc(prisma).listRoles('a1');
+    expect(prisma.role.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { appId: 'a1' } }),
+    );
+    expect(roles).toEqual([roleRow]);
+  });
+});
