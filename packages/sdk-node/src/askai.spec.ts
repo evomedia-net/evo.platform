@@ -121,6 +121,9 @@ describe('AskAi request body', () => {
       source_types: null,
       collection: 'default',
       allow_actions: false,
+      // No user context is a null, not an omission: evo-ai treats it as the
+      // service's own shared memory rather than rejecting the call.
+      user_id: null,
     });
   });
 
@@ -134,6 +137,7 @@ describe('AskAi request body', () => {
       collection: 'archive',
       allowActions: true,
       history: [{ role: 'user', content: 'earlier' }],
+      userId: 'u-7',
     });
 
     const body = bodyOf(fetchFn);
@@ -141,6 +145,20 @@ describe('AskAi request body', () => {
     expect(body.collection).toBe('archive');
     expect(body.allow_actions).toBe(true);
     expect(body.history).toEqual([{ role: 'user', content: 'earlier' }]);
+    expect(body.user_id).toBe('u-7');
+  });
+
+  it('asserts the user alongside the tenant, so memory is per person', async () => {
+    // A service key is one identity to evo-ai however many humans are behind
+    // it. The tenant travels in a header and the person in the body; without
+    // the second, everyone at a customer shares one conversation memory.
+    const fetchFn = okFetch();
+    const ai = new AskAi({ url: 'http://ai.test', serviceKey: 'svc_k', fetchFn });
+    await ai.ask({ question: 'q', tenantId: 't1', userId: 'u-7' });
+
+    const headers = (fetchFn.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers['X-Data-Tenant']).toBe('t1');
+    expect(bodyOf(fetchFn).user_id).toBe('u-7');
   });
 });
 

@@ -235,6 +235,18 @@ export interface AskParams {
   tenantId?: string;
   /** A platform-issued user token, as an alternative to the service key. */
   accessToken?: string;
+  /**
+   * Who is asking, when evo-ai has conversation memory enabled — it keys
+   * remembered turns on (tenant, user).
+   *
+   * Required with a service key if you want memory to be per-person: the key
+   * is ONE identity to evo-ai however many humans are behind it, so without
+   * this every user of a tenant shares a single memory and would recall each
+   * other's questions. Derive it from your own session, never from the
+   * browser. Unnecessary with an `accessToken`, where evo-ai reads the user
+   * from verified claims. Harmless when memory is off.
+   */
+  userId?: string;
   /** Prior turns, so follow-ups like "how many?" resolve. Keep it recent —
    *  every message is processed on each call. */
   history?: AskMessage[];

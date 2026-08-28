@@ -72,8 +72,17 @@ class AskAi:
         source_types: list[str] | None = None,
         collection: str = "default",
         allow_actions: bool = False,
+        user_id: str | None = None,
     ) -> AskResult:
         """Ask a question against one tenant's indexed data.
+
+        ``user_id`` asserts WHO is asking, the way ``tenant_id`` asserts whose
+        data to search. evo-ai keys conversation memory on the pair, and a
+        service key is ONE identity however many humans are behind it — so
+        without it every user of a tenant shares a single memory and would
+        recall each other's questions. Derive it from your own session.
+        Unnecessary with an ``access_token`` (the user is in the claims), and
+        harmless when memory is off.
 
         Raises ``PlatformError`` on any non-2xx response or timeout. ``gated``
         and ``unconfigured`` come back on the result, not as exceptions.
@@ -84,6 +93,7 @@ class AskAi:
             "source_types": source_types,
             "collection": collection,
             "allow_actions": allow_actions,
+            "user_id": user_id,
         }
         res = self._send(
             "/query", body, self._auth_headers(tenant_id, access_token)
