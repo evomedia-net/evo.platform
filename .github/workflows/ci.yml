@@ -49,3 +49,42 @@ jobs:
       - name: Test
         working-directory: ${{ matrix.dir }}
         run: npm test
+
+  # packages/sdk-python is a published package (evoplatform-sdk), but the
+  # matrix above is Node all the way down - setup-node, npm ci, npm test - so
+  # it gets its own job rather than a fourth entry that shares none of those
+  # steps. Until this existed, its 40 tests had never run in CI (#148).
+  build-test-python:
+    name: build + test (packages/sdk-python, py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # pyproject advertises 3.10 through 3.14. Testing both ends keeps that
+        # claim honest; the versions between them share the same pure-Python
+        # code path, so five near-identical jobs would buy little.
+        python: ["3.10", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: packages/sdk-python/pyproject.toml
+
+      - name: Install
+        working-directory: packages/sdk-python
+        run: pip install -e ".[dev]"
+
+      - name: Test
+        working-directory: packages/sdk-python
+        run: pytest
+
+      # The Node jobs type-check via `npm run build`; the equivalent risk here
+      # is a packaging error, which otherwise only surfaces at publish time.
+      - name: Build (sdist + wheel)
+        working-directory: packages/sdk-python
+        run: |
+          pip install build
+          python -m build
