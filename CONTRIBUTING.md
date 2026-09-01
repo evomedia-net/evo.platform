@@ -24,15 +24,32 @@ created from the bootstrap variables in your `.env`.
 
 ## Running the tests
 
-CI runs the same three suites, so run them before opening a pull request:
+CI runs these suites, so run them before opening a pull request:
 
 ```bash
-cd platform         && npm test    # service: unit + integration
-cd packages/sdk-node && npm test   # SDK
-cd cli              && npm test    # scaffolding CLI
+cd platform            && npm test   # service: unit + integration
+cd packages/sdk-node   && npm test   # Node SDK
+cd cli                 && npm test   # scaffolding CLI
+cd packages/sdk-python && pip install -e ".[dev]" && pytest   # Python SDK
 ```
 
-`npx tsc --noEmit` should also be clean in each.
+`npx tsc --noEmit` should also be clean in each TypeScript package.
+
+### The Next.js template
+
+`templates/next` links the Node SDK as a `file:` dependency, so **build the SDK
+first** — the template's install deliberately does not build it:
+
+```bash
+cd packages/sdk-node && npm ci && npm run build
+cd templates/next    && npm ci && npm test
+```
+
+The SDK builds on `npm pack` and `npm publish`, through its `prepack` script.
+It used to build during a consumer's install, via `prepare` — but a TypeScript
+build there depends on devDependencies (`@types/node`, for the `fetch` and
+`AbortSignal` globals) that a consumer install never provides, which is what
+kept the template out of CI.
 
 ## Pull requests
 
