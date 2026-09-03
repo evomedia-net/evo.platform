@@ -287,6 +287,7 @@ wiring a full login flow is exactly what `templates/next` implements — copy
 | `EMAIL_APP_QUOTA_PER_MIN` / `EMAIL_APP_QUOTA_PER_DAY` | `60` / `1000` | per-app ceiling on `POST /email/send`; a breach answers 429 and is audited as `email.quota_exceeded` |
 | `WEBAUTHN_RP_NAME` | `EvoPlatform` | passkey RP display name |
 | `WEBAUTHN_BASE_DOMAINS` | empty | allowed passkey domains (loopback always OK) |
+| `WEBAUTHN_USER_VERIFICATION` | `required` | passkeys must prove the person (PIN or biometric); `preferred` accepts possession alone for authenticators that cannot verify |
 
 SMTP resolution order per send: tenant config (`PUT /admin/smtp` with
 `tenantId`) → platform default (`PUT /admin/smtp` without) → env fallback.
@@ -318,7 +319,10 @@ SMTP resolution order per send: tenant config (`PUT /admin/smtp` with
 - **Passkeys**: set `WEBAUTHN_BASE_DOMAINS=yourdomain.com` so one passkey works
   on the apex and every tenant subdomain. HTTPS is required outside loopback.
   Note that `rpId` is the base domain, so passkeys do **not** carry across two
-  different base domains — see `docs/RENAMING.md`.
+  different base domains — see `docs/RENAMING.md`. Ceremonies require user
+  verification by default, so a stolen security key with no PIN is not a
+  session; set `WEBAUTHN_USER_VERIFICATION=preferred` only if your
+  authenticators cannot verify users.
 - **Branding**: `BRAND_COMPANY` names the company in the footer of every
   platform email (default `Evomedia.net LLC`), and `BRAND_PLATFORM_NAME` is
   what the platform calls itself in mail about its own accounts. Products are

@@ -211,6 +211,18 @@ export const config = {
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
     challengeTtlSec: Number(process.env.WEBAUTHN_CHALLENGE_TTL_SEC ?? 300),
+    /**
+     * Whether a passkey ceremony must prove the person, not only the key.
+     * 'required' (the default) makes the authenticator verify a PIN or a
+     * biometric, so a stolen security key with no PIN is not a session.
+     * 'preferred' accepts possession alone - the old behaviour - for a
+     * deployment whose authenticators cannot verify users (#161). Applied to
+     * registration as well as login, so a key that cannot verify is refused
+     * when it is enrolled rather than when it is needed.
+     */
+    userVerification: (process.env.WEBAUTHN_USER_VERIFICATION === 'preferred'
+      ? 'preferred'
+      : 'required') as 'required' | 'preferred',
   },
   alerts: {
     /** Operational alerts (Stripe connectivity, billing failures). Unset =
