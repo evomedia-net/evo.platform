@@ -31,7 +31,8 @@ export class PushEventDto {
 /** Apps push their own audit events here, authenticated by client credentials.
  *  The service, not the controller, decides what an app may write: the tenant
  *  must be one it is enabled for, the user must belong to it, and the action
- *  must not wear a platform namespace (#154). */
+ *  is stored under the app's own name so it can never read as a platform
+ *  event (#154). */
 @Controller('events')
 export class EventsController {
   constructor(private audit: AuditService) {}

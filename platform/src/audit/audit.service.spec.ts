@@ -53,7 +53,7 @@ describe('AuditService.list', () => {
 // row was caller-supplied. Any app holding any valid client secret could write
 // `auth.login` against a workspace it was never enabled for (#154).
 describe('AuditService.recordFromApp', () => {
-  const app = { id: 'app-row-1', clientId: 'app_swag' };
+  const app = { id: 'app-row-1', clientId: 'app_swag', name: 'swag' };
 
   it('records an app event against a tenant the app is enabled for', async () => {
     const prisma = makePrisma();
@@ -68,7 +68,7 @@ describe('AuditService.recordFromApp', () => {
     });
     expect(prisma.auditEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        action: 'estimate.created',
+        action: 'swag.estimate.created',
         tenantId: 't1',
         userId: 'u1',
         appClientId: 'app_swag',
@@ -99,14 +99,16 @@ describe('AuditService.recordFromApp', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('refuses actions that wear a platform namespace, whatever the case', async () => {
+  // The starter template's own audit() pushes auth.signup and friends, so a
+  // blocklist would have dropped real events. Namespacing keeps them and still
+  // makes a row that reads `auth.login` provably the platform's own.
+  it('stores every app event under the app name, so it can never read as a platform event', async () => {
     const prisma = makePrisma();
-    for (const action of ['auth.login', 'Admin.bootstrapped', 'billing.paid', 'tenant.created']) {
-      await expect(
-        makeSvc(prisma).recordFromApp(app, { action, tenantId: 't1' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+    for (const action of ['auth.login', 'auth.signup', 'billing.paid']) {
+      await makeSvc(prisma).recordFromApp(app, { action, tenantId: 't1' });
     }
-    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+    const stored = prisma.auditEvent.create.mock.calls.map((c) => c[0].data.action);
+    expect(stored).toEqual(['swag.auth.login', 'swag.auth.signup', 'swag.billing.paid']);
   });
 
   it('bounds the detail payload', async () => {
@@ -122,7 +124,7 @@ describe('AuditService.recordFromApp', () => {
     await makeSvc(prisma).recordFromApp(app, { action: 'sync.completed' });
     expect(prisma.appTenant.findUnique).not.toHaveBeenCalled();
     expect(prisma.auditEvent.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ action: 'sync.completed', appClientId: 'app_swag' }),
+      data: expect.objectContaining({ action: 'swag.sync.completed', appClientId: 'app_swag' }),
     });
   });
 });

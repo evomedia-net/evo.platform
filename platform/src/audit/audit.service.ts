@@ -6,22 +6,6 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../core/prisma.service';
 
-/**
- * Action namespaces the platform writes itself. An app's own events must not
- * be able to wear these names in the trail: a row that says `auth.login`
- * should always mean the platform saw a login (#154).
- */
-export const RESERVED_ACTION_PREFIXES = [
-  'auth.',
-  'admin.',
-  'tenant.',
-  'user.',
-  'app.',
-  'billing.',
-  'email.',
-  'audit.',
-];
-
 /** Enough for a structured detail record; not enough to bloat the table. */
 export const MAX_APP_EVENT_DETAIL_BYTES = 4096;
 
@@ -48,21 +32,20 @@ export class AuditService {
    * An event pushed by a registered app over client credentials.
    *
    * Three things the plain record() path trusts, because its callers are the
-   * platform's own services, cannot be trusted here: the tenant named must be
-   * one the app is enabled for, the user named must belong to that tenant,
-   * and the action must not impersonate a platform event. Without the first
-   * check any app holding any valid client secret could write rows against
-   * every workspace on the platform (#154) - the same gate
-   * BillingService.requireRelationship and EmailService.send apply.
+   * platform's own services, cannot be trusted here. The tenant named must be
+   * one the app is enabled for - without that check any app holding any valid
+   * client secret could write rows against every workspace on the platform
+   * (#154), the same gate BillingService.requireRelationship and
+   * EmailService.send apply. The user named must belong to that tenant. And
+   * the action is stored under the app's own namespace, `<app name>.<action>`,
+   * so a row that reads `auth.login` can only ever have been written by the
+   * platform: an app's `auth.signup` lands as `civilcode.auth.signup`. A
+   * blocklist of platform prefixes would have done the same job by refusing,
+   * but the starter template's own audit() pushes `auth.*` events, so refusing
+   * would have silently dropped them from every app built on it.
    */
-  async recordFromApp(app: { id: string; clientId: string }, input: AppEventInput) {
-    const action = input.action.trim();
-    const lower = action.toLowerCase();
-    if (RESERVED_ACTION_PREFIXES.some((prefix) => lower.startsWith(prefix))) {
-      throw new BadRequestException(
-        `action "${action}" uses a platform-reserved prefix; name app events after the product (e.g. "estimate.created")`,
-      );
-    }
+  async recordFromApp(app: { id: string; clientId: string; name: string }, input: AppEventInput) {
+    const action = `${app.name}.${input.action.trim()}`;
     if (input.detail !== undefined) {
       const bytes = Buffer.byteLength(JSON.stringify(input.detail) ?? '', 'utf8');
       if (bytes > MAX_APP_EVENT_DETAIL_BYTES) {

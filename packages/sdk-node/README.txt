@@ -81,6 +81,8 @@ Services
     await platform.sendEmail({ to, subject, html });          // tenant SMTP → default → env
     await platform.pushEvent({ action: 'thing.created', tenantId, detail });
 
+Pushed events are stored under the app's registry name (my-app.thing.created), so an app event can never read as one of the platform's own, and tenantId must be a workspace the app is enabled for.
+
 Billing (client credentials)
 ----------------------------
 
