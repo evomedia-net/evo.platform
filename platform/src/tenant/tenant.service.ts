@@ -81,10 +81,19 @@ export class TenantService {
     }));
   }
 
-  /** 404 (not 403) for users outside the tenant — their existence is not revealed. */
+  /**
+   * 404 (not 403) for users outside the tenant — their existence is not
+   * revealed.
+   *
+   * A platform admin whose row happens to live in this tenant is not a member
+   * this surface may touch. Deactivating the person who administers the
+   * platform, or stripping their roles, is not a tenant admin's call, and the
+   * console is where that account is managed (#157). They still appear in
+   * list(): membership is a fact, mutation is the privilege.
+   */
   private async getMember(tenantId: string, id: string) {
     const member = await this.prisma.user.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, isPlatformAdmin: false },
       select: MEMBER_FIELDS,
     });
     if (!member) throw new NotFoundException('Member not found');
