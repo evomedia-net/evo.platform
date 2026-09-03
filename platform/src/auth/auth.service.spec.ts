@@ -223,19 +223,22 @@ describe('AuthService.refresh tenant gate', () => {
     tenantId: 't1',
   };
 
-  const storedFor = (tenant: Record<string, unknown>) => ({
+  const storedFor = (tenant: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
     id: 'rt1',
+    userId: 'u1',
     revokedAt: null,
     expiresAt: new Date(Date.now() + 60_000),
     appClientId: null,
     user: { ...user, tenant },
+    ...extra,
   });
 
-  const makeSvc = (tenant: Record<string, unknown>) => {
+  const makeSvc = (tenant: Record<string, unknown>, extra: Record<string, unknown> = {}) => {
     const prisma = {
       refreshToken: {
-        findUnique: jest.fn().mockResolvedValue(storedFor(tenant)),
+        findUnique: jest.fn().mockResolvedValue(storedFor(tenant, extra)),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 2 }),
         create: jest.fn().mockResolvedValue({}),
       },
       app: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -269,5 +272,74 @@ describe('AuthService.refresh tenant gate', () => {
     const { svc } = makeSvc({ id: 't1', status: 'ACTIVE', graceUntil: null, deletedAt: null });
 
     await expect(svc.refresh('raw')).resolves.toBeDefined();
+  });
+});
+
+describe('AuthService.refresh reuse detection', () => {
+  const keys = new KeysService();
+  const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  const active = { id: 't1', status: 'ACTIVE', graceUntil: null, deletedAt: null };
+
+  const makeSvc = (revokedAt: Date) => {
+    const prisma = {
+      refreshToken: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'rt1',
+          userId: 'u1',
+          revokedAt,
+          expiresAt: new Date(Date.now() + 60_000),
+          appClientId: 'app_demo',
+          user: {
+            id: 'u1',
+            tenantId: 't1',
+            email: 'owner@acme.example',
+            deletedAt: null,
+            emailVerifiedAt: new Date(),
+            isPlatformAdmin: false,
+            isTenantAdmin: false,
+            roles: [],
+            tenant: active,
+          },
+        }),
+        update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 3 }),
+        create: jest.fn(),
+      },
+      app: { findFirst: jest.fn() },
+      appTenant: { findUnique: jest.fn() },
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { svc: new AuthService(prisma as any, keys, audit as any), prisma };
+  };
+
+  beforeAll(() => keys.loadOrGenerate(mkdtempSync(join(tmpdir(), 'evokeys-'))));
+  beforeEach(() => jest.clearAllMocks());
+
+  // Rotation means exactly one party ever holds the live token. A revoked one
+  // coming back means two do, and before this the replay was simply refused
+  // while the thief kept a valid chain for the full 30 days (#158).
+  it('treats a revoked token coming back as theft: every session ends and it is recorded', async () => {
+    const { svc, prisma } = makeSvc(new Date(Date.now() - 60_000));
+
+    await expect(svc.refresh('raw')).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      'auth.refresh_reuse_detected',
+      expect.objectContaining({ userId: 'u1', tenantId: 't1', appClientId: 'app_demo' }),
+    );
+    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a replay inside the grace window without ending the family (two tabs racing)', async () => {
+    const { svc, prisma } = makeSvc(new Date(Date.now() - 2_000));
+
+    await expect(svc.refresh('raw')).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,14 @@ import { sha256 } from '../core/crypto.util';
 import { config } from '../config';
 import { LoginDto } from './dto';
 
+/**
+ * How long after revocation a replay is treated as a race rather than theft.
+ * Two tabs refreshing at the same moment present the same token; the loser
+ * is not an attacker, and ending every session for it would log people out
+ * of their own app for doing nothing wrong.
+ */
+export const REFRESH_REUSE_GRACE_MS = 10_000;
+
 export type UserWithRoles = Prisma.UserGetPayload<{
   include: { roles: { include: { role: { include: { app: true } } } } };
 }>;
@@ -95,9 +103,12 @@ export class AuthService {
         },
       },
     });
-    if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
+    if (!stored) throw new UnauthorizedException('Invalid refresh token');
+    if (stored.revokedAt) {
+      await this.onRefreshReuse(stored);
       throw new UnauthorizedException('Invalid refresh token');
     }
+    if (stored.expiresAt < new Date()) throw new UnauthorizedException('Invalid refresh token');
     const user = stored.user;
     if (user.deletedAt) throw new UnauthorizedException('Invalid refresh token');
     if (!user.emailVerifiedAt) throw new ForbiddenException('Email not verified');
@@ -115,6 +126,38 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     return this.issueTokens(user, tenant ?? null, stored.appClientId ?? undefined);
+  }
+
+  /**
+   * A revoked refresh token coming back is the one signal theft leaves
+   * behind. Rotation means exactly one party ever holds the live token, so a
+   * second presentation means two do: whoever used it first was either the
+   * thief or the victim, and either way the chain is compromised. Before this
+   * the replay was simply refused, and an attacker who had stolen and rotated
+   * a token kept a valid chain for the full 30 days while the real client
+   * silently failed (#158). Now every session for the user ends and the
+   * event is recorded; the legitimate client signs in again, the attacker's
+   * chain dies with it.
+   */
+  private async onRefreshReuse(stored: {
+    userId: string;
+    revokedAt: Date | null;
+    appClientId: string | null;
+    user: { tenantId: string | null };
+  }): Promise<void> {
+    if (stored.revokedAt && Date.now() - stored.revokedAt.getTime() < REFRESH_REUSE_GRACE_MS) {
+      return;
+    }
+    const { count } = await this.prisma.refreshToken.updateMany({
+      where: { userId: stored.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.audit.record('auth.refresh_reuse_detected', {
+      tenantId: stored.user.tenantId ?? undefined,
+      userId: stored.userId,
+      appClientId: stored.appClientId ?? undefined,
+      detail: { revoked: count },
+    });
   }
 
   async logout(rawToken: string) {
