@@ -284,6 +284,7 @@ wiring a full login flow is exactly what `templates/next` implements — copy
 | `SMTP_HOST/PORT/SECURE/USERNAME/PASSWORD/FROM` | Mailpit | env-level email fallback |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | unset | billing (503 until set) |
 | `BILLING_GRACE_DAYS` | `7` | PAST_DUE grace before lockout |
+| `EMAIL_APP_QUOTA_PER_MIN` / `EMAIL_APP_QUOTA_PER_DAY` | `60` / `1000` | per-app ceiling on `POST /email/send`; a breach answers 429 and is audited as `email.quota_exceeded` |
 | `WEBAUTHN_RP_NAME` | `EvoPlatform` | passkey RP display name |
 | `WEBAUTHN_BASE_DOMAINS` | empty | allowed passkey domains (loopback always OK) |
 
@@ -331,6 +332,9 @@ SMTP resolution order per send: tenant config (`PUT /admin/smtp` with
   the editor.
 - **TLS/routing**: put the platform and apps behind your reverse proxy; the
   service itself speaks plain HTTP.
+- **One container**: the recovery-mail limiter and the per-app email quota are
+  in-process counters. Run a single platform container, or put a shared rate
+  limiter in front of it, before scaling horizontally.
 
 ## 10. Troubleshooting
 

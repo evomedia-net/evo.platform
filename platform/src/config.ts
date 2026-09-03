@@ -140,6 +140,20 @@ export const config = {
     authPerMin: Number(process.env.RATE_LIMIT_AUTH_PER_MIN ?? 30),
   },
   /**
+   * Per-app ceilings on POST /email/send, per minute and per day.
+   *
+   * An app-originated send that names no tenant uses the platform's default
+   * relay, and its recipient, subject and body are the caller's. That is the
+   * design - apps send their own transactional mail - but it also means one
+   * leaked client secret is an SPF/DKIM-aligned relay under the platform's
+   * sending domain, bounded until now only by the per-IP throttle. The quota
+   * bounds it per app instead, and a breach is audited so it is seen (#155).
+   */
+  emailAppQuota: {
+    perMin: Number(process.env.EMAIL_APP_QUOTA_PER_MIN ?? 60),
+    perDay: Number(process.env.EMAIL_APP_QUOTA_PER_DAY ?? 1000),
+  },
+  /**
    * Whether to believe X-Forwarded-For, i.e. how many proxy hops to trust.
    *
    * Every deployment of this platform runs behind a reverse proxy, so the
