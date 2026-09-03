@@ -59,8 +59,33 @@ describe('TenantService', () => {
       NotFoundException,
     );
     expect(prisma.user.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'other-tenant-user', tenantId: 't1' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'other-tenant-user', tenantId: 't1' }),
+      }),
     );
+  });
+
+  // A platform admin's row may live inside a tenant (account-flows.service.ts
+  // documents why). To /tenant/* that row used to be an ordinary member, so a
+  // tenant admin could deactivate the person who administers the platform,
+  // or strip their roles (#157).
+  it("keeps a platform admin's in-tenant row out of reach of every mutation", async () => {
+    const prisma = makePrisma();
+    prisma.user.findFirst.mockResolvedValue(null); // the where clause excludes it
+    const svc = makeSvc(prisma);
+
+    await expect(svc.deactivate('t1', 'admin', 'pa1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.update('t1', 'admin', 'pa1', { firstName: 'X' })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(svc.restore('t1', 'admin', 'pa1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.setRoles('t1', 'admin', 'pa1', [])).rejects.toBeInstanceOf(NotFoundException);
+
+    for (const call of prisma.user.findFirst.mock.calls) {
+      expect(call[0].where).toMatchObject({ tenantId: 't1', isPlatformAdmin: false });
+    }
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.userRole.deleteMany).not.toHaveBeenCalled();
   });
 
   it('create scopes the member to the tenant and audits the actor', async () => {
