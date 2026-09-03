@@ -117,6 +117,32 @@ export function scaffold(opts: NewOptions): string {
   return target;
 }
 
+/** Characters cmd.exe would read as syntax if a path ever had to pass through it. */
+const CMD_METACHARACTERS = /[&|<>^"%!]/;
+
+/**
+ * How to run npm without a shell.
+ *
+ * On Unix the binary runs directly. On Windows npm is a .cmd, which Node
+ * refuses to spawn without a shell since CVE-2024-27980 - and with a shell,
+ * every argument is joined into one cmd.exe command line, so the vendor
+ * directory (built from the operator's own --dir) was being parsed by the
+ * shell. The npm CLI entry that ships next to node.exe runs under node
+ * itself, no shell involved (#168). The shell path survives only as a
+ * fallback for a node install without that file, and then the one argument
+ * that came from outside is checked first.
+ */
+export function npmInvocation(
+  execPath: string = process.execPath,
+  platform: NodeJS.Platform = process.platform,
+  exists: (p: string) => boolean = fs.existsSync,
+): { file: string; prefix: string[]; shell: boolean } {
+  if (platform !== "win32") return { file: "npm", prefix: [], shell: false };
+  const cli = path.join(path.dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  if (exists(cli)) return { file: execPath, prefix: [cli], shell: false };
+  return { file: "npm", prefix: [], shell: true };
+}
+
 /**
  * Pack the SDK into <app>/vendor and return the file: spec. Turbopack cannot
  * resolve file: symlinks outside the project root, so a tarball it is.
@@ -126,11 +152,17 @@ function vendorSdk(repoRoot: string, target: string): string {
   const sdkDir = path.join(repoRoot, "packages", "sdk-node");
   const vendorDir = path.join(target, "vendor");
   fs.mkdirSync(vendorDir, { recursive: true });
+  const npm = npmInvocation();
+  if (npm.shell && CMD_METACHARACTERS.test(vendorDir)) {
+    throw new Error(
+      `The target directory ${vendorDir} contains a character cmd.exe would interpret; choose a plainer --dir`,
+    );
+  }
   try {
-    const out = execFileSync("npm", ["pack", "--pack-destination", vendorDir], {
+    const out = execFileSync(npm.file, [...npm.prefix, "pack", "--pack-destination", vendorDir], {
       cwd: sdkDir,
       encoding: "utf8",
-      shell: process.platform === "win32",
+      shell: npm.shell,
     });
     const tgz = out.trim().split("\n").pop()!.trim();
     return `file:./vendor/${tgz}`;

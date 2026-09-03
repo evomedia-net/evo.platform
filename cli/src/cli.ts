@@ -57,6 +57,13 @@ async function main(argv: string[]) {
       console.error(`--email is required for register\n${USAGE}`);
       process.exit(1);
     }
+    if (flags.has("password")) {
+      // Not refused - scripts exist - but said out loud: argv is visible to
+      // every process on the machine and lands in shell history.
+      console.warn(
+        "warning: --password is visible in the process list and shell history; prefer EVO_ADMIN_PASSWORD or the prompt",
+      );
+    }
     const password =
       flags.get("password") ??
       process.env.EVO_ADMIN_PASSWORD ??
