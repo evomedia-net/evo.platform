@@ -3,7 +3,7 @@
 // Licensed under the MIT License. See LICENSE.
 
 import { Body, Controller, Get, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { App } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
@@ -12,6 +12,8 @@ import { AuditService } from './audit.service';
 
 export class PushEventDto {
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
   action!: string;
 
   @IsOptional()
@@ -26,7 +28,11 @@ export class PushEventDto {
   detail?: unknown;
 }
 
-/** Apps push their own audit events here, authenticated by client credentials. */
+/** Apps push their own audit events here, authenticated by client credentials.
+ *  The service, not the controller, decides what an app may write: the tenant
+ *  must be one it is enabled for, the user must belong to it, and the action
+ *  is stored under the app's own name so it can never read as a platform
+ *  event (#154). */
 @Controller('events')
 export class EventsController {
   constructor(private audit: AuditService) {}
@@ -35,12 +41,7 @@ export class EventsController {
   @HttpCode(201)
   @UseGuards(ClientGuard)
   push(@Body() dto: PushEventDto, @Req() req: { clientApp: App }) {
-    return this.audit.record(dto.action, {
-      tenantId: dto.tenantId,
-      userId: dto.userId,
-      appClientId: req.clientApp.clientId,
-      detail: dto.detail,
-    });
+    return this.audit.recordFromApp(req.clientApp, dto);
   }
 }
 
