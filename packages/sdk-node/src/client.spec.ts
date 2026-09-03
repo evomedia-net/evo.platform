@@ -292,7 +292,7 @@ describe('EvoPlatform.getEntitlement', () => {
 describe('JWKS refetch throttle', () => {
   afterEach(() => jest.useRealTimers());
 
-  it('refetches at most once per interval however many unknown kids arrive', async () => {
+  it('wastes at most one fetch per interval however many forged kids arrive', async () => {
     const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
     const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
     await platform.verifyToken(signToken({ sub: 'u1' }), { audience: false });
@@ -301,7 +301,9 @@ describe('JWKS refetch throttle', () => {
         platform.verifyToken(signToken({ sub: 'u1' }, { kid: `forged-${i}` }), { audience: false }),
       ).rejects.toBeInstanceOf(TokenError);
     }
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    // One fetch for the real token, one wasted on the first forged kid, none
+    // for the other four: a flood costs one request per interval.
+    expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
   it('refetches once the interval has passed, so key rotation still needs no redeploy', async () => {
@@ -313,15 +315,20 @@ describe('JWKS refetch throttle', () => {
       jwksMinRefreshMs: 1_000,
     });
     await platform.verifyToken(signToken({ sub: 'u1' }), { audience: false });
+    // A forged kid wastes one fetch and opens the quiet interval ...
     await expect(
-      platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'rotated' }), { audience: false }),
+      platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'forged' }), { audience: false }),
     ).rejects.toBeInstanceOf(TokenError);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'forged-again' }), { audience: false }),
+    ).rejects.toBeInstanceOf(TokenError);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
 
+    // ... and once it has passed, an unknown kid fetches again.
     jest.setSystemTime(Date.now() + 1_500);
     await expect(
       platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'rotated' }), { audience: false }),
     ).rejects.toBeInstanceOf(TokenError);
-    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
   });
 });

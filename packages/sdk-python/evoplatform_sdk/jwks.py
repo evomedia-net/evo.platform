@@ -12,9 +12,10 @@ the cache, the refresh picks the key up, verification proceeds.
 An unknown ``kid`` is also something anyone can put in a token, and the JWKS
 endpoint is deliberately exempt from the platform's throttling. Before
 ``min_refresh_seconds`` every forged kid forced a fetch, so an unauthenticated
-caller of any app could multiply requests against the platform. Now an unknown
-kid triggers at most one refresh per interval (#162); the first token signed
-with a rotated key may be refused for up to one interval, then picked up.
+caller of any app could multiply requests against the platform. Now a refresh
+that came back without the kid it was made for starts a quiet interval in
+which further unknown kids do not refetch (#162). A genuine rotation is
+unaffected: the refresh it triggers finds the new key and opens no interval.
 """
 
 from __future__ import annotations
@@ -47,17 +48,23 @@ class JwksCache:
         self._clock = clock
         self._keys: dict[str, Any] = {}
         self._fetched_at: float | None = None
+        # When a refresh last came back without the kid that prompted it.
+        self._last_miss_at: float | None = None
 
     def get_key(self, kid: str):
         now = self._clock()
         never = self._fetched_at is None
         stale = never or now - self._fetched_at > self._ttl
         unknown = kid not in self._keys
-        may_refresh = never or now - self._fetched_at > self._min_refresh
-        if stale or (unknown and may_refresh):
+        quiet = self._last_miss_at is not None and now - self._last_miss_at <= self._min_refresh
+        refreshed = False
+        if stale or (unknown and not quiet):
             self.refresh()
+            refreshed = True
         key = self._keys.get(kid)
         if key is None:
+            if refreshed:
+                self._last_miss_at = self._clock()
             raise TokenError(f"Unknown signing key: {kid}")
         return key
 

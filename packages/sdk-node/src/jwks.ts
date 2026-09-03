@@ -22,14 +22,17 @@ interface Jwk {
  * endpoint is deliberately exempt from the platform's throttling. Before
  * `minRefreshMs` every token with a made-up kid forced a fetch, so an
  * unauthenticated caller of any app could multiply requests against the
- * platform. Now an unknown kid triggers at most one refresh per interval; a
+ * platform. Now a refresh that did not produce the kid it was made for
+ * starts a quiet interval in which further unknown kids do not refetch: a
  * flood costs the platform one request per interval instead of one per token
- * (#162). Rotation still needs no redeploy: the first token signed with a new
- * key may be refused for up to one interval, then the refresh picks it up.
+ * (#162). A genuine rotation is unaffected, because the refresh it triggers
+ * finds the new key and starts no quiet interval.
  */
 export class JwksCache {
   private pems = new Map<string, string>();
   private fetchedAt = 0;
+  /** When a refresh last came back without the kid that prompted it. */
+  private lastMissAt = 0;
 
   constructor(
     private jwksUrl: string,
@@ -42,11 +45,16 @@ export class JwksCache {
     const now = Date.now();
     const stale = now - this.fetchedAt > this.ttlMs;
     const unknown = !this.pems.has(kid);
-    if (stale || (unknown && now - this.fetchedAt > this.minRefreshMs)) {
+    let refreshed = false;
+    if (stale || (unknown && now - this.lastMissAt > this.minRefreshMs)) {
       await this.refresh();
+      refreshed = true;
     }
     const pem = this.pems.get(kid);
-    if (!pem) throw new TokenError(`Unknown signing key: ${kid}`);
+    if (!pem) {
+      if (refreshed) this.lastMissAt = Date.now();
+      throw new TokenError(`Unknown signing key: ${kid}`);
+    }
     return pem;
   }
 

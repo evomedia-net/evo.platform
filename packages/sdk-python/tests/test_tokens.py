@@ -214,10 +214,11 @@ def test_unknown_kid_refetches_at_most_once_per_interval():
     for i in range(5):
         with pytest.raises(TokenError):
             cache.get_key(f"forged-{i}")
-    assert calls["n"] == 1
+    # One fetch wasted on the first forged kid, none on the other four.
+    assert calls["n"] == 2
 
-    # Once the interval has passed, a genuinely rotated key is picked up.
+    # Once the quiet interval has passed, an unknown kid fetches again.
     now["t"] += 31
     with pytest.raises(TokenError):
         cache.get_key("rotated")
-    assert calls["n"] == 2
+    assert calls["n"] == 3
