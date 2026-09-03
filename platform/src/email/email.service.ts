@@ -2,7 +2,13 @@
 // Created by Kelly Michels · dev@evomedia.net
 // Licensed under the MIT License. See LICENSE.
 
-import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import nodemailer from 'nodemailer';
 import { PrismaService } from '../core/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -10,6 +16,23 @@ import { decryptSecret, encryptSecret } from '../core/crypto.util';
 import { config } from '../config';
 import { SendEmailDto, UpsertSmtpDto } from './dto';
 import type { App } from '@prisma/client';
+
+const MINUTE = 60_000;
+const DAY = 24 * 60 * MINUTE;
+
+/** Send timestamps per app id, kept for a day. Per-process, like the recovery
+ *  limiter; docs/INSTALL.md records the single-container assumption. */
+const sendWindows = new Map<string, number[]>();
+/** When each app's breach was last audited, so a runaway app writes one row a
+ *  minute rather than one per refused attempt - the audit table is not
+ *  another thing it gets to fill. */
+const breachNoted = new Map<string, number>();
+
+/** Quotas are process state; tests reset them. */
+export function _resetEmailQuotasForTests(): void {
+  sendWindows.clear();
+  breachNoted.clear();
+}
 
 interface ResolvedSmtp {
   host: string;
@@ -72,6 +95,7 @@ export class EmailService {
       });
       if (!access) throw new ForbiddenException('App is not enabled for this workspace');
     }
+    if (callingApp) await this.assertQuota(callingApp);
     const smtp = await this.resolveConfig(dto.tenantId);
     const transport = nodemailer.createTransport({
       host: smtp.host,
@@ -94,6 +118,33 @@ export class EmailService {
       detail: { to: dto.to, subject: dto.subject },
     });
     return { ok: true, messageId: info.messageId };
+  }
+
+  /**
+   * Per-app ceiling on app-originated sends (#155).
+   *
+   * Charged before the send rather than after: a message the relay refuses
+   * still cost an attempt, and an app that is failing loudly should not get
+   * unlimited retries either. The breach is audited once a minute per app.
+   */
+  private async assertQuota(app: App): Promise<void> {
+    const now = Date.now();
+    const sends = (sendWindows.get(app.id) ?? []).filter((t) => t > now - DAY);
+    const lastMinute = sends.filter((t) => t > now - MINUTE).length;
+    const { perMin, perDay } = config.emailAppQuota;
+    if (lastMinute >= perMin || sends.length >= perDay) {
+      const noted = breachNoted.get(app.id) ?? 0;
+      if (now - noted > MINUTE) {
+        breachNoted.set(app.id, now);
+        await this.audit.record('email.quota_exceeded', {
+          appClientId: app.clientId,
+          detail: { lastMinute, lastDay: sends.length, perMin, perDay },
+        });
+      }
+      throw new HttpException('Email quota exceeded for this app', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    sends.push(now);
+    sendWindows.set(app.id, sends);
   }
 
   async upsertConfig(dto: UpsertSmtpDto) {
