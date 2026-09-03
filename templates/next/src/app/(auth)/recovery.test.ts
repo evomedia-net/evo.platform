@@ -82,11 +82,14 @@ describe("requestPasswordReset", () => {
     expect(sendMail).toHaveBeenCalledTimes(1);
   });
 
-  it("builds a link carrying both the address and the token", async () => {
+  // In the fragment, never the query string: the token must not reach an
+  // access log, proxy log or Referer header on its way to the page (#163).
+  it("builds a link carrying the address and token in the fragment", async () => {
     vi.mocked(prisma.user.findFirst).mockResolvedValueOnce({ id: "u1" } as never);
     await requestPasswordReset(state, form({ email: "real@example.com" }));
     const link = vi.mocked(passwordResetEmail).mock.calls[0]![1];
-    expect(link).toContain("/reset-password?");
+    expect(link).toContain("/reset-password#");
+    expect(link).not.toContain("/reset-password?");
     expect(link).toContain("email=real%40example.com");
     expect(link).toContain("token=raw-token-value");
   });
