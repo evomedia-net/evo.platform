@@ -17,6 +17,10 @@ export type UserWithRoles = Prisma.UserGetPayload<{
   include: { roles: { include: { role: { include: { app: true } } } } };
 }>;
 
+/** A real hash to compare against when no account matches, so the no-user
+ *  path takes the same time as a wrong password. Computed once at load. */
+const DUMMY_HASH = bcrypt.hashSync('no-such-account-timing-pad', 10);
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -32,16 +36,19 @@ export class AuthService {
         where: { slug: dto.tenantSlug, deletedAt: null },
       });
       if (!tenant) throw new UnauthorizedException('Invalid credentials');
-      if (tenant.status === 'SUSPENDED') throw new ForbiddenException('Tenant is suspended');
     }
 
     const user = await this.prisma.user.findFirst({
       where: { tenantId: tenant?.id ?? null, email: dto.email.toLowerCase(), deletedAt: null },
       include: { roles: { include: { role: { include: { app: true } } } } },
     });
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    // One bcrypt compare on every path, so an unknown address costs the same
+    // as a wrong password and timing does not answer "does this account
+    // exist?". The tenant's suspension is checked in completeLogin, after the
+    // password is proven: before that point it is not the caller's to learn
+    // (#165).
+    const ok = await bcrypt.compare(dto.password, user?.passwordHash ?? DUMMY_HASH);
+    if (!user || !ok) throw new UnauthorizedException('Invalid credentials');
 
     return this.completeLogin(user, tenant, dto.clientId, { ip, method: 'password' });
   }

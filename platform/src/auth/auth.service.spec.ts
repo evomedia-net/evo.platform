@@ -121,6 +121,23 @@ describe('AuthService.login', () => {
     ).rejects.toMatchObject({ message: 'Email not verified' });
   });
 
+  it('answers 401, not 403, when the password is wrong for a suspended tenant', async () => {
+    prisma.tenant.findFirst.mockResolvedValue({ ...tenant, status: 'SUSPENDED' });
+    await expect(
+      svc.login({ tenantSlug: 'acme', email: 'owner@acme.example', password: 'wrong' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('runs a bcrypt compare even when no account matches, so timing cannot enumerate', async () => {
+    prisma.user.findFirst.mockResolvedValue(null);
+    const compare = jest.spyOn(bcrypt, 'compare');
+    await expect(
+      svc.login({ tenantSlug: 'acme', email: 'ghost@acme.example', password: 'whatever' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(compare).toHaveBeenCalledTimes(1);
+    compare.mockRestore();
+  });
+
   it('rejects an unknown tenant slug without leaking its absence', async () => {
     prisma.tenant.findFirst.mockResolvedValue(null);
     await expect(
