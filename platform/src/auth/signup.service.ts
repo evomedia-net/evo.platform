@@ -99,7 +99,9 @@ export class SignupService {
     const trialEndsAt = new Date(Date.now() + config.signup.trialDays * 86_400_000);
     const name = [dto.firstName, dto.lastName].filter(Boolean).join(' ').trim() || null;
 
-    const { tenant } = await this.prisma.$transaction(async (tx) => {
+    let tenant: { id: string; slug: string };
+    try {
+      ({ tenant } = await this.prisma.$transaction(async (tx) => {
       const t = await tx.tenant.create({ data: { slug, name: dto.company, plan: 'free' } });
       await tx.user.create({
         data: {
@@ -119,7 +121,16 @@ export class SignupService {
         data: { tenantId: t.id, appId: app.id, status: 'TRIAL', plan: 'free', trialEndsAt },
       });
       return { tenant: t };
-    });
+      }));
+    } catch (e) {
+      // Two signups racing for one slug both pass the availability check
+      // above; the unique index decides, and its refusal used to surface as
+      // a 500. Answer the way the explicit-slug path already does (#164).
+      if ((e as { code?: string })?.code === 'P2002') {
+        throw new ConflictException(`Workspace name "${slug}" is already taken`);
+      }
+      throw e;
+    }
 
     await this.flows.sendVerification({ tenantSlug: tenant.slug, email });
     await this.audit.record('auth.signup', {
