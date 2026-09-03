@@ -9,9 +9,20 @@
  * and no special characters were fine. The server owns the policy; the page
  * checks length only.
  */
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { inviteAcceptPage, resetFormPage, verifyResultPage } from './auth-pages';
 import { config } from '../config';
 import { PASSWORD_MIN_LENGTH, PASSWORD_RULES_TEXT } from '../core/password-policy';
+
+// The pages' behaviour lives in one file served from this origin, because the
+// Content-Security-Policy allows no inline script (#156). Assertions about
+// what the page DOES therefore read that file; assertions about what it SHOWS
+// read the HTML.
+const behaviour = readFileSync(
+  join(__dirname, '..', 'admin-ui', 'static', 'auth-pages.js'),
+  'utf8',
+);
 
 describe.each([
   ['reset', resetFormPage('tok')],
@@ -25,8 +36,14 @@ describe.each([
   });
 
   it('checks the policy minimum length, not the old 8', () => {
-    expect(html).toContain(`const MIN = ${PASSWORD_MIN_LENGTH}`);
-    expect(html).not.toContain('.{8,}');
+    expect(html).toContain(`data-min="${PASSWORD_MIN_LENGTH}"`);
+    expect(behaviour).toContain('pw.length < MIN');
+    expect(behaviour).not.toContain('.{8,}');
+  });
+
+  it('loads its behaviour from this origin and carries no inline script', () => {
+    expect(html).toContain('<script src="/auth-pages.js"></script>');
+    expect(html).not.toMatch(/<script>/);
   });
 
   it('prints the policy text people are actually held to', () => {
@@ -34,7 +51,7 @@ describe.each([
   });
 
   it('surfaces the server message, including validator arrays', () => {
-    expect(html).toContain('Array.isArray(body.message)');
+    expect(behaviour).toContain('Array.isArray(body.message)');
   });
 });
 
@@ -53,11 +70,11 @@ describe.each([
 
   it('labels the toggle for screen readers and swaps the label on reveal', () => {
     expect(html).toContain('aria-label="Show password"');
-    expect(html).toContain("'Hide password'");
+    expect(behaviour).toContain("'Hide password'");
   });
 
   it('keeps the toggle a sibling of its input, which the handler relies on', () => {
-    expect(html).toContain("btn.parentElement.querySelector('input')");
+    expect(behaviour).toContain("btn.parentElement.querySelector('input')");
   });
 });
 
@@ -68,11 +85,17 @@ describe('terminal screens offer a way forward', () => {
   });
 
   it.each([
-    ['reset', resetFormPage('tok')],
+    ['reset', resetFormPage('tok', 'evo.demo', 'https://demo.example/login')],
     ['invite', inviteAcceptPage('tok')],
-  ])('%s success screen carries the sign-in button', (_name, html) => {
-    expect(html).toContain('SIGNIN_HTML');
-    expect(html).toContain('Go to sign in');
+  ])('%s success screen sends people to sign in', (_name, html) => {
+    expect(html).toMatch(/data-signin-url="https?:\/\//);
+    expect(behaviour).toContain("'Go to sign in'");
+  });
+
+  it('the reset page sends people back to the app they came from', () => {
+    expect(resetFormPage('tok', 'evo.demo', 'https://demo.example/login')).toContain(
+      'data-signin-url="https://demo.example/login"',
+    );
   });
 
   it('points the button at the configured public URL, not a hardcoded host', () => {

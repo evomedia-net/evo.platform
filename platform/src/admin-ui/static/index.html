@@ -76,7 +76,8 @@
   </div>
 
   <div id="toast" hidden></div>
-  <script>document.getElementById('copyright-year').textContent = new Date().getFullYear()</script>
+  <!-- The footer year is set in admin-ui.js: the Content-Security-Policy allows
+       script only from this origin's own files, never inline (#156). -->
   <script src="/admin-ui.js"></script>
 </body>
 </html>

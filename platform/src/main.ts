@@ -6,12 +6,17 @@ import 'reflect-metadata';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { config } from './config';
+import { securityHeaders } from './core/security-headers';
 
 async function bootstrap() {
   // rawBody is required for Stripe webhook signature verification
   const app = await NestFactory.create(AppModule, { rawBody: true });
+  // Every response, the console included: CSP, HSTS in production, no
+  // framing, no sniffing. See core/security-headers.ts for the reasoning.
+  app.use(helmet(securityHeaders()));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   if (config.trustProxy) {
     // Behind nginx: rate limiting and the audit log must see the real client
