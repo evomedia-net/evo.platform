@@ -89,6 +89,25 @@ export function activeDb(): TenantDatabase {
   return active;
 }
 
+/**
+ * Remove a tenant's database from this browser entirely.
+ *
+ * Called on sign-out. The per-tenant name stops one tenant's data leaking
+ * into another's session on a shared machine, but until this existed the
+ * data itself stayed in IndexedDB after sign-out, readable by the next person
+ * at the keyboard (#167). Pending outbox mutations go with it: they belong to
+ * the session that just ended, and the server copy is the one that counts.
+ */
+export async function deleteTenantDb(tenantId: string): Promise<void> {
+  const db = instances.get(tenantId);
+  if (db) {
+    db.close();
+    instances.delete(tenantId);
+  }
+  if (active?.tenantId === tenantId) active = null;
+  await Dexie.delete(`EVOAPP_${tenantId}`);
+}
+
 /** Meta helpers. */
 export async function getMeta(db: TenantDatabase, key: string): Promise<string | null> {
   const row = await db.meta.get(key);
