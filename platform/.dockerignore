@@ -1,0 +1,12 @@
+# Never part of the build context. The build stage runs `COPY . .`, so anything
+# listed here would otherwise land in a cached layer on every machine that
+# builds - secrets and signing keys included.
+.env
+.env.*
+keys/
+backups/
+node_modules/
+dist/
+coverage/
+.git/
+*.log
