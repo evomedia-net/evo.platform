@@ -14,8 +14,11 @@ services:
       POSTGRES_USER: evoplatform
       POSTGRES_PASSWORD: evoplatform
       POSTGRES_DB: evoplatform
+    # Loopback only. This is a dev database with a well-known password, and a
+    # bare "5433:5432" publishes it on every interface the laptop has - shared
+    # Wi-Fi included.
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - evoplatform_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -28,9 +31,11 @@ services:
   mail:
     image: axllent/mailpit
     container_name: evoplatform_mail
+    # Loopback for the same reason: the dev inbox shows every message the
+    # platform sends, reset links included.
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
 volumes:
   evoplatform_pgdata:

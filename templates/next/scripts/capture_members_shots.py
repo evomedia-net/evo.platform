@@ -8,11 +8,19 @@ Runs against local dev with the platform's fictional seed data (Acme demo
 workspace, owner@acme.example). Companion to the platform's
 capture_console_shots.py.
 
+Credentials come from the environment and are never written to this file:
+
+    MEMBER_SHOT_USER       the tenant admin's email (default owner@acme.example)
+    MEMBER_SHOT_PASSWORD   its password (required)
+    MEMBER_SHOT_WORKSPACE  workspace slug (default acme)
+    MEMBER_SHOT_BASE       default http://127.0.0.1:4173
+
 Usage: python capture_members_shots.py <output-dir>
 """
 import asyncio
 import base64
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -22,12 +30,16 @@ from pathlib import Path
 
 import websockets
 
-CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-PORT = 9337
-BASE = "http://127.0.0.1:4173"
-WORKSPACE = "acme"
-EMAIL = "owner@acme.example"
-PASSWORD = "EvoDevOwner!2026"
+CHROME = os.environ.get(
+    "CHROME_PATH", r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+)
+PORT = int(os.environ.get("MEMBER_SHOT_PORT", "9337"))
+BASE = os.environ.get("MEMBER_SHOT_BASE", "http://127.0.0.1:4173").rstrip("/")
+WORKSPACE = os.environ.get("MEMBER_SHOT_WORKSPACE", "acme")
+EMAIL = os.environ.get("MEMBER_SHOT_USER", "owner@acme.example")
+PASSWORD = os.environ.get("MEMBER_SHOT_PASSWORD", "")
+if not PASSWORD:
+    sys.exit("MEMBER_SHOT_PASSWORD is not set - export it, do not write it into this file")
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
 
 LOGIN_JS = f"""
