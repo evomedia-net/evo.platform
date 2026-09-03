@@ -6,7 +6,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from './prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { validatePassword } from './password-policy';
+import { PASSWORD_RULES_TEXT, validatePassword } from './password-policy';
 import { config } from '../config';
 
 /**
@@ -46,9 +46,13 @@ export class BootstrapAdminService implements OnApplicationBootstrap {
       this.log.log(`admin bootstrap skipped: ${existing} platform admin(s) already exist`);
       return { created: false, reason: 'admin exists' };
     }
-    if (validatePassword(password) !== null) {
+    const problem = validatePassword(password);
+    if (problem !== null) {
+      // Name the rule. This used to be one generic line, and an operator who
+      // had followed an out-of-date example arrived at a console with no way
+      // in and nothing in the log saying why.
       this.log.error(
-        'admin bootstrap refused: BOOTSTRAP_ADMIN_PASSWORD does not meet the password policy',
+        `admin bootstrap refused: BOOTSTRAP_ADMIN_PASSWORD does not meet the password policy - ${problem}. ${PASSWORD_RULES_TEXT}`,
       );
       return { created: false, reason: 'weak password' };
     }
