@@ -285,3 +285,50 @@ describe('EvoPlatform.getEntitlement', () => {
     expect(() => platform.getEntitlement({ tenantId: 't1' })).toThrow(ConfigError);
   });
 });
+
+// An unknown kid used to force a JWKS fetch on every token, and the JWKS
+// endpoint is deliberately unthrottled: forged tokens against any app became
+// requests against the platform, one for one (#162).
+describe('JWKS refetch throttle', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('wastes at most one fetch per interval however many forged kids arrive', async () => {
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
+    await platform.verifyToken(signToken({ sub: 'u1' }), { audience: false });
+    for (let i = 0; i < 5; i++) {
+      await expect(
+        platform.verifyToken(signToken({ sub: 'u1' }, { kid: `forged-${i}` }), { audience: false }),
+      ).rejects.toBeInstanceOf(TokenError);
+    }
+    // One fetch for the real token, one wasted on the first forged kid, none
+    // for the other four: a flood costs one request per interval.
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('refetches once the interval has passed, so key rotation still needs no redeploy', async () => {
+    jest.useFakeTimers({ now: Date.now() });
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({
+      platformUrl: 'http://platform.test',
+      fetchFn,
+      jwksMinRefreshMs: 1_000,
+    });
+    await platform.verifyToken(signToken({ sub: 'u1' }), { audience: false });
+    // A forged kid wastes one fetch and opens the quiet interval ...
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'forged' }), { audience: false }),
+    ).rejects.toBeInstanceOf(TokenError);
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'forged-again' }), { audience: false }),
+    ).rejects.toBeInstanceOf(TokenError);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+
+    // ... and once it has passed, an unknown kid fetches again.
+    jest.setSystemTime(Date.now() + 1_500);
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1' }, { kid: 'rotated' }), { audience: false }),
+    ).rejects.toBeInstanceOf(TokenError);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+});

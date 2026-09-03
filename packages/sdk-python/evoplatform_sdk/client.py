@@ -37,6 +37,7 @@ class EvoPlatform:
         client_secret: str | None = None,
         issuer: str = "evoplatform",
         jwks_ttl_seconds: float | None = None,
+        jwks_min_refresh_seconds: float | None = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
@@ -50,6 +51,11 @@ class EvoPlatform:
         self._jwks = JwksCache(
             f"{self._base}/.well-known/jwks.json",
             **({"ttl_seconds": jwks_ttl_seconds} if jwks_ttl_seconds is not None else {}),
+            **(
+                {"min_refresh_seconds": jwks_min_refresh_seconds}
+                if jwks_min_refresh_seconds is not None
+                else {}
+            ),
             http=self._http,
         )
 
