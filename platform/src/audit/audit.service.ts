@@ -2,9 +2,35 @@
 // Created by Kelly Michels · dev@evomedia.net
 // Licensed under the MIT License. See LICENSE.
 
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../core/prisma.service';
+
+/**
+ * Action namespaces the platform writes itself. An app's own events must not
+ * be able to wear these names in the trail: a row that says `auth.login`
+ * should always mean the platform saw a login (#154).
+ */
+export const RESERVED_ACTION_PREFIXES = [
+  'auth.',
+  'admin.',
+  'tenant.',
+  'user.',
+  'app.',
+  'billing.',
+  'email.',
+  'audit.',
+];
+
+/** Enough for a structured detail record; not enough to bloat the table. */
+export const MAX_APP_EVENT_DETAIL_BYTES = 4096;
+
+export interface AppEventInput {
+  action: string;
+  tenantId?: string;
+  userId?: string;
+  detail?: unknown;
+}
 
 export interface AuditMeta {
   tenantId?: string;
@@ -17,6 +43,56 @@ export interface AuditMeta {
 @Injectable()
 export class AuditService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * An event pushed by a registered app over client credentials.
+   *
+   * Three things the plain record() path trusts, because its callers are the
+   * platform's own services, cannot be trusted here: the tenant named must be
+   * one the app is enabled for, the user named must belong to that tenant,
+   * and the action must not impersonate a platform event. Without the first
+   * check any app holding any valid client secret could write rows against
+   * every workspace on the platform (#154) - the same gate
+   * BillingService.requireRelationship and EmailService.send apply.
+   */
+  async recordFromApp(app: { id: string; clientId: string }, input: AppEventInput) {
+    const action = input.action.trim();
+    const lower = action.toLowerCase();
+    if (RESERVED_ACTION_PREFIXES.some((prefix) => lower.startsWith(prefix))) {
+      throw new BadRequestException(
+        `action "${action}" uses a platform-reserved prefix; name app events after the product (e.g. "estimate.created")`,
+      );
+    }
+    if (input.detail !== undefined) {
+      const bytes = Buffer.byteLength(JSON.stringify(input.detail) ?? '', 'utf8');
+      if (bytes > MAX_APP_EVENT_DETAIL_BYTES) {
+        throw new BadRequestException(
+          `detail is ${bytes} bytes; the limit is ${MAX_APP_EVENT_DETAIL_BYTES}`,
+        );
+      }
+    }
+    if (input.tenantId) {
+      const access = await this.prisma.appTenant.findUnique({
+        where: { tenantId_appId: { tenantId: input.tenantId, appId: app.id } },
+      });
+      if (!access) throw new ForbiddenException('App is not enabled for this workspace');
+      if (input.userId) {
+        const member = await this.prisma.user.findFirst({
+          where: { id: input.userId, tenantId: input.tenantId },
+          select: { id: true },
+        });
+        if (!member) throw new BadRequestException('userId is not a member of that workspace');
+      }
+    } else if (input.userId) {
+      throw new BadRequestException('userId requires tenantId');
+    }
+    return this.record(action, {
+      tenantId: input.tenantId,
+      userId: input.userId,
+      appClientId: app.clientId,
+      detail: input.detail,
+    });
+  }
 
   record(action: string, meta: AuditMeta = {}) {
     return this.prisma.auditEvent.create({
