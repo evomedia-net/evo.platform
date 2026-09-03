@@ -27,8 +27,6 @@ Contents
 9. Production notes (#9-production-notes)
 10. Troubleshooting (#10-troubleshooting)
 
-------------------------------------------------------------------------
-
 1. Prerequisites
 ----------------
 
@@ -43,12 +41,10 @@ No global installs needed beyond these; every package uses local node_modules.
 
 2. Get the code
 ---------------
-
     git clone <your-remote>/EvoPlatform.git
     cd EvoPlatform
 
 Monorepo layout:
-
     platform/            The platform service (NestJS + Prisma + Postgres)
     packages/sdk-node/   Node SDK apps use to talk to the platform
     templates/next/      Next.js app starter (offline-first, multi-tenant)
@@ -57,7 +53,6 @@ Monorepo layout:
 
 3. Run the platform service
 ---------------------------
-
     cd platform
     cp .env.example .env
 
@@ -72,7 +67,6 @@ Edit .env and set at minimum:
   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 Then:
-
     docker compose up -d          # Postgres on :5433 + Mailpit (dev SMTP) on :1025/:8025
     npm install
     npx prisma migrate deploy     # apply committed migrations
@@ -108,14 +102,13 @@ Passwords are never re-validated at login, so tightening the policy cannot
 lock out an existing account.
 
 Bootstrap refuses to run with a weak BOOTSTRAP_ADMIN_PASSWORD and logs
-`admin bootstrap refused: BOOTSTRAP_ADMIN_PASSWORD does not meet the password
-policy`.
+admin bootstrap refused: BOOTSTRAP_ADMIN_PASSWORD does not meet the password
+policy.
 
 On first boot the service generates an RSA signing keypair into ./keys/
 (gitignored). Delete the folder to rotate keys in dev.
 
 Verify:
-
     curl http://localhost:8200/.well-known/jwks.json           # public signing keys
     curl -X POST http://localhost:8200/auth/login \
       -H "content-type: application/json" \
@@ -128,38 +121,33 @@ platform/README.md (../platform/README.md).
 4. First login & admin basics
 -----------------------------
 
-The easiest way to administer the platform is the **built-in admin console at
-http://localhost:8200/** — sign in with the platform-admin account and manage
+The easiest way to administer the platform is the built-in admin console at
+http://localhost:8200/ — sign in with the platform-admin account and manage
 tenants, users, apps, audit, and SMTP from the browser.
 
 Everything below is the same thing via the REST API (useful for scripting).
 All admin endpoints need a platform-admin bearer token:
-
     TOKEN=$(curl -s -X POST http://localhost:8200/auth/login \
       -H "content-type: application/json" \
       -d '{"email":"admin@example.com","password":"<seed password>"}' | jq -r .accessToken)
     AUTH="Authorization: Bearer $TOKEN"
 
 Create a tenant (a customer workspace):
-
     curl -X POST http://localhost:8200/admin/tenants -H "$AUTH" \
       -H "content-type: application/json" \
       -d '{"slug":"globex","name":"Globex Corp"}'
 
 Create a user in it:
-
     curl -X POST http://localhost:8200/admin/users -H "$AUTH" \
       -H "content-type: application/json" \
       -d '{"tenantId":"<tenant id>","email":"owner@globex.example","password":"<pw>","name":"Owner"}'
 
 Register an app (returns the client secret once — store it):
-
     curl -X POST http://localhost:8200/admin/apps -H "$AUTH" \
       -H "content-type: application/json" \
       -d '{"name":"my-app","callbackUrls":["http://localhost:4180"]}'
 
 Give the app roles, and assign one to the user:
-
     curl -X POST http://localhost:8200/admin/apps/<app id>/roles -H "$AUTH" \
       -H "content-type: application/json" -d '{"name":"admin"}'
     curl -X PUT http://localhost:8200/admin/users/<user id>/roles -H "$AUTH" \
@@ -172,19 +160,16 @@ DELETE /admin/tenants/:id (soft delete). Audit trail: GET /admin/audit.
 -----------------------------
 
 Build the SDK and CLI once:
-
     cd packages/sdk-node && npm install && npm run build
     cd ../../cli         && npm install && npm run build
 
 Scaffold (pick ports that don't collide with other local apps):
-
     node dist/cli.js new my-app --dir ~/apps --port 4300 --db-port 5450
 
 This copies templates/next, renames every identity (package, UI titles,
 session-cookie name, IndexedDB prefix, Docker names, ports), vendors the SDK
 as a tarball in vendor/, and generates .env with a fresh AUTH_SECRET.
 Then:
-
     cd ~/apps/my-app
     docker compose up -d                              # this app's own Postgres
     npm install
@@ -203,7 +188,6 @@ an outbox and sync when the connection returns.
 2. Create its roles (admin, member) and make sure your tenant slug and
    users exist in the platform.
 3. Add to the app's .env:
-
     PLATFORM_URL=http://localhost:8200
     EVO_CLIENT_ID=app_...
     EVO_CLIENT_SECRET=...
@@ -226,17 +210,15 @@ production domains).
 
 7. Integrate an existing Node app (SDK)
 ---------------------------------------
-
     npm install <path or registry ref for @evoplatform/sdk-node>
-
     import { EvoPlatform } from "@evoplatform/sdk-node";
-    
+
     const platform = new EvoPlatform({
       platformUrl: process.env.PLATFORM_URL!,
       clientId: process.env.EVO_CLIENT_ID,
       clientSecret: process.env.EVO_CLIENT_SECRET, // server-side only
     });
-    
+
     const claims = await platform.verifyToken(bearerToken); // local JWKS verify
     await platform.sendEmail({ to, subject, text });
     await platform.pushEvent({ action: "thing.created", tenantId });
@@ -335,4 +317,3 @@ Generated app (.env)
 | POST /email/send returns 503 | No SMTP anywhere in the chain — start Mailpit (docker compose up -d mail) or configure /admin/smtp |
 | Passkey ceremony rejected with 403 "Unrecognized origin" | The page's origin isn't loopback and doesn't match WEBAUTHN_BASE_DOMAINS |
 | App can't verify tokens after platform key rotation | Apps refetch JWKS on unknown key ids automatically; if you deleted keys/ AND restarted mid-session, users just log in again |
-

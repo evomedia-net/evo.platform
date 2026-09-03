@@ -14,8 +14,6 @@ way the call travels: the tail is always the initiator.
 | Amber arrow | An out-of-band push — a verification email, a Stripe webhook. It arrives on its own schedule, not as a reply to the flow above it. |
 | Blue arrow / box | The mechanism the figure exists to show. |
 
----
-
 1 · User sign-up, end to end
 ----------------------------
 
@@ -45,8 +43,6 @@ Sign-up sequence diagram
 Direction rules: every solid arrow is user- or app-initiated, left to
 right toward the platform. The platform initiates exactly one thing — the
 email — and it never calls the app or the browser.
-
----
 
 2 · A tenant site through the system
 ------------------------------------
@@ -80,8 +76,6 @@ Direction rules: the browser initiates everything on the left; the app
 initiates toward the platform and its own DB; the only arrows pointing into
 the platform uninvited are Stripe's webhooks — and nothing, ever, calls into
 the browser.
-
----
 
 3 · A tenant app asking evo-ai
 ------------------------------

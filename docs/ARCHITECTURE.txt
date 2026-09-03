@@ -8,7 +8,6 @@ A standalone platform service owns tenancy, auth, billing, and email. Apps stay 
 native stack and talk to it through a JWT-authenticated SDK. Each app owns its own domain
 database with a tenant_id foreign key on every row. Three production apps run on it
 today: ProvenSheet and CivilCode (Next.js), and DocketMail (FastAPI + React).
-
                         ┌──────────────────────────┐
                         │   EvoPlatform service    │
                         │  NestJS + Prisma + PG    │
@@ -50,13 +49,13 @@ platform shipping UI for it.
 1. User submits the app's own login form (email, password, and — in platform mode — a
    workspace slug).
 2. The app calls sdk.login({ tenantSlug, email, password }). The platform verifies the
-   credentials and returns access + refresh tokens. Claims: `{ sub, tenantId, tenantSlug,
-   roles, app, exp }`.
+   credentials and returns access + refresh tokens. Claims: { sub, tenantId, tenantSlug,
+   roles, app, exp }.
 3. The app JIT-provisions its own Tenant/User/Membership rows from the *verified
    token claims* — never from the form input — so every downstream tenant-scoped query and
    the app's own session machinery keep working unchanged.
-4. Every later request verifies the signature against cached JWKS. **After login the app
-   does not need the platform to be reachable**; a ~15-minute access token plus a refresh
+4. Every later request verifies the signature against cached JWKS. After login the app
+   does not need the platform to be reachable; a ~15-minute access token plus a refresh
    token means an outage is invisible to signed-in users.
 5. The app never touches the platform database; the platform never touches app databases.
 6. Cross-cutting calls go through the SDK: sendEmail() resolves the tenant's SMTP config,

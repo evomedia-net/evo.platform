@@ -138,3 +138,17 @@ jobs:
       - name: Test
         working-directory: templates/next
         run: npm test
+
+  # Every .md has a generated .txt twin (scripts/md_txt.py). A .md edit that
+  # forgets to regenerate would ship a stale mirror; this fails it instead.
+  # Its own job so the failure is named for what it is, and because there is
+  # no root test harness to hang it off.
+  twins:
+    name: .txt twins in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/md_txt.py --check

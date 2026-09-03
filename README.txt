@@ -8,8 +8,7 @@ cloning a starter template — tenancy, auth, RBAC, audit logging, and deploymen
 
 > Status: working v1. The platform service (with admin console), both SDKs (Node and
 > Python), the Next.js template, and the evo new CLI all run and are tested, and are in
-> production under three apps: ProvenSheet, CivilCode, and DocketMail. Not yet built: the NiceGUI template — evo new accepts
-> --stack next only. Setup: docs/INSTALL.md (docs/INSTALL.md) · deploy:
+> production under three apps: ProvenSheet, CivilCode, and DocketMail. Setup: docs/INSTALL.md (docs/INSTALL.md) · deploy:
 > docs/DEPLOY.md (docs/DEPLOY.md) · design:
 > docs/ARCHITECTURE.md (docs/ARCHITECTURE.md), docs/TEMPLATE_CONTRACT.md (docs/TEMPLATE_CONTRACT.md) · flows:
 > docs/FLOWS.md (docs/FLOWS.md).
@@ -29,9 +28,6 @@ login, roles, billing, email, admin tooling. EvoPlatform splits that into:
   templates/next — Next.js + Prisma + PostgreSQL, with an offline-first browser layer
   (IndexedDB mutation queue, last-write-wins sync).
 - A scaffold CLI — evo new <app-name> — clone, rename, generate secrets, done.
-
-A NiceGUI template is planned to mirror the Next.js one; it is currently a placeholder
-directory, and the CLI accepts --stack next only.
 
 Standalone mode
 ---------------
@@ -69,12 +65,10 @@ Ask AI sequence diagram
 
 Repository layout
 -----------------
-
     platform/            Shared platform service (NestJS)
     packages/sdk-node/   Node SDK
     packages/sdk-python/ Python SDK
     templates/next/      Next.js starter template
-    templates/nicegui/   NiceGUI template    — placeholder, not built yet
     cli/                 `evo new` scaffolding tool
     docs/                Architecture and design docs
 
