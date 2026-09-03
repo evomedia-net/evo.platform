@@ -6,9 +6,10 @@ import { PRODUCT_NAME } from "@/lib/product";
 import Link from "next/link";
 import { verifySession } from "@/lib/auth/dal";
 import { isPlatformMode } from "@/lib/platform";
-import { signOut } from "@/auth";
 import { TenantProvider } from "@/components/TenantProvider";
 import { SyncStatusButton } from "@/components/SyncStatusButton";
+import { SignOutButton } from "@/components/SignOutButton";
+import { signOutAction } from "./signout-action";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await verifySession();
@@ -40,14 +41,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               {session.email}
             </Link>
-            <form
-              action={async () => {
-                "use server";
-                await signOut({ redirectTo: "/login" });
-              }}
-            >
-              <button className="text-sm text-zinc-500 hover:text-zinc-800">Sign out</button>
-            </form>
+            {/* Clears this tenant's browser database before the session ends (#167). */}
+            <SignOutButton action={signOutAction} />
           </div>
         </header>
         <main className="flex-1 p-4 md:p-6 max-w-3xl w-full mx-auto">{children}</main>
