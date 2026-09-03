@@ -71,14 +71,15 @@ describe('AuthController delegation', () => {
   });
 
   it('verification and reset flows hand to AccountFlowsService', async () => {
-    await ctrl.sendVerification({ email: 'a@b.c' } as never);
-    expect(flows.sendVerification).toHaveBeenCalled();
+    // The client ip rides along: the send budget is keyed on it (#159).
+    await ctrl.sendVerification({ email: 'a@b.c' } as never, '10.0.0.9');
+    expect(flows.sendVerification).toHaveBeenCalledWith({ email: 'a@b.c' }, '10.0.0.9');
     await ctrl.verify({ token: 't' } as never);
     expect(flows.confirmVerification).toHaveBeenCalledWith('t');
-    await ctrl.workspaces({ email: 'a@b.c' } as never);
-    expect(flows.listWorkspaces).toHaveBeenCalled();
-    await ctrl.forgot({ email: 'a@b.c' } as never);
-    expect(flows.requestReset).toHaveBeenCalled();
+    await ctrl.workspaces({ email: 'a@b.c' } as never, '10.0.0.9');
+    expect(flows.listWorkspaces).toHaveBeenCalledWith({ email: 'a@b.c' }, '10.0.0.9');
+    await ctrl.forgot({ email: 'a@b.c' } as never, '10.0.0.9');
+    expect(flows.requestReset).toHaveBeenCalledWith({ email: 'a@b.c' }, '10.0.0.9');
     await ctrl.reset({ token: 't', password: 'p' } as never);
     expect(flows.resetPassword).toHaveBeenCalledWith('t', 'p');
   });

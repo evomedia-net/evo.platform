@@ -2,7 +2,9 @@
 // Created by Kelly Michels · dev@evomedia.net
 // Licensed under the MIT License. See LICENSE.
 
-import { IsInt, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
+
+export const MAX_CHECKOUT_QUANTITY = 1000;
 
 export class EntitlementQueryDto {
   @IsString()
@@ -34,9 +36,13 @@ export class CheckoutDto {
   @Min(1)
   intervalCount?: number;
 
+  /** Seats or units. Capped so a compromised app cannot mint a checkout for
+   *  an absurd count; raise MAX_CHECKOUT_QUANTITY if a real product needs
+   *  more (#166). */
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(MAX_CHECKOUT_QUANTITY)
   quantity?: number;
 
   @IsUrl({ require_tld: false })

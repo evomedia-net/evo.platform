@@ -119,3 +119,20 @@ describe('SignupService', () => {
     expect(slug).toMatch(/^initech-llc-[0-9a-f]{4}$/);
   });
 });
+
+describe('SignupService slug races', () => {
+  it('answers 409, not 500, when two signups race for the same slug', async () => {
+    const prisma = makePrisma();
+    prisma.$transaction.mockRejectedValue(Object.assign(new Error('unique violation'), { code: 'P2002' }));
+    await expect(makeSvc(prisma).signup({ ...dto, slug: 'initech-llc' })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(flows.sendVerification).not.toHaveBeenCalled();
+  });
+
+  it('still surfaces any other transaction failure', async () => {
+    const prisma = makePrisma();
+    prisma.$transaction.mockRejectedValue(new Error('connection reset'));
+    await expect(makeSvc(prisma).signup(dto)).rejects.toThrow('connection reset');
+  });
+});

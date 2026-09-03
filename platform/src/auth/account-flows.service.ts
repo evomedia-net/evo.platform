@@ -19,13 +19,13 @@ const VERIFY_TTL_SEC = 24 * 3600;
 const RESET_TTL_SEC = 30 * 60;
 
 /**
- * Minimal in-memory limiter for the two public email-sending endpoints, so an
+ * Minimal in-memory limiter for the public email-sending endpoints, so an
  * unauthenticated caller cannot turn the platform into a mail cannon for a
- * known address. Per-process only — the full @nestjs/throttler rollout is
- * Phase 7; this is the stopgap the email endpoints cannot ship without.
+ * known address. Per-process only, which docs/INSTALL.md records as a
+ * single-container assumption.
  */
 const buckets = new Map<string, { count: number; resetAt: number }>();
-function allowSend(key: string, max = 5, windowMs = 15 * 60_000): boolean {
+function allowSend(key: string, max: number, windowMs = 15 * 60_000): boolean {
   const now = Date.now();
   const bucket = buckets.get(key);
   if (!bucket || bucket.resetAt < now) {
@@ -34,6 +34,31 @@ function allowSend(key: string, max = 5, windowMs = 15 * 60_000): boolean {
   }
   bucket.count += 1;
   return bucket.count <= max;
+}
+
+/** Most messages one mailbox receives per window, whoever asks. */
+const PER_ADDRESS = 20;
+/** One requesting client's share of that. */
+const PER_CLIENT = 5;
+
+/**
+ * Whether a message may go out for this address at this client's request.
+ *
+ * The budget used to be keyed on the address alone and charged on every
+ * request, so anyone who knew an address could spend its five sends
+ * continuously and the real owner could never reset or re-verify (#159).
+ * Two buckets now: the per-address ceiling bounds the mail one inbox can be
+ * made to receive, and the per-client bucket stops one requester from
+ * spending it all. Callers check this only after the account was found and a
+ * message is actually about to go out, so probing addresses that do not exist
+ * costs nothing and locks nobody out.
+ */
+function sendAllowed(kind: string, email: string, ip: string | undefined): boolean {
+  const client = ip || 'unknown';
+  return (
+    allowSend(`${kind}:${email}`, PER_ADDRESS) &&
+    allowSend(`${kind}:${client}:${email}`, PER_CLIENT)
+  );
 }
 
 /**
@@ -86,11 +111,14 @@ export class AccountFlowsService {
 
   // ---- email verification ----
 
-  async sendVerification(input: { tenantSlug?: string; email: string; clientId?: string }) {
+  async sendVerification(
+    input: { tenantSlug?: string; email: string; clientId?: string },
+    ip?: string,
+  ) {
     const ok = { ok: true };
-    if (!allowSend(`verify:${input.email.toLowerCase()}`)) return ok;
     const user = await this.findByEmail(input);
     if (!user || user.emailVerifiedAt) return ok;
+    if (!sendAllowed('verify', user.email, ip)) return ok;
 
     const token = this.keys.sign({ purpose: 'email_verify', sub: user.id }, VERIFY_TTL_SEC);
     const link = `${config.publicBaseUrl}/auth/verify?token=${encodeURIComponent(token)}`;
@@ -155,10 +183,9 @@ export class AccountFlowsService {
    * caller-supplied product name or return URL would let anyone put their own
    * sender name and link into a mail carrying the platform's identity.
    */
-  async listWorkspaces(input: { email: string; clientId?: string }) {
+  async listWorkspaces(input: { email: string; clientId?: string }, ip?: string) {
     const ok = { ok: true };
     const email = input.email.toLowerCase();
-    if (!allowSend(`workspaces:${email}`)) return ok;
 
     const users = await this.prisma.user.findMany({
       where: { email, deletedAt: null, tenantId: { not: null } },
@@ -169,6 +196,7 @@ export class AccountFlowsService {
       .filter((t): t is NonNullable<typeof t> => !!t && !t.deletedAt)
       .sort((a, b) => a.slug.localeCompare(b.slug));
     if (!tenants.length) return ok;
+    if (!sendAllowed('workspaces', email, ip)) return ok;
 
     // One line per workspace. Kept as text rather than a <ul> so the same
     // value reads correctly in both parts of the message.
@@ -192,11 +220,14 @@ export class AccountFlowsService {
     return ok;
   }
 
-  async requestReset(input: { tenantSlug?: string; email: string; clientId?: string }) {
+  async requestReset(
+    input: { tenantSlug?: string; email: string; clientId?: string },
+    ip?: string,
+  ) {
     const ok = { ok: true };
-    if (!allowSend(`reset:${input.email.toLowerCase()}`)) return ok;
     const user = await this.findByEmail(input);
     if (!user) return ok;
+    if (!sendAllowed('reset', user.email, ip)) return ok;
 
     const product = await resolveProduct(this.prisma, input.clientId);
     // The clientId rides inside the signed token so the reset page can name
