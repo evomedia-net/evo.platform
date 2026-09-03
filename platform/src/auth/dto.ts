@@ -2,7 +2,17 @@
 // Created by Kelly Michels · dev@evomedia.net
 // Licensed under the MIT License. See LICENSE.
 
-import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { IsStrongPassword } from '../core/password-policy';
 
 export class LoginDto {
@@ -127,6 +137,14 @@ export class SignupDto {
 }
 
 export class SignupLinkDto {
+  /**
+   * 1 to 720 hours (30 days). This carried @IsOptional() alone: a string
+   * became NaN, and a large number became a years-long shareable signup
+   * link (#160).
+   */
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(720)
   expiresInHours?: number;
 }
