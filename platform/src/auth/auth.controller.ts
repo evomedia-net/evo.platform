@@ -76,8 +76,8 @@ export class AuthController {
 
   @Post('verify/send')
   @HttpCode(200)
-  sendVerification(@Body() dto: EmailFlowDto) {
-    return this.flows.sendVerification(dto);
+  sendVerification(@Body() dto: EmailFlowDto, @Ip() ip: string) {
+    return this.flows.sendVerification(dto, ip);
   }
 
   @Post('verify')
@@ -107,14 +107,14 @@ export class AuthController {
   // address to the workspaces it belongs to for any caller.
   @Post('workspaces')
   @HttpCode(200)
-  workspaces(@Body() dto: WorkspaceLookupDto) {
-    return this.flows.listWorkspaces(dto);
+  workspaces(@Body() dto: WorkspaceLookupDto, @Ip() ip: string) {
+    return this.flows.listWorkspaces(dto, ip);
   }
 
   @Post('forgot')
   @HttpCode(200)
-  forgot(@Body() dto: EmailFlowDto) {
-    return this.flows.requestReset(dto);
+  forgot(@Body() dto: EmailFlowDto, @Ip() ip: string) {
+    return this.flows.requestReset(dto, ip);
   }
 
   @Post('reset')

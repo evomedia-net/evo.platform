@@ -122,13 +122,40 @@ describe('email verification', () => {
     expect(deps.prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('rate-limits repeated sends for the same address', async () => {
-    const deps = makeDeps();
+  it('rate-limits repeated sends for the same address from one client', async () => {
+    const deps = makeDeps({ email: 'burst@acme.example' });
     const svc = makeSvc(deps);
     for (let i = 0; i < 7; i++) {
-      await svc.sendVerification({ tenantSlug: 'acme', email: 'burst@acme.example' });
+      await svc.sendVerification({ tenantSlug: 'acme', email: 'burst@acme.example' }, '10.0.0.1');
     }
-    expect(deps.email.send.mock.calls.length).toBeLessThanOrEqual(5);
+    expect(deps.email.send.mock.calls.length).toBe(5);
+  });
+
+  // The budget used to be keyed on the address alone and charged on every
+  // request, so anyone who knew an address could lock its owner out of
+  // recovery for good (#159).
+  it('a second client gets its own share, up to the ceiling for the address', async () => {
+    const deps = makeDeps({ email: 'shared@acme.example' });
+    const svc = makeSvc(deps);
+    for (let i = 0; i < 6; i++) {
+      await svc.sendVerification({ tenantSlug: 'acme', email: 'shared@acme.example' }, '10.0.0.7');
+    }
+    expect(deps.email.send.mock.calls.length).toBe(5);
+    await svc.sendVerification({ tenantSlug: 'acme', email: 'shared@acme.example' }, '10.0.0.8');
+    expect(deps.email.send.mock.calls.length).toBe(6);
+  });
+
+  it('charges nothing for addresses that do not exist, so probing cannot lock anyone out', async () => {
+    const ghost = makeDeps(null);
+    const svc = makeSvc(ghost);
+    for (let i = 0; i < 10; i++) {
+      await svc.sendVerification({ tenantSlug: 'acme', email: 'later@acme.example' }, '10.0.0.9');
+    }
+    expect(ghost.email.send).not.toHaveBeenCalled();
+    // The address now exists; the earlier probes must not have spent its budget.
+    const real = makeDeps({ email: 'later@acme.example' });
+    await makeSvc(real).sendVerification({ tenantSlug: 'acme', email: 'later@acme.example' }, '10.0.0.9');
+    expect(real.email.send).toHaveBeenCalledTimes(1);
   });
 });
 
