@@ -60,11 +60,7 @@ function walk(dir: string, base = dir): string[] {
 
 export function scaffold(opts: NewOptions): string {
   if (opts.stack !== "next") {
-    throw new Error(
-      opts.stack === "nicegui"
-        ? "The nicegui template is not built yet — only --stack next is available"
-        : `Unknown stack "${opts.stack}" (available: next)`,
-    );
+    throw new Error(`Unknown stack "${opts.stack}" (available: next)`);
   }
   const n = nameForms(opts.name);
   const ports: Ports = { appPort: opts.appPort, dbPort: opts.dbPort };
