@@ -141,9 +141,8 @@ describe('POST /email/send per-app quota', () => {
     const deps = makeDeps(true);
     await svc(deps).send(dto(undefined), callingApp);
     await svc(deps).send(dto(undefined), callingApp);
-    await expect(svc(deps).send(dto(undefined), callingApp)).rejects.toSatisfy(
-      (e: unknown) => status(e) === 429,
-    );
+    const err = await svc(deps).send(dto(undefined), callingApp).catch((e: unknown) => e);
+    expect(status(err)).toBe(429);
     expect(sendMail).toHaveBeenCalledTimes(2);
   });
 
@@ -162,9 +161,8 @@ describe('POST /email/send per-app quota', () => {
     config.emailAppQuota.perMin = 10;
     const deps = makeDeps(true);
     for (let i = 0; i < 3; i++) await svc(deps).send(dto(undefined), callingApp);
-    await expect(svc(deps).send(dto(undefined), callingApp)).rejects.toSatisfy(
-      (e: unknown) => status(e) === 429,
-    );
+    const err = await svc(deps).send(dto(undefined), callingApp).catch((e: unknown) => e);
+    expect(status(err)).toBe(429);
   });
 
   it('meters each app separately', async () => {
