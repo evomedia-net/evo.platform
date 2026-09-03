@@ -8,6 +8,13 @@ No per-request platform call: the key set is fetched once and kept for a TTL.
 An unknown ``kid`` triggers one refresh, which is what makes platform key
 rotation need no app redeploys — the first token signed with a new key misses
 the cache, the refresh picks the key up, verification proceeds.
+
+An unknown ``kid`` is also something anyone can put in a token, and the JWKS
+endpoint is deliberately exempt from the platform's throttling. Before
+``min_refresh_seconds`` every forged kid forced a fetch, so an unauthenticated
+caller of any app could multiply requests against the platform. Now an unknown
+kid triggers at most one refresh per interval (#162); the first token signed
+with a rotated key may be refused for up to one interval, then picked up.
 """
 
 from __future__ import annotations
@@ -21,6 +28,7 @@ from jwt.algorithms import RSAAlgorithm
 from .errors import TokenError
 
 DEFAULT_TTL_SECONDS = 10 * 60
+DEFAULT_MIN_REFRESH_SECONDS = 30.0
 
 
 class JwksCache:
@@ -30,19 +38,23 @@ class JwksCache:
         ttl_seconds: float = DEFAULT_TTL_SECONDS,
         http: httpx.Client | None = None,
         clock: Callable[[], float] = time.monotonic,
+        min_refresh_seconds: float = DEFAULT_MIN_REFRESH_SECONDS,
     ) -> None:
         self._url = jwks_url
         self._ttl = ttl_seconds
+        self._min_refresh = min_refresh_seconds
         self._http = http or httpx.Client(timeout=10)
         self._clock = clock
         self._keys: dict[str, Any] = {}
         self._fetched_at: float | None = None
 
     def get_key(self, kid: str):
-        stale = (
-            self._fetched_at is None or self._clock() - self._fetched_at > self._ttl
-        )
-        if stale or kid not in self._keys:
+        now = self._clock()
+        never = self._fetched_at is None
+        stale = never or now - self._fetched_at > self._ttl
+        unknown = kid not in self._keys
+        may_refresh = never or now - self._fetched_at > self._min_refresh
+        if stale or (unknown and may_refresh):
             self.refresh()
         key = self._keys.get(kid)
         if key is None:

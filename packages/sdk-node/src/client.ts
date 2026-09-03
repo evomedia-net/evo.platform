@@ -43,6 +43,7 @@ export class EvoPlatform {
       `${this.baseUrl}/.well-known/jwks.json`,
       opts.jwksTtlMs,
       this.fetchFn,
+      opts.jwksMinRefreshMs,
     );
   }
 

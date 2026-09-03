@@ -188,3 +188,36 @@ def test_a_kid_the_platform_never_published_fails_after_one_refresh():
 def test_a_malformed_token_is_a_token_error_not_a_crash():
     with pytest.raises(TokenError):
         make_platform(JwksServer()).verify_token("not-a-jwt")
+
+
+# An unknown kid used to force a JWKS fetch on every token, and the JWKS
+# endpoint is deliberately unthrottled: forged tokens against any app became
+# requests against the platform, one for one (#162).
+def test_unknown_kid_refetches_at_most_once_per_interval():
+    from evoplatform_sdk import JwksCache
+
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return httpx.Response(200, json={"keys": [_jwk(KEY, KID)]})
+
+    now = {"t": 1000.0}
+    cache = JwksCache(
+        "http://platform.test/.well-known/jwks.json",
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+        clock=lambda: now["t"],
+        min_refresh_seconds=30.0,
+    )
+    cache.get_key(KID)
+    assert calls["n"] == 1
+    for i in range(5):
+        with pytest.raises(TokenError):
+            cache.get_key(f"forged-{i}")
+    assert calls["n"] == 1
+
+    # Once the interval has passed, a genuinely rotated key is picked up.
+    now["t"] += 31
+    with pytest.raises(TokenError):
+        cache.get_key("rotated")
+    assert calls["n"] == 2

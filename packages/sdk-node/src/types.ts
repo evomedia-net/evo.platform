@@ -28,6 +28,10 @@ export interface EvoPlatformOptions {
   issuer?: string;
   /** JWKS cache lifetime in ms. Default: 10 minutes. */
   jwksTtlMs?: number;
+  /** Shortest gap between JWKS refetches triggered by unknown kids, in ms.
+   *  Bounds what a flood of forged tokens can make this app ask of the
+   *  platform. Default: 30 seconds. */
+  jwksMinRefreshMs?: number;
   /** Injectable fetch for testing. Default: global fetch. */
   fetchFn?: typeof fetch;
 }
