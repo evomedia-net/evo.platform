@@ -13,16 +13,13 @@ thread).
 
 Install
 -------
-
     pip install evoplatform-sdk
 
 From a checkout of this repo:
-
     pip install ./packages/sdk-python
 
 Setup
 -----
-
     from evoplatform_sdk import EvoPlatform
 
     platform = EvoPlatform(
@@ -33,7 +30,6 @@ Setup
 
 Verifying requests
 ------------------
-
     claims = platform.verify_token(bearer_token)
     # claims["tenant_id"], claims["tenant_slug"], claims["roles"], claims["platform_admin"]
 
@@ -46,7 +42,6 @@ case of deliberately inspecting foreign tokens.
 
 Auth proxy (apps that render their own login form)
 --------------------------------------------------
-
     session = platform.login(tenant_slug=slug, email=email, password=password)
     # -> {"accessToken", "refreshToken", "expiresIn", "user"} — store httpOnly
     nxt = platform.refresh(session["refreshToken"])  # rotates
@@ -58,7 +53,6 @@ parameters, camelCase on the wire.
 
 Billing (client credentials)
 ----------------------------
-
     prices = platform.list_prices()
     # [{"stripeProductId", "stripePriceId", "productName", "tier", "unitAmount",
     #   "currency", "interval", "intervalCount", "trialDays"}] - cheapest first.
@@ -96,7 +90,6 @@ Ask AI (evo-ai)
 
 evo-ai is a separate service with its own URL and credentials, so AskAi is
 a sibling of EvoPlatform, not a method on it:
-
     from evoplatform_sdk import AskAi
 
     ai = AskAi(os.environ["EVOAI_URL"], service_key=os.environ["EVOAI_SERVICE_KEY"])
@@ -111,8 +104,8 @@ a sibling of EvoPlatform, not a method on it:
     out.unconfigured  # no usable model for this tenant — an administrator problem
 
 tenant_id says whose data to search; user_id says who is asking. When
-evo-ai has conversation memory enabled it keys remembered turns on the pair -
-and a service key is ONE identity however many humans are behind it, so
+evo-ai has conversation memory enabled it keys remembered turns on the pair —
+and a service key is one identity however many humans are behind it, so
 omitting user_id pools every user of a tenant into a single memory where they
 would recall each other's questions. Derive both from your own session. With an
 access_token the user comes from verified claims and user_id is unnecessary.
@@ -131,7 +124,6 @@ Errors
 
 Tests
 -----
-
     pip install -e .[dev]
     pytest
 

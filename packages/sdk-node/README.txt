@@ -8,12 +8,10 @@ CivilCode; DocketMail uses the Python mirror.
 
 Install
 -------
-
     npm install @evoplatform/sdk-node
 
 From a checkout of this repo — which is what the bundled templates do — point a
 file: dependency at the package instead:
-
     "@evoplatform/sdk-node": "file:../../packages/sdk-node"
 
 The package builds itself on install (prepare), so a checkout is never
@@ -21,7 +19,6 @@ serving a stale dist/.
 
 Setup
 -----
-
     import { EvoPlatform } from '@evoplatform/sdk-node';
 
     const platform = new EvoPlatform({
@@ -32,7 +29,6 @@ Setup
 
 Verifying requests
 ------------------
-
     // Anywhere (Next.js middleware, API route, tRPC context...)
     const claims = await platform.verifyToken(bearerToken);
     // claims.tenant_id, claims.tenant_slug, claims.roles, claims.platform_admin
@@ -47,7 +43,6 @@ re-fetch, so platform key rotation needs no app redeploys.
 
 Auth proxy (apps that render their own login form)
 --------------------------------------------------
-
     const session = await platform.login({ tenantSlug, email, password });
     // → { accessToken, refreshToken, expiresIn, user } — store in an httpOnly cookie
     const next = await platform.refresh(session.refreshToken); // rotates
@@ -55,7 +50,6 @@ Auth proxy (apps that render their own login form)
 
 Passkeys (WebAuthn)
 -------------------
-
     // Registration (user is logged in; run the browser ceremony between the two calls)
     const { options, challengeToken } = await platform.passkeyRegisterOptions(accessToken);
     const credential = await startRegistration({ optionsJSON: options }); // @simplewebauthn/browser
@@ -77,7 +71,6 @@ same session shape.
 
 Services
 --------
-
     await platform.sendEmail({ to, subject, html });          // tenant SMTP → default → env
     await platform.pushEvent({ action: 'thing.created', tenantId, detail });
 
@@ -85,7 +78,6 @@ Pushed events are stored under the app's registry name (my-app.thing.created), s
 
 Billing (client credentials)
 ----------------------------
-
     const prices = await platform.listPrices();
     // [{ stripeProductId, stripePriceId, productName, tier, unitAmount, currency,
     //    interval, intervalCount, trialDays }] — cheapest first, archived tiers omitted.
@@ -124,7 +116,6 @@ Ask AI (evo-ai)
 
 evo-ai is a separate service with its own URL and credentials, so it has its own
 client rather than a method on EvoPlatform.
-
     import { AskAi } from '@evoplatform/sdk-node';
 
     const ai = new AskAi({
@@ -135,14 +126,14 @@ client rather than a method on EvoPlatform.
     const { answer, sources, gated } = await ai.ask({
       question: 'which permits expire this quarter?',
       tenantId: session.tenantId,
-      userId: session.userId,          // who is asking - see below
+      userId: session.userId,          // who is asking — see below
       sourceTypes: ['permit'],        // inherit your app's permissions
       history: previousTurns,          // so "how many?" resolves
     });
 
 tenantId says whose data to search; userId says who is asking. When evo-ai
-has conversation memory enabled it keys remembered turns on the pair - and a
-service key is ONE identity to evo-ai however many humans are behind it, so
+has conversation memory enabled it keys remembered turns on the pair — and a
+service key is one identity to evo-ai however many humans are behind it, so
 omitting userId pools every user of a tenant into a single memory where they
 would recall each other's questions. Derive both from your own session, never
 from the browser. With an accessToken the user comes from verified claims and
@@ -181,6 +172,5 @@ Errors
 
 Tests
 -----
-
     npm test              # unit (no network)
     npm run integration   # live smoke against a running platform; see scripts/integration.ts

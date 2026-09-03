@@ -96,4 +96,3 @@ docs/INSTALL.md (docs/INSTALL.md) and docs/DEPLOY.md (docs/DEPLOY.md):
 - Keep signing keys outside the deploy tree, and back them up separately.
   Losing them invalidates every issued token; leaking them lets anyone mint
   valid ones.
-

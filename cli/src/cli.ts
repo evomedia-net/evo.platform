@@ -14,7 +14,7 @@ Usage:
                                       write its credentials into the app .env
 
 Options (new):
-  --stack <next|nicegui>   Template stack (default: next)
+  --stack <next>           Template stack (default: next)
   --dir <path>             Parent directory for the new app (default: cwd)
   --port <n>               App dev port (default: 4180)
   --db-port <n>            Postgres host port (default: 5446)

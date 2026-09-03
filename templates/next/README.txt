@@ -7,7 +7,6 @@ pattern here has shipped.
 
 Quickstart (standalone — no platform needed)
 --------------------------------------------
-
     cp .env.example .env          # set AUTH_SECRET
     docker compose up -d          # Postgres on :5446
     npm install
@@ -37,8 +36,8 @@ Offline-first sync (the flagship)
 
 - Reads come from a per-tenant Dexie (IndexedDB) replica — instant, works offline.
 - Writes hit Dexie plus an append-only outbox; UI never waits on the network.
-- The sync client drains the outbox to /api/sync and pulls changes by **rowVersion
-  cursor** (one global Postgres sequence, trigger-assigned; see the init migration).
+- The sync client drains the outbox to /api/sync and pulls changes by rowVersion
+  cursor (one global Postgres sequence, trigger-assigned; see the init migration).
 - Conflicts: server-receive-order last-write-wins. Deletes are tombstones. Stale clients
   past the GC horizon get resyncRequired and re-pull from scratch.
 - Multi-tab safe (Web Locks), mid-flight edits never clobbered (outbox coalescing).
@@ -53,7 +52,6 @@ offline/tenantDb.ts field maps, and copy src/lib/data/projects.ts for your write
 
 Layout
 ------
-
     prisma/                schema + hand-written init migration (sync trigger lives here)
     src/auth.ts            Auth.js v5, dual-mode credentials + passkey provider
     src/proxy.ts           optimistic cookie redirects (enforcement is in the DAL)
