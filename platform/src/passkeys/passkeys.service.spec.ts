@@ -24,6 +24,7 @@ import { KeysService } from '../core/keys.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PasskeysService } from './passkeys.service';
 import { deriveRpContext } from './rp';
+import { config } from '../config';
 
 const keys = new KeysService();
 const rp = { rpId: 'localhost', origin: 'http://localhost:3000' };
@@ -250,5 +251,86 @@ describe('PasskeysService', () => {
         data: expect.objectContaining({ signCount: 6 }),
       }),
     );
+  });
+});
+
+// 'preferred' let a roaming authenticator with no PIN or biometric sign in on
+// possession alone: a stolen key was a session (#161).
+describe('PasskeysService user verification', () => {
+  const keys = new KeysService();
+  const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  let prisma: ReturnType<typeof makePrisma>;
+  let svc: PasskeysService;
+  const saved = config.webauthn.userVerification;
+
+  beforeAll(() => keys.loadOrGenerate(mkdtempSync(join(tmpdir(), 'evokeys-'))));
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma = makePrisma();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    svc = new PasskeysService(prisma as any, keys, audit as any);
+    (generateRegistrationOptions as jest.Mock).mockResolvedValue({ challenge: 'chal-reg' });
+    (generateAuthenticationOptions as jest.Mock).mockResolvedValue({ challenge: 'chal-auth' });
+  });
+  afterAll(() => {
+    config.webauthn.userVerification = saved;
+  });
+
+  it('requires verification for registration and login by default', async () => {
+    config.webauthn.userVerification = 'required';
+    await svc.registrationOptions('u1', rp);
+    expect((generateRegistrationOptions as jest.Mock).mock.calls[0][0].authenticatorSelection).toMatchObject({
+      userVerification: 'required',
+    });
+    prisma.passkeyCredential.findMany.mockResolvedValue([{ credentialId: 'cred-abc', transports: null }]);
+    const { challengeToken } = await svc.loginOptions(undefined, 'owner@acme.example', rp);
+    expect((generateAuthenticationOptions as jest.Mock).mock.calls[0][0]).toMatchObject({
+      userVerification: 'required',
+    });
+
+    prisma.passkeyCredential.findFirst.mockResolvedValue({
+      id: 'row1',
+      credentialId: 'cred-abc',
+      publicKey: Buffer.from([1, 2, 3]),
+      signCount: 0,
+      transports: null,
+      userId: 'u1',
+    });
+    (verifyAuthenticationResponse as jest.Mock).mockResolvedValue({
+      verified: true,
+      authenticationInfo: { newCounter: 1 },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await svc.verifyLogin({ id: 'cred-abc' } as any, challengeToken as string);
+    expect((verifyAuthenticationResponse as jest.Mock).mock.calls[0][0]).toMatchObject({
+      requireUserVerification: true,
+    });
+  });
+
+  it('honours WEBAUTHN_USER_VERIFICATION=preferred for authenticators that cannot verify', async () => {
+    config.webauthn.userVerification = 'preferred';
+    await svc.registrationOptions('u1', rp);
+    expect((generateRegistrationOptions as jest.Mock).mock.calls[0][0].authenticatorSelection).toMatchObject({
+      userVerification: 'preferred',
+    });
+    prisma.passkeyCredential.findMany.mockResolvedValue([{ credentialId: 'cred-abc', transports: null }]);
+    const { challengeToken } = await svc.loginOptions(undefined, 'owner@acme.example', rp);
+    prisma.passkeyCredential.findFirst.mockResolvedValue({
+      id: 'row1',
+      credentialId: 'cred-abc',
+      publicKey: Buffer.from([1, 2, 3]),
+      signCount: 0,
+      transports: null,
+      userId: 'u1',
+    });
+    (verifyAuthenticationResponse as jest.Mock).mockResolvedValue({
+      verified: true,
+      authenticationInfo: { newCounter: 1 },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await svc.verifyLogin({ id: 'cred-abc' } as any, challengeToken as string);
+    expect((verifyAuthenticationResponse as jest.Mock).mock.calls[0][0]).toMatchObject({
+      requireUserVerification: false,
+    });
   });
 });

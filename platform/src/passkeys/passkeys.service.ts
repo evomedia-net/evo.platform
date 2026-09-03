@@ -94,6 +94,8 @@ export class PasskeysService {
     const existing = await this.prisma.passkeyCredential.findMany({
       where: { userId: user.id },
     });
+    // User verification follows config (default required): a key that cannot
+    // prove the person is refused here, at enrolment, not later at login (#161).
     const options = await generateRegistrationOptions({
       rpName: config.webauthn.rpName,
       rpID: rp.rpId,
@@ -101,7 +103,7 @@ export class PasskeysService {
       userName: user.email,
       userDisplayName: user.name || user.email,
       attestationType: 'none',
-      authenticatorSelection: { userVerification: 'preferred', residentKey: 'preferred' },
+      authenticatorSelection: { userVerification: config.webauthn.userVerification, residentKey: 'preferred' },
       excludeCredentials: existing.map((c) => ({
         id: c.credentialId,
         transports: strToTransports(c.transports),
@@ -132,7 +134,7 @@ export class PasskeysService {
         expectedChallenge: ticket.challenge,
         expectedRPID: ticket.rp_id,
         expectedOrigin: ticket.origin,
-        requireUserVerification: false,
+        requireUserVerification: config.webauthn.userVerification === 'required',
       });
     } catch {
       // Never leak which part of verification failed
@@ -185,7 +187,7 @@ export class PasskeysService {
     if (!user || creds.length === 0) {
       const options = await generateAuthenticationOptions({
         rpID: rp.rpId,
-        userVerification: 'preferred',
+        userVerification: config.webauthn.userVerification,
         allowCredentials: decoyCredentials(tenantSlug, email),
       });
       return {
@@ -210,7 +212,7 @@ export class PasskeysService {
 
     const options = await generateAuthenticationOptions({
       rpID: rp.rpId,
-      userVerification: 'preferred',
+      userVerification: config.webauthn.userVerification,
       allowCredentials: creds.map((c) => ({
         id: c.credentialId,
         transports: strToTransports(c.transports),
@@ -242,7 +244,7 @@ export class PasskeysService {
         expectedChallenge: ticket.challenge,
         expectedRPID: ticket.rp_id,
         expectedOrigin: ticket.origin,
-        requireUserVerification: false,
+        requireUserVerification: config.webauthn.userVerification === 'required',
         credential: {
           id: row.credentialId,
           publicKey: new Uint8Array(row.publicKey),
