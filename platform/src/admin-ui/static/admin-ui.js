@@ -1700,3 +1700,10 @@ async function viewSmtp() {
 
 if (S.access) showApp();
 else showLogin();
+
+// The footer year. This lived in an inline <script> in index.html until the
+// Content-Security-Policy allowed script only from this origin's files (#156).
+{
+  const year = document.getElementById("copyright-year");
+  if (year) year.textContent = String(new Date().getFullYear());
+}

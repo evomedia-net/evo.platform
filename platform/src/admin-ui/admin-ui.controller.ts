@@ -45,6 +45,13 @@ export class AdminUiController {
     this.file(res, 'admin-ui.css');
   }
 
+  /** Behaviour for the recovery pages (reset, invite). Served as a file
+   *  because the Content-Security-Policy allows no inline script (#156). */
+  @Get('auth-pages.js')
+  authPagesJs(@Res() res: SendsFile) {
+    this.file(res, 'auth-pages.js');
+  }
+
   /** Self-hosted brand fonts. Allow-listed by name (basename strips any path
    *  traversal). Sent via res.send so the raw bytes aren't JSON-serialized. */
   @Get('fonts/:file')

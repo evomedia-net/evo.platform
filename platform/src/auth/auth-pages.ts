@@ -70,18 +70,13 @@ function passwordField(id: string, placeholder: string): string {
     </div>`;
 }
 
-/** One delegated listener covers every toggle on the page. */
-const PW_TOGGLE_SCRIPT = `
-      document.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-pw-toggle]');
-        if (!btn) return;
-        const input = btn.parentElement.querySelector('input');
-        if (!input) return;
-        const reveal = input.type === 'password';
-        input.type = reveal ? 'text' : 'password';
-        btn.innerHTML = reveal ? ${JSON.stringify(EYE_OFF)} : ${JSON.stringify(EYE)};
-        btn.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
-      });`;
+/**
+ * The page's behaviour - reveal toggles, form submit, the success screen -
+ * lives in /auth-pages.js and is told which flow it serves through data
+ * attributes on the form. It used to be inline; the Content-Security-Policy
+ * allows script only from this origin's own files, never inline (#156).
+ */
+const PAGE_SCRIPT = '<script src="/auth-pages.js"></script>';
 
 /**
  * Terminal screens used to end at "you can close this tab" — correct but a dead
@@ -130,44 +125,17 @@ export function verifyResultPage(ok: boolean): string {
  *                  from, not the operator console (#103). Registry-owned.
  */
 export function resetFormPage(token: string, product?: string, signInUrl?: string): string {
+  const home = signInUrl ?? `${config.publicBaseUrl}/`;
   return page(`
     <h1>Set a new password</h1>
     <p>${PASSWORD_RULES_TEXT}</p>
-    <form id="f">
+    <form id="f" data-flow="reset" data-token="${escapeHtml(token)}" data-min="${PASSWORD_MIN_LENGTH}" data-signin-url="${escapeHtml(home)}">
       ${passwordField('pw', 'New password')}
       ${passwordField('pw2', 'Confirm new password')}
       <p class="err" id="err"></p>
       <button type="submit">Reset password</button>
     </form>
-    <script>
-      const token = ${JSON.stringify(token)};
-      const MIN = ${PASSWORD_MIN_LENGTH};
-      const SIGNIN_HTML = ${JSON.stringify(signInButton(signInUrl))};${PW_TOGGLE_SCRIPT}
-      document.getElementById('f').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const err = document.getElementById('err');
-        const pw = document.getElementById('pw').value;
-        if (pw !== document.getElementById('pw2').value) { err.textContent = 'Passwords do not match'; return; }
-        // Length only. The server owns the policy and answers with the exact
-        // reason; a second rule set here is what silently contradicted the
-        // rules printed directly above it.
-        if (pw.length < MIN) { err.textContent = 'Password must be at least ' + MIN + ' characters'; return; }
-        err.textContent = '';
-        const res = await fetch('/auth/reset', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token, password: pw }),
-        });
-        if (res.ok) {
-          document.querySelector('.card').innerHTML =
-            '<h1>Password updated</h1><p>All existing sessions were signed out. Sign in with your new password.</p>' + SIGNIN_HTML;
-        } else {
-          const body = await res.json().catch(() => null);
-          const msg = body && (Array.isArray(body.message) ? body.message[0] : body.message);
-          err.textContent = msg || 'This link no longer works — request a new one.';
-        }
-      });
-    </script>`, product);
+    ${PAGE_SCRIPT}`, product);
 }
 
 export function resetInvalidPage(): string {
@@ -181,7 +149,7 @@ export function inviteAcceptPage(token: string): string {
   return page(`
     <h1>Create your account</h1>
     <p>Choose a password. ${PASSWORD_RULES_TEXT}</p>
-    <form id="f">
+    <form id="f" data-flow="invite" data-token="${escapeHtml(token)}" data-min="${PASSWORD_MIN_LENGTH}" data-signin-url="${escapeHtml(`${config.publicBaseUrl}/`)}">
       <input id="fn" type="text" placeholder="First name" autocomplete="given-name" />
       <input id="ln" type="text" placeholder="Last name" autocomplete="family-name" />
       ${passwordField('pw', 'Password')}
@@ -189,40 +157,7 @@ export function inviteAcceptPage(token: string): string {
       <p class="err" id="err"></p>
       <button type="submit">Create account</button>
     </form>
-    <script>
-      const token = ${JSON.stringify(token)};
-      const MIN = ${PASSWORD_MIN_LENGTH};
-      const SIGNIN_HTML = ${JSON.stringify(signInButton())};${PW_TOGGLE_SCRIPT}
-      document.getElementById('f').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const err = document.getElementById('err');
-        const pw = document.getElementById('pw').value;
-        if (pw !== document.getElementById('pw2').value) { err.textContent = 'Passwords do not match'; return; }
-        // Length only — see the note in resetFormPage.
-        if (pw.length < MIN) { err.textContent = 'Password must be at least ' + MIN + ' characters'; return; }
-        err.textContent = '';
-        const res = await fetch('/auth/invites/accept', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            token,
-            password: pw,
-            firstName: document.getElementById('fn').value.trim() || undefined,
-            lastName: document.getElementById('ln').value.trim() || undefined,
-          }),
-        });
-        if (res.ok) {
-          const out = await res.json().catch(() => null);
-          const where = out && out.tenantSlug ? ' to the "' + out.tenantSlug + '" workspace' : '';
-          document.querySelector('.card').innerHTML =
-            '<h1>Account created</h1><p>Sign in' + where + ' with your new password.</p>' + SIGNIN_HTML;
-        } else {
-          const body = await res.json().catch(() => null);
-          const msg = body && (Array.isArray(body.message) ? body.message[0] : body.message);
-          err.textContent = msg || 'This invite no longer works — ask for a new one.';
-        }
-      });
-    </script>`);
+    ${PAGE_SCRIPT}`);
 }
 
 export function inviteInvalidPage(): string {
