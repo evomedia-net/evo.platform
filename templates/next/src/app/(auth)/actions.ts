@@ -213,7 +213,10 @@ export async function requestPasswordReset(
   const user = await prisma.user.findFirst({ where: { email, platformUserId: null } });
   if (user) {
     const raw = await createToken("reset", email, RESET_TTL_MS);
-    const link = `${appBaseUrl()}/reset-password?email=${encodeURIComponent(email)}&token=${raw}`;
+    // In the fragment, not the query string: a browser never sends the part
+    // after # to the server, so the single-use token reaches no access log,
+    // proxy log or Referer header on its way to the page (#163).
+    const link = `${appBaseUrl()}/reset-password#email=${encodeURIComponent(email)}&token=${raw}`;
     await sendMail(passwordResetEmail(email, link));
   }
   // Success is signalled by error:null; the page shows the same confirmation

@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { isPlatformMode } from "@/lib/platform";
-import ResetPasswordForm from "./ResetPasswordForm";
+import ResetPasswordFromLink from "./ResetPasswordFromLink";
 
 export const dynamic = "force-dynamic";
 
@@ -39,22 +39,8 @@ export default async function ResetPasswordPage({
     );
   }
 
-  if (!email || !token) {
-    return (
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Incomplete reset link</h2>
-        <p className="text-sm text-zinc-600">
-          That link is missing part of its address — some mail clients break long URLs across lines.
-          Request a new one and click it directly from your inbox.
-        </p>
-        <p className="text-sm text-zinc-500">
-          <Link href="/forgot-password" className="text-blue-600 hover:underline">
-            Request a reset link
-          </Link>
-        </p>
-      </div>
-    );
-  }
-
-  return <ResetPasswordForm email={email} token={token} />;
+  // The address and token live in the URL fragment, which this server
+  // component cannot see; the client component reads them. The query-string
+  // pair is only a fallback for links minted before #163.
+  return <ResetPasswordFromLink fallback={{ email, token }} />;
 }
