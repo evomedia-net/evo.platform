@@ -11,6 +11,7 @@ import {
 import { InvitesService } from './invites.service';
 import { EmailTemplateService } from '../email/email-template.service';
 import { sha256 } from '../core/crypto.util';
+import { config } from '../config';
 
 const audit = { record: jest.fn().mockResolvedValue(undefined) };
 
@@ -193,5 +194,23 @@ describe('InvitesService resend/revoke', () => {
     await expect(makeSvc(d).revoke('t1', 'admin1', 'ghost')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+});
+
+describe('InvitesService invite email', () => {
+  // The product name was the literal 'EvoPlatform', so a self-hosted
+  // installation invited people to a product it is not called (#171).
+  it('names the platform by its configured brand, not a literal', async () => {
+    const saved = config.brand.platformName;
+    config.brand.platformName = 'Acme Cloud';
+    try {
+      const d = makeDeps();
+      await makeSvc(d).create('t1', 'admin1', { email: 'raj@acme.example' });
+      const sent = d.email.send.mock.calls[0][0];
+      expect(sent.html).toContain('Acme Cloud');
+      expect(sent.html).not.toContain('EvoPlatform');
+    } finally {
+      config.brand.platformName = saved;
+    }
   });
 });

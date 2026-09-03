@@ -226,7 +226,9 @@ export class InvitesService {
     const link = `${config.publicBaseUrl}/auth/invites/accept-page?token=${encodeURIComponent(rawToken)}`;
     const msg = await this.templates.render(
       'member_invite',
-      { productName: 'EvoPlatform', inviter: who, workspace, expiryHours: '24' },
+      // The configured brand, not a literal: a self-hosted installation sends
+      // invites under its own name (#171).
+      { productName: config.brand.platformName, inviter: who, workspace, expiryHours: '24' },
       link,
     );
     await this.email.send({
