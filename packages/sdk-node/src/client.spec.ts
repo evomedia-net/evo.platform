@@ -332,3 +332,285 @@ describe('JWKS refetch throttle', () => {
     expect(fetchFn).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('EvoPlatform.verifyToken edge cases', () => {
+  it('rejects a malformed token and one with no kid', async () => {
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
+    await expect(platform.verifyToken('not-a-jwt', { audience: false })).rejects.toThrow(
+      'Malformed token',
+    );
+    const noKid = jwt.sign({ sub: 'u1' }, privatePem, {
+      algorithm: 'RS256',
+      expiresIn: 60,
+      issuer: 'evoplatform',
+    });
+    await expect(platform.verifyToken(noKid, { audience: false })).rejects.toThrow(
+      'no kid header',
+    );
+    expect(fetchFn).not.toHaveBeenCalled(); // both refused before any JWKS fetch
+  });
+
+  it('honours a custom issuer', async () => {
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({
+      platformUrl: 'http://platform.test',
+      issuer: 'custom-iss',
+      fetchFn,
+    });
+    const claims = await platform.verifyToken(signToken({ sub: 'u1' }, { issuer: 'custom-iss' }), {
+      audience: false,
+    });
+    expect(claims.iss).toBe('custom-iss');
+    await expect(
+      platform.verifyToken(signToken({ sub: 'u1' }), { audience: false }),
+    ).rejects.toBeInstanceOf(TokenError);
+  });
+
+  it('wraps a non-Error verification failure in a TokenError', async () => {
+    // jsonwebtoken only ever throws Errors; this pins the fallback message so
+    // a future library change cannot leak a bare throw past the SDK.
+    const fetchFn = makeFetch({ '/.well-known/jwks.json': jwksRoute });
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn });
+    const spy = jest.spyOn(jwt, 'verify').mockImplementation(() => {
+      throw 'weird';
+    });
+    try {
+      await expect(
+        platform.verifyToken(signToken({ sub: 'u1' }), { audience: false }),
+      ).rejects.toThrow('Token verification failed');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('uses the global fetch when none is injected', async () => {
+    const saved = global.fetch;
+    global.fetch = jest.fn(async () => fakeResponse(200, { ok: true })) as unknown as typeof fetch;
+    try {
+      const platform = new EvoPlatform({ platformUrl: 'http://platform.test' });
+      await expect(platform.logout('r1')).resolves.toEqual({ ok: true });
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      global.fetch = saved;
+    }
+  });
+});
+
+// The thin wrappers: every public method must reach request() with the right
+// verb, path, body and headers. Recorded once per call and asserted as data.
+describe('EvoPlatform wrapper methods', () => {
+  interface Call {
+    method: string;
+    path: string;
+    body?: unknown;
+    headers: Record<string, string>;
+  }
+
+  function make(opts: { clientId?: string; clientSecret?: string } = {}) {
+    const calls: Call[] = [];
+    const fetchFn = jest.fn(async (url: string | URL, init?: RequestInit) => {
+      calls.push({
+        method: init?.method ?? 'GET',
+        path: new URL(String(url)).pathname,
+        body: init?.body === undefined ? undefined : JSON.parse(init.body as string),
+        headers: (init?.headers ?? {}) as Record<string, string>,
+      });
+      return fakeResponse(200, { ok: true });
+    }) as unknown as FetchMock;
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn, ...opts });
+    return { platform, calls, fetchFn };
+  }
+
+  it('auth proxy and recovery: verb, path and body for every call', async () => {
+    const { platform, calls } = make({ clientId: 'app_x' });
+    await platform.refresh('r1');
+    await platform.logout('r1');
+    await platform.signup({ company: 'Acme', email: 'a@b.c', password: 'pw' });
+    await platform.sendVerificationEmail({ email: 'a@b.c' });
+    await platform.verifyEmail('vt');
+    await platform.forgotWorkspace({ email: 'a@b.c' });
+    await platform.forgotPassword({ email: 'a@b.c', tenantSlug: 'acme' });
+    await platform.resetPassword('rt', 'newpw');
+    await platform.acceptInvite({ token: 'it', password: 'pw' });
+    expect(calls.map((c) => [c.method, c.path])).toEqual([
+      ['POST', '/auth/refresh'],
+      ['POST', '/auth/logout'],
+      ['POST', '/auth/signup'],
+      ['POST', '/auth/verify/send'],
+      ['POST', '/auth/verify'],
+      ['POST', '/auth/workspaces'],
+      ['POST', '/auth/forgot'],
+      ['POST', '/auth/reset'],
+      ['POST', '/auth/invites/accept'],
+    ]);
+    expect(calls[0].body).toEqual({ refreshToken: 'r1' });
+    expect(calls[2].body).toMatchObject({ company: 'Acme', clientId: 'app_x' });
+    expect(calls[4].body).toEqual({ token: 'vt' });
+    // Recovery carries the client's own id - never a caller-chosen name or URL.
+    expect(calls[5].body).toEqual({ email: 'a@b.c', clientId: 'app_x' });
+    expect(calls[6].body).toEqual({ email: 'a@b.c', tenantSlug: 'acme', clientId: 'app_x' });
+    expect(calls[7].body).toEqual({ token: 'rt', password: 'newpw' });
+    expect(calls[8].body).toEqual({ token: 'it', password: 'pw' });
+  });
+
+  it('recovery calls omit clientId when the client has none', async () => {
+    const { platform, calls } = make();
+    await platform.forgotWorkspace({ email: 'a@b.c' });
+    await platform.forgotPassword({ email: 'a@b.c' });
+    expect(calls[0].body).toEqual({ email: 'a@b.c' });
+    expect(calls[1].body).toEqual({ email: 'a@b.c' });
+  });
+
+  it('passkeys: bearer on register, list and delete; Origin only when given', async () => {
+    const { platform, calls } = make({ clientId: 'app_x' });
+    await platform.passkeyRegisterOptions('tok', { origin: 'https://app.test' });
+    await platform.passkeyRegisterVerify('tok', {
+      credential: { id: 'c' },
+      challengeToken: 'ct',
+      nickname: 'phone',
+    });
+    await platform.deletePasskey('tok', 'pk1');
+    await platform.passkeyLoginOptions({ email: 'a@b.c' });
+    await platform.passkeyLoginOptions({ email: 'a@b.c' }, { origin: 'https://app.test' });
+    expect(calls[0]).toMatchObject({
+      method: 'POST',
+      path: '/auth/passkeys/register/options',
+      body: {},
+      headers: { Authorization: 'Bearer tok', Origin: 'https://app.test' },
+    });
+    expect(calls[1]).toMatchObject({
+      method: 'POST',
+      path: '/auth/passkeys/register/verify',
+      body: { challengeToken: 'ct', nickname: 'phone' },
+      headers: { Authorization: 'Bearer tok' },
+    });
+    expect(calls[2]).toMatchObject({ method: 'DELETE', path: '/auth/passkeys/pk1' });
+    expect(calls[2].body).toBeUndefined();
+    expect(calls[3].headers.Origin).toBeUndefined();
+    expect(calls[4].headers.Origin).toBe('https://app.test');
+  });
+
+  it('tenant members and roles: verb, path and bearer for every call', async () => {
+    const { platform, calls } = make();
+    await platform.listTenantMembers('tok');
+    await platform.listTenantRoles('tok');
+    await platform.createTenantMember('tok', { email: 'n@b.c', password: 'pw' });
+    await platform.updateTenantMember('tok', 'm1', { firstName: 'N' });
+    await platform.deactivateTenantMember('tok', 'm1');
+    await platform.restoreTenantMember('tok', 'm1');
+    await platform.setTenantMemberRoles('tok', 'm1', ['r1', 'r2']);
+    expect(calls.map((c) => [c.method, c.path])).toEqual([
+      ['GET', '/tenant/users'],
+      ['GET', '/tenant/roles'],
+      ['POST', '/tenant/users'],
+      ['PATCH', '/tenant/users/m1'],
+      ['DELETE', '/tenant/users/m1'],
+      ['POST', '/tenant/users/m1/restore'],
+      ['PUT', '/tenant/users/m1/roles'],
+    ]);
+    for (const c of calls) expect(c.headers.Authorization).toBe('Bearer tok');
+    expect(calls[2].body).toEqual({ email: 'n@b.c', password: 'pw' });
+    expect(calls[3].body).toEqual({ firstName: 'N' });
+    expect(calls[6].body).toEqual({ roleIds: ['r1', 'r2'] });
+  });
+
+  it('invites: list, create, resend, revoke', async () => {
+    const { platform, calls } = make();
+    await platform.listTenantInvites('tok');
+    await platform.createTenantInvite('tok', { email: 'i@b.c', roleIds: ['r1'] });
+    await platform.resendTenantInvite('tok', 'i1');
+    await platform.revokeTenantInvite('tok', 'i1');
+    expect(calls.map((c) => [c.method, c.path])).toEqual([
+      ['GET', '/tenant/invites'],
+      ['POST', '/tenant/invites'],
+      ['POST', '/tenant/invites/i1/resend'],
+      ['DELETE', '/tenant/invites/i1'],
+    ]);
+    for (const c of calls) expect(c.headers.Authorization).toBe('Bearer tok');
+    expect(calls[1].body).toEqual({ email: 'i@b.c', roleIds: ['r1'] });
+  });
+
+  it('client-credential services send both secret headers', async () => {
+    const { platform, calls } = make({ clientId: 'app_x', clientSecret: 'sec' });
+    await platform.listPrices();
+    await platform.createCheckout({
+      tenantId: 't1',
+      successUrl: 'https://a/ok',
+      cancelUrl: 'https://a/no',
+      tier: 'pro',
+    });
+    await platform.createBillingPortal({ tenantId: 't1', returnUrl: 'https://a/back' });
+    await platform.sendEmail({ to: 'x@y.z', subject: 'hi', text: 'body' });
+    await platform.getBrand();
+    expect(calls.map((c) => [c.method, c.path])).toEqual([
+      ['GET', '/billing/prices'],
+      ['POST', '/billing/checkout'],
+      ['POST', '/billing/portal'],
+      ['POST', '/email/send'],
+      ['GET', '/brand'],
+    ]);
+    for (const c of calls) {
+      expect(c.headers).toMatchObject({ 'x-client-id': 'app_x', 'x-client-secret': 'sec' });
+    }
+    expect(calls[1].body).toMatchObject({ tenantId: 't1', tier: 'pro' });
+    expect(calls[3].body).toEqual({ to: 'x@y.z', subject: 'hi', text: 'body' });
+  });
+
+  it('client-credential services refuse without a secret, before any request', async () => {
+    // A clientId alone is not a credential. The synchronous methods throw at
+    // the call site; the async ones reject. Either way nothing is sent.
+    const { platform, fetchFn } = make({ clientId: 'app_x' });
+    expect(() => platform.listPrices()).toThrow(ConfigError);
+    expect(() => platform.getBrand()).toThrow(ConfigError);
+    expect(() =>
+      platform.createCheckout({ tenantId: 't1', successUrl: 'https://a', cancelUrl: 'https://b' }),
+    ).toThrow(ConfigError);
+    expect(() =>
+      platform.createBillingPortal({ tenantId: 't1', returnUrl: 'https://a' }),
+    ).toThrow(ConfigError);
+    await expect(platform.sendEmail({ to: 'x@y.z', subject: 's' })).rejects.toBeInstanceOf(
+      ConfigError,
+    );
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('EvoPlatform response parsing', () => {
+  function withText(status: number, text: string) {
+    return jest.fn(async () => ({
+      ok: status >= 200 && status < 300,
+      status,
+      text: async () => text,
+    })) as unknown as FetchMock;
+  }
+
+  it('returns a non-JSON success body as text', async () => {
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn: withText(200, 'pong') });
+    await expect(platform.logout('r')).resolves.toBe('pong');
+  });
+
+  it('treats an empty body as undefined', async () => {
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn: withText(204, '') });
+    await expect(platform.logout('r')).resolves.toBeUndefined();
+  });
+
+  it('reports a non-JSON error body by status and keeps the raw text', async () => {
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn: withText(502, '<html>bad gateway</html>') });
+    await expect(platform.logout('r')).rejects.toMatchObject({
+      name: 'PlatformError',
+      status: 502,
+      message: 'Platform request failed with status 502',
+      body: '<html>bad gateway</html>',
+    });
+  });
+
+  it('reports a JSON error body without a message by status', async () => {
+    const platform = new EvoPlatform({ platformUrl: 'http://platform.test', fetchFn: withText(500, '{"error":"boom"}') });
+    await expect(platform.logout('r')).rejects.toMatchObject({
+      status: 500,
+      message: 'Platform request failed with status 500',
+      body: { error: 'boom' },
+    });
+  });
+});
