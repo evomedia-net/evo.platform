@@ -87,6 +87,18 @@ async function main() {
     create: { appId: app.id, name: 'member', description: 'Standard access' },
   });
 
+  // Enable the demo app for the demo tenant. No AppTenant row means the app
+  // is not enabled for that workspace and logins scoped to it are refused,
+  // so without this a fresh seed produced a tenant, an app and an owner who
+  // could not sign in to it (sdk-node's integration script found it the
+  // first time CI ran it, #201).
+  await prisma.appTenant.upsert({
+    where: { tenantId_appId: { tenantId: tenant.id, appId: app.id } },
+    update: {},
+    create: { tenantId: tenant.id, appId: app.id, status: 'ACTIVE', plan: 'free' },
+  });
+  out.push('demo app enabled for tenant acme (ACTIVE, free)');
+
   // Demo tenant user with the admin role
   const ownerEmail = 'owner@acme.example';
   const ownerPw = password('SEED_OWNER_PASSWORD');

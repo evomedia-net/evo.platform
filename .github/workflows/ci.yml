@@ -152,3 +152,81 @@ jobs:
         with:
           python-version: "3.12"
       - run: python scripts/md_txt.py --check
+
+  # The one test that talks to a real platform - sdk-node's integration
+  # script - had no schedule: every suite mocks fetch, and nothing else ran
+  # it. This job boots the platform against a throwaway Postgres, seeds the
+  # demo tenant and app, and runs the script against it (#201). The seed
+  # prints app_demo's client secret exactly once; that line is the credential.
+  integration:
+    name: integration (sdk-node against a live platform)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      # Outside production the platform boots on DATABASE_URL alone: the dev
+      # SECRET_KEY fallback is allowed, signing keys are generated on first
+      # boot, and with no SMTP configured sendEmail answers 503 - which is
+      # what the script expects.
+      SEED_OWNER_PASSWORD: integration-test-passphrase-ok
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            platform/package-lock.json
+            packages/sdk-node/package-lock.json
+
+      - name: Install, migrate and seed the platform
+        id: seed
+        working-directory: platform
+        run: |
+          npm ci
+          npx prisma migrate deploy
+          npm run seed | tee seed.log
+          secret=$(grep -oE 'clientSecret=[A-Za-z0-9_-]+' seed.log | cut -d= -f2)
+          test -n "$secret" || { echo "seed did not print app_demo's client secret"; exit 1; }
+          echo "::add-mask::$secret"
+          echo "client_secret=$secret" >> "$GITHUB_OUTPUT"
+
+      - name: Build and start the platform
+        working-directory: platform
+        run: |
+          npm run build
+          KEYS_DIR=./keys-ci nohup node dist/main.js > platform.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8200/.well-known/jwks.json > /dev/null && exit 0
+            sleep 1
+          done
+          echo "platform did not come up within 30s"; cat platform.log; exit 1
+
+      - name: Run the SDK integration script
+        working-directory: packages/sdk-node
+        env:
+          PLATFORM_URL: http://localhost:8200
+          EVO_CLIENT_SECRET: ${{ steps.seed.outputs.client_secret }}
+          EVO_TEST_PASSWORD: ${{ env.SEED_OWNER_PASSWORD }}
+        run: |
+          npm ci
+          npx tsx scripts/integration.ts
+
+      - name: Platform log
+        if: failure()
+        working-directory: platform
+        run: cat platform.log || true
