@@ -5,7 +5,12 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { patchEnvFile, register } from "./register";
+import { createInterface } from "readline";
+import { patchEnvFile, promptHidden, register } from "./register";
+
+// promptHidden reads a line from a readline interface; the mock hands back a
+// fixed answer so the prompt can be driven without a terminal.
+jest.mock("readline", () => ({ createInterface: jest.fn() }));
 
 describe("patchEnvFile", () => {
   const dir = mkdtempSync(join(tmpdir(), "evo-env-"));
@@ -32,7 +37,9 @@ describe("patchEnvFile", () => {
 describe("register", () => {
   const dir = mkdtempSync(join(tmpdir(), "evo-reg-"));
 
-  function mockFetch(responses: Array<{ ok: boolean; body: unknown; status?: number }>) {
+  function mockFetch(
+    responses: Array<{ ok: boolean; body: unknown; status?: number; badJson?: boolean }>,
+  ) {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     global.fetch = jest.fn(async (url: string | URL, init?: RequestInit) => {
       calls.push({ url: String(url), init: init ?? {} });
@@ -40,7 +47,10 @@ describe("register", () => {
       return {
         ok: next.ok,
         status: next.status ?? (next.ok ? 200 : 400),
-        json: async () => next.body,
+        json: async () => {
+          if (next.badJson) throw new SyntaxError("not JSON");
+          return next.body;
+        },
       } as Response;
     }) as unknown as typeof fetch;
     return calls;
@@ -86,5 +96,60 @@ describe("register", () => {
     await expect(
       register({ name: "my-app", platformUrl: "http://p", email: "e", password: "p", dir }),
     ).rejects.toThrow("already exists");
+  });
+
+  it("falls back to the HTTP status when the error body carries no message", async () => {
+    mockFetch([{ ok: false, status: 503, body: null }]);
+    await expect(
+      register({ name: "x", platformUrl: "http://p", email: "e", password: "p", dir }),
+    ).rejects.toThrow("/auth/login failed: HTTP 503");
+  });
+
+  it("omits PLATFORM_DEFAULT_WORKSPACE when no workspace is given", async () => {
+    const plain = mkdtempSync(join(tmpdir(), "evo-reg-nows-"));
+    mockFetch([
+      { ok: true, body: { accessToken: "tok", user: { platformAdmin: true } } },
+      { ok: true, body: { name: "plain", clientId: "app_p", clientSecret: "s" } },
+    ]);
+    await register({ name: "plain", platformUrl: "http://p", email: "e", password: "p", dir: plain });
+    const env = readFileSync(join(plain, ".env"), "utf8");
+    expect(env).toContain("EVO_CLIENT_ID=app_p");
+    expect(env).not.toContain("PLATFORM_DEFAULT_WORKSPACE");
+  });
+
+  it("treats a non-JSON error body as carrying no message", async () => {
+    // A proxy or crashed service answers with HTML; res.json() rejects and
+    // the message must fall back to the status rather than throw a parse error.
+    mockFetch([{ ok: false, status: 502, body: "<html>bad gateway</html>", badJson: true }]);
+    await expect(
+      register({ name: "x", platformUrl: "http://p", email: "e", password: "p", dir }),
+    ).rejects.toThrow("/auth/login failed: HTTP 502");
+  });
+});
+
+describe("promptHidden", () => {
+  it("asks on stdout, mutes readline's echo, and resolves the typed answer", async () => {
+    const rl = {
+      close: jest.fn(),
+      question: jest.fn((_q: string, cb: (answer: string) => void) => cb("hunter2")),
+      // What readline would call per keystroke to echo it. promptHidden must
+      // replace this before asking, or the password is printed as typed.
+      _writeToOutput: () => {
+        throw new Error("echo was not muted");
+      },
+    };
+    (createInterface as unknown as jest.Mock).mockReturnValue(rl);
+    const write = jest.spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    const answer = await promptHidden("Password: ");
+
+    expect(answer).toBe("hunter2");
+    expect(createInterface).toHaveBeenCalledWith({ input: process.stdin, output: process.stdout });
+    expect(write.mock.calls[0][0]).toBe("Password: ");
+    expect(() => rl._writeToOutput()).not.toThrow();
+    expect(rl.question).toHaveBeenCalledWith("", expect.any(Function));
+    expect(rl.close).toHaveBeenCalled();
+    expect(write.mock.calls[1][0]).toBe("\n");
+    write.mockRestore();
   });
 });
