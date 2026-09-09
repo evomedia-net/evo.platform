@@ -224,8 +224,3 @@ Deploy behind an nginx/TLS reverse proxy with docker-compose.prod.yml — see
 nginx, DNS, Stripe). Back up the database and the signing keys with
 scripts/backup.sh (losing the keys logs every user out); schedule it via cron and
 ship the output off-box.
-
-Not yet built (MVP roadmap)
----------------------------
-
-MFA/SSO.
