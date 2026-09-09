@@ -43,6 +43,7 @@ first** — the template's install deliberately does not build it:
 ```bash
 cd packages/sdk-node && npm ci && npm run build
 cd templates/next    && npm ci && npm test
+cd templates/next    && npm run test:coverage   # every src file in the denominator
 ```
 
 The SDK builds on `npm pack` and `npm publish`, through its `prepack` script.
