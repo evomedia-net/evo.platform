@@ -8,6 +8,9 @@ import path from "path";
 export default defineConfig({
   test: {
     environment: "node",
+    // Unit tests only. Without this vitest's default pattern also collects
+    // e2e/*.spec.ts, and Playwright's API refuses to run outside its runner.
+    include: ["src/**/*.test.{ts,tsx}"],
     coverage: {
       provider: "v8",
       // Every source file is in the denominator, imported by a test or not.

@@ -44,7 +44,9 @@ test("a failed sign-in keeps the email and clears only the password", async ({ p
   await page.locator("#password").fill("not-the-password");
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("alert")).toHaveText("Invalid email or password");
+  // Scoped to the form: Next.js keeps its own <div role="alert"> route
+  // announcer on every page, and an unscoped query matches both.
+  await expect(page.locator("form").getByRole("alert")).toHaveText("Invalid email or password");
   await expect(page.locator("#email")).toHaveValue(EMAIL);
   await expect(page.locator("#password")).toHaveValue("");
   expect(page.url()).not.toContain(EMAIL); // nothing typed went into the URL
