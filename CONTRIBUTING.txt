@@ -40,6 +40,13 @@ first — the template's install deliberately does not build it:
     cd packages/sdk-node && npm ci && npm run build
     cd templates/next    && npm ci && npm test
     cd templates/next    && npm run test:coverage   # every src file in the denominator
+    cd templates/next    && npm run test:e2e        # browser tests; needs the app up on :4180
+
+The browser tests (e2e/) drive the auth screens in Chromium against
+standalone mode. They expect a migrated, seeded database and the app running
+on port 4180 — docker compose up -d, npm run db:migrate, npm run db:seed,
+npm run dev — and a browser installed once with npx playwright install chromium.
+CI does all of that itself in the e2e job.
 
 The SDK builds on npm pack and npm publish, through its prepack script.
 It used to build during a consumer's install, via prepare — but a TypeScript
