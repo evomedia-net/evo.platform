@@ -10,11 +10,15 @@ import { signup, type AuthFormState } from "../actions";
 import { ResendVerification } from "@/components/auth/ResendVerification";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { PASSWORD_MIN_LENGTH, PASSWORD_RULES_TEXT } from "@/lib/auth/password";
+import { useAuthHandoff } from "@/lib/auth/useAuthHandoff";
 
 const initialState: AuthFormState = { error: null };
 
 export default function SignupPage() {
   const [state, formAction, pending] = useActionState(signup, initialState);
+  // The address typed on the sign-in form rides along, so someone who found
+  // they had no account is not asked for it again (#208).
+  const [handoff, setHandoff] = useAuthHandoff();
 
   // Platform mode lands here after a successful signup: the account exists
   // but can't sign in until the emailed verification link is clicked.
@@ -63,6 +67,8 @@ export default function SignupPage() {
           type="email"
           required
           autoComplete="email"
+          value={handoff.email}
+          onChange={(e) => setHandoff({ email: e.target.value })}
           className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
