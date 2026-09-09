@@ -99,10 +99,13 @@ test("after sign-in the header stays pinned with home and Sign out reachable", a
   await expect(signOut).toBeVisible();
   await expect(header.locator('a[href="/"]')).toBeVisible();
 
-  // Make the page tall, scroll well past a viewport, and check the header
-  // did not move: still at the top, Sign out still in view.
+  // Make the page tall the way real content does - by growing <main>, which
+  // sits in the same flex column as the header. A sticky element stays
+  // within its parent's box, so growing the body instead would only prove
+  // it stuck for one viewport. Then scroll well past a viewport and check
+  // the header did not move: still at the top, Sign out still in view.
   await page.evaluate(() => {
-    document.body.style.minHeight = "4000px";
+    document.querySelector("main")!.style.minHeight = "4000px";
     window.scrollTo(0, 2500);
   });
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(2000);
