@@ -269,3 +269,49 @@ describe('AskAi.health', () => {
     expect(await new AskAi({ url: 'http://ai.test', fetchFn }).health()).toBe(false);
   });
 });
+
+describe('AskAi edge cases', () => {
+  it('uses the global fetch when none is injected', async () => {
+    const saved = global.fetch;
+    global.fetch = jest.fn(async () => fakeResponse(200, { status: 'ok' })) as unknown as typeof fetch;
+    try {
+      expect(await new AskAi({ url: 'http://ai.test' }).health()).toBe(true);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      global.fetch = saved;
+    }
+  });
+
+  it('fills every missing response field with a safe default', async () => {
+    // An older evo-ai, or a partial reply, must not surface as undefineds.
+    const fetchFn = makeFetch(() => fakeResponse(200, {}));
+    const ai = new AskAi({ url: 'http://ai.test', serviceKey: 'svc_k', fetchFn });
+    expect(await ai.ask({ question: 'q', tenantId: 't1' })).toEqual({
+      answer: '',
+      question: 'q',
+      sources: [],
+      actionProposal: null,
+      gated: false,
+      unconfigured: false,
+    });
+  });
+
+  it('treats an empty 200 body as an empty result', async () => {
+    const fetchFn = makeFetch(() => ({ ok: true, status: 200, text: async () => '' }));
+    const ai = new AskAi({ url: 'http://ai.test', serviceKey: 'svc_k', fetchFn });
+    const result = await ai.ask({ question: 'q', tenantId: 't1' });
+    expect(result.answer).toBe('');
+    expect(result.sources).toEqual([]);
+  });
+
+  it('reports a non-Error rejection as unreachable, verbatim', async () => {
+    const fetchFn = makeFetch(() => {
+      throw 'socket hang up';
+    });
+    const ai = new AskAi({ url: 'http://ai.test', serviceKey: 'svc_k', fetchFn });
+    await expect(ai.ask({ question: 'q', tenantId: 't1' })).rejects.toMatchObject({
+      status: 0,
+      message: 'Ask AI is unreachable: socket hang up',
+    });
+  });
+});
