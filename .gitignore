@@ -52,6 +52,10 @@ build/
 # Test coverage output
 coverage/
 
+# Playwright output (templates/next browser tests)
+playwright-report/
+test-results/
+
 # Local working notes (plans, diagrams, scratch exports). Anything here that
 # should outlive the machine belongs in docs/ under its own name, not in a
 # folder git is told to ignore.

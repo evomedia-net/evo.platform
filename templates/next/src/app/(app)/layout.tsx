@@ -24,7 +24,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }}
     >
       <div className="min-h-screen flex flex-col">
-        <header className="bg-white border-b border-zinc-200 px-4 py-2.5 flex items-center gap-3">
+        {/* Pinned: the home link and Sign out must stay reachable at every
+            scroll position. Sticky keeps the header in normal flow, so the
+            page needs no offset; z-20 clears any sticky table header (#209). */}
+        <header className="sticky top-0 z-20 bg-white border-b border-zinc-200 px-4 py-2.5 flex items-center gap-3">
           <Link href="/" className="font-bold text-zinc-900">
             {PRODUCT_NAME}
           </Link>
