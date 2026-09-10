@@ -35,6 +35,7 @@ Resolution order per send: tenant SMTP config → platform default (`PUT /admin/
 | `POST /auth/logout` | — | Revoke a refresh token |
 | `GET /auth/me` | Bearer | Echo verified claims |
 | `GET /.well-known/jwks.json` | — | Public keys; apps cache this and verify locally |
+| `GET /api/build-version` | — | `{version}`: the running build's stamp from `build-version.json`. Read over the deploy channel by zdeploy's verification and the fleet dashboard; the public edge blocks it |
 | `POST /auth/passkeys/register/options` | Bearer | Start passkey registration → WebAuthn options + challenge token |
 | `POST /auth/passkeys/register/verify` | Bearer | Finish registration: `{credential, challengeToken, nickname?}` |
 | `GET /auth/passkeys` | Bearer | List own passkeys |
@@ -216,3 +217,7 @@ Deploy behind an nginx/TLS reverse proxy with `docker-compose.prod.yml` — see
 nginx, DNS, Stripe). Back up the database **and** the signing keys with
 `scripts/backup.sh` (losing the keys logs every user out); schedule it via cron and
 ship the output off-box.
+
+The release stamp is `build-version.json` in this directory: the release PR bumps
+it, the Docker image carries it, and `GET /api/build-version` serves it, so a
+deploy is verified against the build that is actually running.

@@ -18,6 +18,7 @@ import { AuditModule } from './audit/audit.module';
 import { BillingModule } from './billing/billing.module';
 import { EmailModule } from './email/email.module';
 import { RevenueModule } from './revenue/revenue.module';
+import { VersionModule } from './version/version.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { RevenueModule } from './revenue/revenue.module';
     BillingModule,
     EmailModule,
     RevenueModule,
+    VersionModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
