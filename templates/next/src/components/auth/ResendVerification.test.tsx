@@ -61,19 +61,35 @@ describe("ResendVerification", () => {
     expect(await screen.findByText(/verification email sent/i)).toBeTruthy();
   });
 
-  // A failed send must leave the button usable — the address may simply have
-  // been mistyped, and a dead button strands the user on an unverified account.
-  it("re-enables the button and stays on the form when the send fails", async () => {
+  // #224: the account cannot be signed into until this email is clicked, so a
+  // silently swallowed failure reads as "sent, still travelling" and the user
+  // waits for something that was never sent.
+  it("says the send failed, keeps the button usable, and swallows no rejection", async () => {
     vi.mocked(resendVerification).mockRejectedValue(new Error("smtp down"));
     const user = userEvent.setup();
     render(<ResendVerification email="owner@acme.example" />);
 
-    await user.click(screen.getByRole("button")).catch(() => {});
+    await user.click(screen.getByRole("button"));
 
-    await waitFor(() => {
-      const button = screen.getByRole("button") as HTMLButtonElement;
-      expect(button.disabled).toBe(false);
-      expect(button.textContent).toMatch(/re-send verification email/i);
-    });
+    expect(await screen.findByText(/couldn't send it just now/i)).toBeTruthy();
+    const button = screen.getByRole("button") as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toMatch(/re-send verification email/i);
+    expect(screen.queryByText(/verification email sent/i)).toBeNull();
+  });
+
+  it("clears the failure when the retry succeeds", async () => {
+    vi.mocked(resendVerification).mockRejectedValueOnce(new Error("smtp down"));
+    const user = userEvent.setup();
+    render(<ResendVerification email="owner@acme.example" />);
+
+    await user.click(screen.getByRole("button"));
+    expect(await screen.findByText(/couldn't send it just now/i)).toBeTruthy();
+
+    vi.mocked(resendVerification).mockResolvedValue({ ok: true });
+    await user.click(screen.getByRole("button"));
+
+    expect(await screen.findByText(/verification email sent/i)).toBeTruthy();
+    expect(screen.queryByText(/couldn't send it just now/i)).toBeNull();
   });
 });
