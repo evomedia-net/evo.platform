@@ -27,6 +27,8 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { isPlatformMode } from "@/lib/platform";
+import { verifySession } from "@/lib/auth/dal";
 import { hashPassword } from "@/lib/auth/password";
 import { changePassword } from "./actions";
 
@@ -86,6 +88,20 @@ describe("changePassword password policy", () => {
       form("correct horse battery staple", "something else entirely"),
     );
     expect(res.error).toMatch(/don't match/i);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  // In platform mode the platform owns the password. Writing a local hash
+  // here would leave two passwords for one account, and only one of them
+  // would ever be checked at sign-in.
+  it("refuses to change anything when the platform owns the password", async () => {
+    vi.mocked(isPlatformMode).mockReturnValueOnce(true);
+    const res = await changePassword(
+      state,
+      form("correct horse battery staple", "correct horse battery staple"),
+    );
+    expect(res.error).toMatch(/managed by the platform/i);
+    expect(verifySession).not.toHaveBeenCalled();
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
