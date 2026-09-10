@@ -22,6 +22,9 @@ COPY --from=build /app/prisma ./prisma
 # Prisma 7 reads the datasource URL and migrations path from this file; the
 # `migrate deploy` in CMD crash-loops without it.
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+# The release stamp, served at GET /api/build-version so a deploy can be
+# verified against what is actually running.
+COPY --from=build /app/build-version.json ./build-version.json
 COPY package*.json ./
 # Apply schema migrations before serving, in the IMAGE rather than in a
 # compose file. The deployed compose (deploy/docker-compose.yml) is not in
