@@ -121,4 +121,12 @@ describe('password policy', () => {
       expect(text).not.toContain(phantom);
     }
   });
+
+  // Twelve spaces met the length rule and passed every screen: the candidate
+  // trims to nothing, no list contains nothing, and a Set of an empty string
+  // has size 0 - so the one rule meant to catch it saw nothing to check (#213).
+  it('rejects a password that is only whitespace', () => {
+    expect(validatePassword(' '.repeat(12))).toMatch(/too common/);
+    expect(validatePassword('\t'.repeat(12) + '  ')).toMatch(/too common/);
+  });
 });

@@ -180,6 +180,16 @@ describe("resetPassword", () => {
     );
   });
 
+  // A valid token for an account that no longer exists (deleted between the
+  // request and the click) matches no row; that is not a success.
+  it("reports a vanished account instead of signing in", async () => {
+    vi.mocked(consumeToken).mockResolvedValueOnce(true);
+    vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 0 } as never);
+    const res = await resetPassword(state, form(good));
+    expect(res.error).toMatch(/account not found/i);
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
   // The password is already changed by this point. A 500 here sends people
   // back to request a second reset for a password that actually works.
   it("renders a failed auto-sign-in as a form message, never an exception", async () => {

@@ -106,6 +106,11 @@ function isSequential(candidate: string): boolean {
  */
 function isCommon(password: string): boolean {
   const candidate = password.trim().toLowerCase();
+  // A password of only whitespace trims to nothing, and nothing passes every
+  // check below: it is in no list, strips to no suffix, and is not "one
+  // character repeated" because a Set of an empty string has size 0. Twelve
+  // spaces met the length rule and sailed through. Name it for what it is.
+  if (!candidate) return true;
   if (COMMON_PASSWORDS.has(candidate)) return true;
 
   const trimmed = candidate.replace(
