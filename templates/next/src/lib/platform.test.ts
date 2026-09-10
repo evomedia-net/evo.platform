@@ -159,4 +159,57 @@ describe("provisionFromPlatform", () => {
       expect(prisma.membership.update).not.toHaveBeenCalled();
     });
   });
+
+  // The first sign-in from a workspace has no membership row to reconcile;
+  // it is created with whatever role the platform's claims grant.
+  describe("first sign-in from a workspace", () => {
+    beforeEach(() => {
+      vi.mocked(prisma.membership.findUnique).mockResolvedValue(null as never);
+    });
+
+    it("creates a MEMBER membership when the platform grants no admin", async () => {
+      verifyToken.mockResolvedValue({
+        sub: "platform-user-1",
+        email: "a@b.test",
+        tenant_slug: "acme",
+        roles: [],
+      });
+      await provisionFromPlatform(loginResult("a@b.test", "acme"));
+      expect(prisma.membership.create).toHaveBeenCalledWith({
+        data: { userId: "local-1", tenantId: "tenant-b", role: "MEMBER" },
+      });
+      expect(prisma.membership.update).not.toHaveBeenCalled();
+    });
+
+    it("creates an ADMIN membership when the platform grants admin", async () => {
+      verifyToken.mockResolvedValue({
+        sub: "platform-user-1",
+        email: "a@b.test",
+        tenant_slug: "acme",
+        roles: ["admin"],
+      });
+      await provisionFromPlatform(loginResult("a@b.test", "acme"));
+      expect(prisma.membership.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ role: "ADMIN" }) }),
+      );
+    });
+
+    // A platform account with no display name must not overwrite a local
+    // one with null on every sign-in: the update omits the field instead.
+    it("leaves an existing local name alone when the platform has none", async () => {
+      verifyToken.mockResolvedValue({
+        sub: "platform-user-1",
+        email: "a@b.test",
+        tenant_slug: "acme",
+        roles: [],
+      });
+      await provisionFromPlatform({
+        accessToken: "t",
+        user: { name: null, tenant: { name: "Acme" } },
+      } as never);
+      const call = vi.mocked(prisma.user.upsert).mock.calls[0]![0];
+      expect(call.update).toEqual({ email: "a@b.test", name: undefined });
+      expect(call.create).toMatchObject({ name: null });
+    });
+  });
 });
