@@ -4,9 +4,27 @@
 
 "use client";
 
-import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import { useTenant } from "@/components/TenantProvider";
 import { deleteTenantDb } from "@/lib/offline/tenantDb";
+
+/**
+ * The pending flag comes from useFormStatus rather than local state, and it
+ * has to live in a CHILD of the form — that hook reports the enclosing
+ * form's status, so a component that renders the <form> itself always reads
+ * false. A `useState` set inside the action does not work either: React runs
+ * a form action inside a transition and defers updates made there until the
+ * action settles, so the button stayed enabled for the whole sign-out and
+ * only claimed to be working once it was done (#221).
+ */
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button className="text-sm text-zinc-500 hover:text-zinc-800" disabled={pending}>
+      {pending ? "Signing out…" : "Sign out"}
+    </button>
+  );
+}
 
 /**
  * Sign out, and take this tenant's offline data with it.
@@ -18,12 +36,9 @@ import { deleteTenantDb } from "@/lib/offline/tenantDb";
  */
 export function SignOutButton({ action }: { action: () => Promise<void> }) {
   const { tenantId } = useTenant();
-  const [busy, setBusy] = useState(false);
-
   return (
     <form
       action={async () => {
-        setBusy(true);
         try {
           await deleteTenantDb(tenantId);
         } catch {
@@ -33,9 +48,7 @@ export function SignOutButton({ action }: { action: () => Promise<void> }) {
         await action();
       }}
     >
-      <button className="text-sm text-zinc-500 hover:text-zinc-800" disabled={busy}>
-        {busy ? "Signing out…" : "Sign out"}
-      </button>
+      <SubmitButton />
     </form>
   );
 }
