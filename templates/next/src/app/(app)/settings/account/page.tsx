@@ -8,6 +8,7 @@ import { useActionState, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { useTenant } from "@/components/TenantProvider";
 import { PasswordInput } from "@/components/auth/PasswordInput";
+import { PASSWORD_MIN_LENGTH, PASSWORD_RULES_TEXT } from "@/lib/auth/password-policy";
 import { PasskeysCard } from "@/components/auth/PasskeysCard";
 import { changePassword, type AccountActionState } from "./actions";
 
@@ -50,10 +51,11 @@ export default function AccountPage() {
               id="next"
               name="next"
               autoComplete="new-password"
-              minLength={8}
+              minLength={PASSWORD_MIN_LENGTH}
               value={next}
               onChange={setNext}
             />
+            <p className="mt-1 text-xs text-zinc-500">{PASSWORD_RULES_TEXT}</p>
           </div>
           <div>
             <label htmlFor="confirm" className="block text-sm font-medium text-zinc-700 mb-1">
@@ -63,7 +65,7 @@ export default function AccountPage() {
               id="confirm"
               name="confirm"
               autoComplete="new-password"
-              minLength={8}
+              minLength={PASSWORD_MIN_LENGTH}
               value={confirm}
               onChange={setConfirm}
             />
