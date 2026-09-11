@@ -13,6 +13,19 @@
 # does not. `applies-to` appears twice per group because security updates are
 # a separate pipeline from version updates and are ungrouped unless told.
 #
+# Version-update groups carry minor and patch only. The first grouped run
+# swept five simultaneous majors into one pull request - NestJS 11 to 12,
+# TypeScript 5 to 7, jest 29 to 30, vitest 3 to 5, @types/node 22 to 26 -
+# across four directories. It failed on the first of them (@nestjs/throttler
+# has no NestJS 12 peer yet) and nobody could have reviewed the rest anyway:
+# each of those is a migration with its own breakages, and bundled together
+# there is no way to take one and leave another. Majors still arrive, one
+# pull request each, which is the right size to judge them at.
+#
+# Security groups deliberately keep every update type. A fix that only exists
+# in a major is still the fix, and that is exactly the case to see rather
+# than filter out.
+#
 # Weekly rather than daily: these are libraries, not incidents. Security
 # updates ignore the schedule and arrive when the advisory does.
 version: 2
@@ -31,6 +44,7 @@ updates:
       npm-version-updates:
         applies-to: version-updates
         patterns: ["*"]
+        update-types: [minor, patch]
       npm-security-updates:
         applies-to: security-updates
         patterns: ["*"]
@@ -44,6 +58,7 @@ updates:
       pip-version-updates:
         applies-to: version-updates
         patterns: ["*"]
+        update-types: [minor, patch]
       pip-security-updates:
         applies-to: security-updates
         patterns: ["*"]
@@ -60,6 +75,7 @@ updates:
       actions-version-updates:
         applies-to: version-updates
         patterns: ["*"]
+        update-types: [minor, patch]
       actions-security-updates:
         applies-to: security-updates
         patterns: ["*"]
