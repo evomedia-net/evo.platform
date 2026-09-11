@@ -38,7 +38,9 @@
   "overrides": {
     "next-auth": {
       "nodemailer": "$nodemailer"
-    }
+    },
+    "mysql2": "^3.23.1",
+    "deepmerge-ts": "^8.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
