@@ -1,0 +1,65 @@
+# Dependabot, grouped.
+#
+# Six separate pull requests arrived for one directory on 2026-09-11 and all
+# six failed `npm ci`, each for the same reason: a single-package bump
+# regenerates the whole lockfile, and a partial regeneration can leave a tree
+# whose transitive requirements the new lockfile no longer satisfies. The six
+# together resolved cleanly - @auth/prisma-adapter moved to a version that no
+# longer needs its own nested nodemailer - but no one of them could, because
+# each carried only part of the answer.
+#
+# Grouping is therefore not tidiness, it is correctness: one pull request per
+# ecosystem per directory means one coherent lockfile that either installs or
+# does not. `applies-to` appears twice per group because security updates are
+# a separate pipeline from version updates and are ungrouped unless told.
+#
+# Weekly rather than daily: these are libraries, not incidents. Security
+# updates ignore the schedule and arrive when the advisory does.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directories:
+      - /platform
+      - /templates/next
+      - /packages/sdk-node
+      - /cli
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-version-updates:
+        applies-to: version-updates
+        patterns: ["*"]
+      npm-security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /packages/sdk-python
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      pip-version-updates:
+        applies-to: version-updates
+        patterns: ["*"]
+      pip-security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # The workflow pins every action to a commit SHA, which is the right call and
+  # also means nothing tells us when one moves. Dependabot reads the `# v4`
+  # comment beside each pin and updates both together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions-version-updates:
+        applies-to: version-updates
+        patterns: ["*"]
+      actions-security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
