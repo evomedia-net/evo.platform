@@ -36,7 +36,25 @@ import ProjectsPage from "./page";
 // finding the previous test's markup.
 afterEach(cleanup);
 
-const db = { name: "tenant-t1" };
+/**
+ * The rows useLiveQuery would return, and a Dexie-shaped stub the page's own
+ * queriers can actually run against. Stubbing useLiveQuery to return rows
+ * without calling the querier left the two queries in the page uncovered -
+ * they are the only place the sort order and the table names are stated, so
+ * a typo in either was invisible.
+ */
+const data: { projects: unknown[]; tasks: unknown[] } = { projects: [], tasks: [] };
+const ordered = vi.fn();
+const db = {
+  name: "tenant-t1",
+  projects: {
+    orderBy: (field: string) => {
+      ordered(field);
+      return { reverse: () => ({ toArray: async () => data.projects }) };
+    },
+  },
+  tasks: { toArray: async () => data.tasks },
+};
 
 const project = (over: Record<string, unknown> = {}) => ({
   id: "p1",
@@ -59,8 +77,15 @@ const task = (over: Record<string, unknown> = {}) => ({
  * rebuilt every render.
  */
 function shows(projects: unknown[], tasks: unknown[] = []) {
+  data.projects = projects;
+  data.tasks = tasks;
   let n = 0;
-  vi.mocked(useLiveQuery).mockImplementation((() => (n++ % 2 === 0 ? projects : tasks)) as never);
+  vi.mocked(useLiveQuery).mockImplementation(((querier: () => unknown) => {
+    // Run the page's querier for real, then answer synchronously the way the
+    // hook does. Without the call the queries themselves are never exercised.
+    void querier();
+    return n++ % 2 === 0 ? data.projects : data.tasks;
+  }) as never);
 }
 
 const projectBox = () => screen.getByPlaceholderText("New project name");
@@ -69,6 +94,7 @@ const cardFor = (name: string) => screen.getByText(name).closest("div.bg-white")
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ordered.mockClear();
   vi.mocked(useTenant).mockReturnValue({ db } as never);
   shows([]);
 });
@@ -77,6 +103,13 @@ describe("with nothing in the database yet", () => {
   it("invites the first project instead of showing an empty page", () => {
     render(<ProjectsPage />);
     expect(screen.getByText(/no projects yet — add one above/i)).toBeTruthy();
+  });
+
+  // The sort is the only reason the newest project appears first, and it is
+  // stated in exactly one place.
+  it("reads projects newest-first", () => {
+    render(<ProjectsPage />);
+    expect(ordered).toHaveBeenCalledWith("updatedAt");
   });
 });
 

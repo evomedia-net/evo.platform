@@ -307,6 +307,21 @@ describe("member actions", () => {
     await user.click(screen.getByRole("button", { name: "Make admin" }));
     expect(await screen.findByText("Could not update member")).toBeTruthy();
   });
+
+  // A proxy that answers with an HTML error page rather than JSON: reading
+  // the body throws, and the fallback has to survive that too.
+  it("falls back when the response body is not JSON at all", async () => {
+    const user = await open();
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: () => Promise.reject(new Error("<html>502</html>")),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Make admin" }));
+
+    expect(await screen.findByText("Could not update member")).toBeTruthy();
+  });
 });
 
 describe("invites", () => {
