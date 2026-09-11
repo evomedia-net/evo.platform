@@ -1,0 +1,10 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/evomedia-net/evo.platform/security/advisories/new
+    about: >-
+      Report it privately, never as a public issue. See SECURITY.md for what is
+      in scope and what to expect.
+  - name: Setup, deployment and architecture docs
+    url: https://github.com/evomedia-net/evo.platform/tree/main/docs
+    about: Install, deploy, flows and the template contract.

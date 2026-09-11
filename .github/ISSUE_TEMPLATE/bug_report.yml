@@ -1,0 +1,84 @@
+name: Bug report
+description: Something behaves differently from how it is documented or intended.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Found a security problem instead?** Don't file it here — report it
+        privately through
+        [GitHub's private vulnerability reporting](https://github.com/evomedia-net/evo.platform/security/advisories/new).
+        A public issue tells everyone before there is a fix.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The build you saw it on — `GET /api/build-version`, or the commit.
+      placeholder: v0.0.1.0.14
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - platform (the auth/tenancy service)
+        - templates/next (the app template)
+        - packages/sdk-node
+        - packages/sdk-python
+        - cli (evo new)
+        - docs
+        - not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Which mode
+      description: >-
+        The template runs standalone (its own accounts) or in platform mode
+        (logins delegated to EvoPlatform). Plenty of behaviour differs.
+      options:
+        - standalone
+        - platform mode
+        - not applicable
+        - not sure
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, in the order you did it.
+      placeholder: |
+        1. Sign in as a tenant admin
+        2. Open Members and unlock with the password
+        3. Change a member's role
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened
+      description: >-
+        Include the exact message or status code if there was one. Redact
+        tokens, passwords and real addresses — a screenshot of a session is
+        still a session.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >-
+        Node version, browser, whether it is reproducible every time, relevant
+        log lines.
+    validations:
+      required: false

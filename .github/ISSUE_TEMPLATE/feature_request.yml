@@ -1,0 +1,37 @@
+name: Feature request
+description: Something the platform should be able to do and cannot today.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth reading [the note on scope](../blob/main/CONTRIBUTING.md#a-note-on-scope)
+        first — this project is deliberately small, and the most useful
+        requests say what problem they are solving rather than which feature
+        to add.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what stops you today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: >-
+        Optional. If you have a shape in mind, describe it — but the problem
+        above matters more.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >-
+        Workarounds, other tools, or the reason an existing feature doesn't
+        cover it.
+    validations:
+      required: false
