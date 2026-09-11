@@ -28,6 +28,19 @@ async function load() {
   // platform mock than the one the test then configured.
   const p = await import("@/lib/platform");
   const n = await import("nodemailer");
+
+  // Reset here rather than trusting the framework to do it. vitest 5 caches
+  // mock factories, so resetModules no longer re-runs them and the same mock
+  // functions survive every load() - a mockReturnValue(true) set in one test
+  // was still true in the next, which sent the standalone cases down the
+  // platform branch. Doing it explicitly also means these tests no longer
+  // depend on what restoreAllMocks happens to cover in a given version.
+  vi.mocked(p.isPlatformMode).mockReset().mockReturnValue(false);
+  vi.mocked(p.getPlatform).mockReset();
+  vi.mocked(n.default.createTransport).mockReset().mockReturnValue({
+    sendMail: sendMailFn,
+  } as never);
+
   const m = await import("./mailer");
   return {
     ...m,
