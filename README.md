@@ -2,6 +2,9 @@
 
 ![CI](https://github.com/evomedia-net/evo.platform/actions/workflows/ci.yml/badge.svg)
 
+By [Kelly Michels](https://evomedia.net) · [dev@evomedia.net](mailto:dev@evomedia.net) ·
+more of what I build at [evomedia.net](https://evomedia.net)
+
 A multi-tenant SaaS platform and app-template toolkit. Build a new tenant-aware site by
 cloning a starter template — tenancy, auth, RBAC, audit logging, and deployment come wired in.
 
