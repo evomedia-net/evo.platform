@@ -1,3 +1,7 @@
+# Evomedia.net EvoPlatform — https://github.com/evomedia-net/evo.platform
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Capture admin-console screenshots via headless Chrome + CDP.
 
 Ported from evo.ehs's scripts/capture_docs_shots.py — same pipeline (own
