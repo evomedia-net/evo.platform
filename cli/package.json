@@ -30,5 +30,12 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.2.0",
     "typescript": "^5.6.0"
-  }
+  },
+  "author": "Kelly Michels <dev@evomedia.net>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evomedia-net/evo.platform.git",
+    "directory": "cli"
+  },
+  "homepage": "https://evomedia.net"
 }

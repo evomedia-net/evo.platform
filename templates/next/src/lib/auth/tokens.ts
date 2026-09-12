@@ -1,3 +1,7 @@
+// Evomedia.net EvoPlatform — https://github.com/evomedia-net/evo.platform
+// Created by Kelly Michels · dev@evomedia.net
+// Licensed under the MIT License. See LICENSE.
+
 /**
  * Single-use, expiring tokens for password reset + invites, stored in the
  * Auth.js VerificationToken table. Only the sha256 of the raw token is

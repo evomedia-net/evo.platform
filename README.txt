@@ -3,6 +3,8 @@ EvoPlatform
 
 CI
 
+https://evomedia.net — built by Kelly Michels · dev@evomedia.net
+
 A multi-tenant SaaS platform and app-template toolkit. Build a new tenant-aware site by
 cloning a starter template — tenancy, auth, RBAC, audit logging, and deployment come wired in.
 
