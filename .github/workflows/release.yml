@@ -7,14 +7,18 @@
 # inflation the fleet rule forbids. What this removes is the five mechanical
 # steps around that judgement, not the judgement.
 #
-# The awkward bit, and why the branch trigger in ci.yml matters:
-# a pull request opened with GITHUB_TOKEN does NOT trigger workflow runs -
-# GitHub blocks that to stop recursion - so the required checks would never
-# report and the release would sit unmergeable forever. Pushing the branch
-# does trigger CI, and check runs attach to the commit SHA rather than to the
-# event, so the same runs satisfy the pull request. ci.yml therefore watches
-# `chore/release-*` on push. Nothing bypasses the ruleset; the release goes
-# through a pull request like every other change.
+# It stops at the branch, and the last step is yours: open the pull request
+# GitHub offers on the branch page. That is not a design preference - the
+# organization forbids GitHub Actions from creating pull requests, so
+# `gh pr create` fails with "GitHub Actions is not permitted to create or
+# approve pull requests". Two earlier shapes of this workflow were worse:
+# pushing straight to main is refused by the ruleset (the Actions app cannot
+# be a bypass actor), and a pull request opened with GITHUB_TOKEN would not
+# trigger CI anyway, so its required checks would never report.
+#
+# Opening it yourself is one click and has a real advantage: your token
+# triggers CI normally, so the checks attach to the pull request the ordinary
+# way and there is no duplicate run.
 name: release
 
 on:
@@ -29,9 +33,11 @@ on:
   push:
     branches: [main]
 
+# contents: write pushes the branch and the tag. Nothing opens a pull
+# request any more, so pull-requests: write would be a permission held for
+# no reason.
 permissions:
   contents: write
-  pull-requests: write
 
 # Two releases at once would race on the stamp and could tag the wrong commit.
 # Queue rather than cancel - a half-finished release is worse than a slow one.
@@ -111,16 +117,20 @@ jobs:
                      -m "Bumped the $SEGMENT segment: $CURRENT -> $NEXT. Cut from the release workflow by ${{ github.actor }}."
           git push origin "chore/release-$NEXT"
 
-      - name: Open the release pull request
+      - name: Hand over the pull request
         env:
-          GH_TOKEN: ${{ github.token }}
           NEXT: ${{ steps.bump.outputs.next }}
           CURRENT: ${{ steps.bump.outputs.current }}
           SEGMENT: ${{ inputs.segment }}
         run: |
-          last=$(git describe --tags --abbrev=0 "origin/main" 2>/dev/null || echo "")
+          last=$(git describe --tags --abbrev=0 origin/main 2>/dev/null || echo "")
+          url="${{ github.server_url }}/${{ github.repository }}/compare/main...chore/release-$NEXT?expand=1"
           {
-            echo "Bumps the \`$SEGMENT\` segment: \`$CURRENT\` → \`$NEXT\`."
+            echo "## $NEXT is ready to open"
+            echo
+            echo "Bumped \`$SEGMENT\`: \`$CURRENT\` → \`$NEXT\`, pushed as \`chore/release-$NEXT\`."
+            echo
+            echo "**[Open the pull request]($url)** — the tag is laid automatically when it merges."
             echo
             if [ -n "$last" ]; then
               echo "### Ships since $last"
@@ -128,18 +138,9 @@ jobs:
               git log --format='- %s' "$last"..origin/main
               echo
             fi
-            echo "Cut from the release workflow by @${{ github.actor }}."
-            echo "The annotated tag \`$NEXT\` is laid automatically when this merges."
-            echo
             echo "Deploying is a separate, deliberate step."
-          } > body.md
-          gh pr create --base main --head "chore/release-$NEXT" \
-            --title "chore(release): $NEXT" --body-file body.md
-          {
-            echo "## $NEXT prepared"
-            echo
-            echo "\`$CURRENT\` → \`$NEXT\` (\`$SEGMENT\`). Merge the pull request to tag it."
           } >> "$GITHUB_STEP_SUMMARY"
+          echo "Branch pushed. Open the pull request: $url"
 
   tag:
     name: tag the release
