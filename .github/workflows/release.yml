@@ -1,20 +1,20 @@
-# Cut a release: bump the stamp, commit it to main, lay the annotated tag.
+# Cut a release: bump the stamp, open the release pull request, tag on merge.
 #
-# Run it from the Actions tab (Run workflow) and pick a segment. The decision
-# stays human on purpose - a build number names something that SHIPPED, and
-# whether a set of merges constitutes a release is a judgement no trigger can
-# make. A workflow on every push to main would give one build per merge, which
-# is precisely the inflation the fleet rule forbids. What this removes is the
-# five mechanical steps around that judgement, not the judgement.
+# Run `prepare` from the Actions tab and pick a segment. The decision stays
+# human on purpose - a build number names something that SHIPPED, and whether
+# a set of merges constitutes a release is a judgement no trigger can make. On
+# every push to main it would mean one build per merge, which is precisely the
+# inflation the fleet rule forbids. What this removes is the five mechanical
+# steps around that judgement, not the judgement.
 #
-# Why it commits straight to main rather than opening a pull request:
-# a pull request opened with GITHUB_TOKEN does not trigger workflow runs -
-# GitHub blocks that to stop recursion - so the nine required checks would
-# never report and the release could never merge. It would sit there forever.
-# The alternatives are a personal access token kept as a secret, or this: the
-# GitHub Actions app is a bypass actor on the main ruleset, and pushes a
-# one-value generated commit. CI still runs on that push, and the commit it
-# tags has a parent that already passed.
+# The awkward bit, and why the branch trigger in ci.yml matters:
+# a pull request opened with GITHUB_TOKEN does NOT trigger workflow runs -
+# GitHub blocks that to stop recursion - so the required checks would never
+# report and the release would sit unmergeable forever. Pushing the branch
+# does trigger CI, and check runs attach to the commit SHA rather than to the
+# event, so the same runs satisfy the pull request. ci.yml therefore watches
+# `chore/release-*` on push. Nothing bypasses the ruleset; the release goes
+# through a pull request like every other change.
 name: release
 
 on:
@@ -26,21 +26,23 @@ on:
         default: build
         type: choice
         options: [build, alpha, beta, rc, release]
+  push:
+    branches: [main]
 
-# contents: write is what pushes the commit and the tag. Nothing else is needed.
 permissions:
   contents: write
+  pull-requests: write
 
-# Two releases at once would race on the stamp and could lay a tag on the
-# wrong commit. Queue them instead of cancelling - a half-finished release is
-# worse than a slow one.
+# Two releases at once would race on the stamp and could tag the wrong commit.
+# Queue rather than cancel - a half-finished release is worse than a slow one.
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: cut a release
+  prepare:
+    name: prepare the release
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -95,7 +97,7 @@ jobs:
             exit 1
           fi
 
-      - name: Commit, tag and push
+      - name: Push the release branch
         env:
           NEXT: ${{ steps.bump.outputs.next }}
           CURRENT: ${{ steps.bump.outputs.current }}
@@ -103,15 +105,72 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "chore/release-$NEXT"
           git add platform/build-version.json
           git commit -m "chore(release): $NEXT" \
                      -m "Bumped the $SEGMENT segment: $CURRENT -> $NEXT. Cut from the release workflow by ${{ github.actor }}."
-          git tag -a "$NEXT" -m "$NEXT"
-          git push origin HEAD:main --follow-tags
+          git push origin "chore/release-$NEXT"
+
+      - name: Open the release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.bump.outputs.next }}
+          CURRENT: ${{ steps.bump.outputs.current }}
+          SEGMENT: ${{ inputs.segment }}
+        run: |
+          last=$(git describe --tags --abbrev=0 "origin/main" 2>/dev/null || echo "")
           {
-            echo "## $NEXT"
+            echo "Bumps the \`$SEGMENT\` segment: \`$CURRENT\` → \`$NEXT\`."
             echo
-            echo "Bumped \`$SEGMENT\`: \`$CURRENT\` → \`$NEXT\`, tagged and pushed to main."
+            if [ -n "$last" ]; then
+              echo "### Ships since $last"
+              echo
+              git log --format='- %s' "$last"..origin/main
+              echo
+            fi
+            echo "Cut from the release workflow by @${{ github.actor }}."
+            echo "The annotated tag \`$NEXT\` is laid automatically when this merges."
+            echo
+            echo "Deploying is a separate, deliberate step."
+          } > body.md
+          gh pr create --base main --head "chore/release-$NEXT" \
+            --title "chore(release): $NEXT" --body-file body.md
+          {
+            echo "## $NEXT prepared"
+            echo
+            echo "\`$CURRENT\` → \`$NEXT\` (\`$SEGMENT\`). Merge the pull request to tag it."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  tag:
+    name: tag the release
+    # Only for the stamp commit itself, so ordinary merges are ignored.
+    if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Tag the merge commit
+        run: |
+          version=$(python -c "import json;print(json.load(open('platform/build-version.json'))['version'])")
+          echo "stamp says: $version"
+
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            echo "Tag $version already exists — nothing to do."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$version" -m "$version"
+          git push origin "$version"
+          echo "Tagged $version at $(git rev-parse --short HEAD)"
+          {
+            echo "## Tagged $version"
+            echo
+            echo "Annotated tag laid at \`$(git rev-parse --short HEAD)\` and pushed."
             echo
             echo "Deploying is a separate, deliberate step."
           } >> "$GITHUB_STEP_SUMMARY"

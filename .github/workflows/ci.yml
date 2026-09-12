@@ -8,7 +8,12 @@ permissions:
 
 on:
   push:
-    branches: [main]
+    # Release branches are here for a specific reason: a pull request opened
+    # with GITHUB_TOKEN does not trigger workflow runs, so the release pull
+    # request would never get its required checks and could never merge.
+    # Check runs attach to the commit SHA rather than to the event, so a push
+    # run on the branch satisfies the pull request just as well.
+    branches: [main, "chore/release-*"]
   pull_request:
     branches: [main]
 
