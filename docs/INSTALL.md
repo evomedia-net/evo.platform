@@ -113,6 +113,25 @@ Bootstrap refuses to run with a weak `BOOTSTRAP_ADMIN_PASSWORD` and logs
 `admin bootstrap refused: BOOTSTRAP_ADMIN_PASSWORD does not meet the password
 policy`.
 
+#### Where a user meets the policy
+
+Three screens in the Next.js template set a password, and all three state the
+rule rather than waiting for a rejection: **signup**, the **reset-password**
+form reached from an emailed link, and **Account → Change password**
+(`/settings/account`). Each renders `PASSWORD_RULES_TEXT` under the field and
+puts `PASSWORD_MIN_LENGTH` on the input, so the browser stops a short password
+before the round trip and the text says why.
+
+The account form is standalone-mode only. In platform mode the platform owns
+the password, the form is not rendered, and the action refuses on the server
+even if it is called directly — a local password hash alongside a
+platform-managed account would mean two passwords for one login, only one of
+which is ever checked.
+
+The server is the enforcement point in every case: the field's `minLength` is a
+courtesy, and `validatePassword()` runs on every set and change path regardless
+of what the browser allowed through.
+
 On first boot the service generates an RSA signing keypair into `./keys/`
 (gitignored). Delete the folder to rotate keys in dev.
 
