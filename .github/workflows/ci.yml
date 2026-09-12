@@ -153,6 +153,21 @@ jobs:
           python-version: "3.12"
       - run: python scripts/md_txt.py --check
 
+  # The release workflow's version arithmetic. Its one rule - a stage bump
+  # zeroes every segment below it - fails silently when it is wrong: the
+  # result sorts correctly and reads plausibly and still belongs to the
+  # previous stage. Nothing downstream would catch that, so it is tested.
+  scripts:
+    name: release version arithmetic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip pytest
+      - run: python -m pytest scripts -q
+
   # The one test that talks to a real platform - sdk-node's integration
   # script - had no schedule: every suite mocks fetch, and nothing else ran
   # it. This job boots the platform against a throwaway Postgres, seeds the
