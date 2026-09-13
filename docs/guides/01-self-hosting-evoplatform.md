@@ -350,8 +350,8 @@ up this volume, and make sure your backups leave the server.
 repository rather than from memory, and copy the output somewhere off-box.
 
 ```bash
-sudo ./platform/scripts/install-backup-cron.sh     # install or repair
-./platform/scripts/install-backup-cron.sh --check  # has it drifted?
+sudo bash platform/scripts/install-backup-cron.sh     # install or repair
+bash platform/scripts/install-backup-cron.sh --check  # has it drifted?
 ```
 
 **Run the backup once by hand before trusting the schedule.** A backup that
