@@ -87,8 +87,17 @@ docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$work/db.
 gzip -t "$work/db.sql.gz" 2>/dev/null || fail "the dump is not valid gzip — refusing to keep it"
 # An empty stream gzips to about 20 bytes; a real schema is far larger. The
 # marker check is the one that actually proves pg_dump ran.
-gunzip -c "$work/db.sql.gz" | head -c 4096 | grep -q 'PostgreSQL database dump' \
-  || fail "the dump has no PostgreSQL header — pg_dump produced nothing usable"
+#
+# The header is read into a variable rather than piped into `head`: under
+# `set -o pipefail`, head closing the pipe early kills gunzip with SIGPIPE
+# and the whole pipeline reports failure - so a PERFECTLY GOOD dump fails
+# the check. That cost a deploy cycle to find, and it is the sort of guard
+# that looks obviously correct while rejecting exactly what it should keep.
+header="$(gunzip -c "$work/db.sql.gz" 2>/dev/null | head -c 4096 || true)"
+case "$header" in
+  *"PostgreSQL database dump"*) ;;
+  *) fail "the dump has no PostgreSQL header - pg_dump produced nothing usable" ;;
+esac
 rows="$(gunzip -c "$work/db.sql.gz" | wc -l)"
 [ "$rows" -gt 20 ] || fail "the dump is only $rows lines — refusing to keep it"
 
