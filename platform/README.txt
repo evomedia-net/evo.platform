@@ -223,8 +223,11 @@ Production
 Deploy behind an nginx/TLS reverse proxy with docker-compose.prod.yml — see
 ../docs/DEPLOY.md (../docs/DEPLOY.md) for the full walkthrough (env, migrations,
 nginx, DNS, Stripe). Back up the database and the signing keys with
-scripts/backup.sh (losing the keys logs every user out); schedule it via cron and
-ship the output off-box.
+scripts/backup.sh (losing the keys logs every user out); schedule it with
+scripts/install-backup-cron.sh, which keeps the entry in the repository rather
+than only in crontab -l, and ship the output off-box. Run it once by hand
+first — the script refuses to keep a dump with no PostgreSQL header, but only a
+real run proves the container name and keys path are right.
 
 The release stamp is build-version.json in this directory: the release PR bumps
 it, the Docker image carries it, and GET /api/build-version serves it, so a

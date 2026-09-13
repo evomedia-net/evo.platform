@@ -345,8 +345,23 @@ them, every user is logged out permanently and every registered passkey stops
 working. There is no recovery — the keys cannot be regenerated to match. Back
 up this volume, and make sure your backups leave the server.
 
-`platform/scripts/backup.sh` dumps both. Schedule it with cron and copy the
-output somewhere off-box.
+`platform/scripts/backup.sh` dumps both. Schedule it with
+`platform/scripts/install-backup-cron.sh`, which writes the entry from the
+repository rather than from memory, and copy the output somewhere off-box.
+
+```bash
+sudo ./platform/scripts/install-backup-cron.sh     # install or repair
+./platform/scripts/install-backup-cron.sh --check  # has it drifted?
+```
+
+**Run the backup once by hand before trusting the schedule.** A backup that
+fails silently is worse than none, because the directory fills with files that
+look like backups. Ours did exactly that for a month: the entry pointed at a
+directory that had been renamed and a container that no longer existed, and
+every night it wrote a 20-byte empty archive and logged the error where nobody
+read it. The script now refuses to keep a dump that has no PostgreSQL header,
+and treats a missing keys directory as a failure rather than a warning — but
+`--check` and one manual run are what actually tell you it works.
 
 ### Updating
 
