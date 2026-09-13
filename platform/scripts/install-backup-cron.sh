@@ -15,9 +15,12 @@
 # lost as a deleted file.
 #
 # Usage, on the host:
-#   sudo ./install-backup-cron.sh            # install/replace, then show it
-#   ./install-backup-cron.sh --dry-run       # print the line, change nothing
-#   ./install-backup-cron.sh --check         # verify the installed line matches
+#   sudo bash install-backup-cron.sh         # install/replace, then show it
+#   bash install-backup-cron.sh --dry-run    # print the line, change nothing
+#   bash install-backup-cron.sh --check      # verify the installed line matches
+#
+# Invoked with `bash`, because the deploy archive is built on Windows and
+# cannot carry a Unix execute bit - these files arrive mode 644.
 #
 # It is idempotent: the entry is tagged with a marker comment and replaced,
 # never appended, so running it twice leaves one schedule.
@@ -31,7 +34,12 @@ LOG="${LOG:-/var/log/evoplatform-backup.log}"
 SCHEDULE="${SCHEDULE:-30 3 * * *}"
 
 MARKER="# evoplatform-backup (managed by platform/scripts/install-backup-cron.sh)"
-LINE="$SCHEDULE cd $STACK_DIR && BACKUP_DIR=$BACKUP_DIR KEYS_DIR=$SECRETS_DIR/keys DB_CONTAINER=$DB_CONTAINER ./scripts/backup.sh >> $LOG 2>&1"
+# Invoked as `bash scripts/backup.sh`, not `./scripts/backup.sh`. The deploy
+# archive is built on Windows, which cannot carry a Unix execute bit, so the
+# file arrives mode 644 however it is stored in git - and `./script` then fails
+# with "Permission denied" on every deploy. Calling bash explicitly does not
+# care.
+LINE="$SCHEDULE cd $STACK_DIR && BACKUP_DIR=$BACKUP_DIR KEYS_DIR=$SECRETS_DIR/keys DB_CONTAINER=$DB_CONTAINER bash scripts/backup.sh >> $LOG 2>&1"
 
 mode="install"
 case "${1:-}" in
@@ -73,4 +81,4 @@ echo "Installed:"
 crontab -l | grep -A1 -F "$MARKER"
 echo
 echo "Verify it works now, rather than trusting tomorrow night:"
-echo "  cd $STACK_DIR && BACKUP_DIR=$BACKUP_DIR KEYS_DIR=$SECRETS_DIR/keys DB_CONTAINER=$DB_CONTAINER ./scripts/backup.sh"
+echo "  cd $STACK_DIR && BACKUP_DIR=$BACKUP_DIR KEYS_DIR=$SECRETS_DIR/keys DB_CONTAINER=$DB_CONTAINER bash scripts/backup.sh"
