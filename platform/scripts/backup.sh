@@ -78,9 +78,11 @@ echo "    container=$DB_CONTAINER db=$DB_NAME keys=$KEYS_DIR"
 
 # ── Database ────────────────────────────────────────────────────────────────
 echo "==> Dumping database $DB_NAME from container $DB_CONTAINER"
-# -T: no TTY, so the stream is not mangled with carriage returns. The old
-# script used -t, which corrupts a dump piped to a file.
-docker exec -T "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$work/db.sql.gz"
+# No -t. The original used it, which allocates a TTY and corrupts a dump piped
+# to a file with carriage returns. -T is NOT the fix - that is a docker compose
+# flag and `docker exec` rejects it outright ("unknown shorthand flag: 'T'").
+# Plain `docker exec` writes clean bytes to stdout, which is all this needs.
+docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$work/db.sql.gz"
 
 gzip -t "$work/db.sql.gz" 2>/dev/null || fail "the dump is not valid gzip — refusing to keep it"
 # An empty stream gzips to about 20 bytes; a real schema is far larger. The
