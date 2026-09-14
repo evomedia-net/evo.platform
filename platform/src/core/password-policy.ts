@@ -28,7 +28,7 @@ import {
  * console's PW_POLICY in admin-ui/static/admin-ui.js).
  *
  * Kept in step with evo.ehs ehs/services/auth.py and
- * SWAG-Estimates src/lib/auth/password-policy.ts.
+ * ProvenSheet src/lib/auth/password-policy.ts.
  */
 
 /** OWASP ASVS floor. NIST's own floor is 8; 12 is the stricter of the two. */

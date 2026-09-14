@@ -13,7 +13,7 @@
  * with no options now throws — so the pg adapter is wired in here.
  *
  * Re-uses a singleton across hot reloads in dev so the connection pool doesn't
- * multiply. Same pattern as SWAG-Estimates and EvoCivilCode.
+ * multiply. Same pattern as ProvenSheet and EvoCivilCode.
  */
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
