@@ -5,7 +5,7 @@
 // Prisma 7 requires the datasource URL to live in this config file rather than
 // in schema.prisma.
 //
-// Deliberately NO imports here (pattern proven in SWAG-Estimates and
+// Deliberately NO imports here (pattern proven in ProvenSheet and
 // EvoCivilCode):
 //   - `dotenv` — the Prisma CLI auto-loads `.env` from the project root, and
 //     dotenv is tree-shaken out of Next.js standalone builds.

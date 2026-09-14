@@ -21,7 +21,7 @@ describe('EventsController', () => {
   it('routes an app-pushed event through the gated path with the calling app', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ctrl = new EventsController(audit as any);
-    const clientApp = { id: 'app-row-1', clientId: 'app_swag', name: 'swag' };
+    const clientApp = { id: 'app-row-1', clientId: 'app_provensheet', name: 'provensheet' };
     const dto = { action: 'estimate.created', tenantId: 't1', userId: 'u1', detail: { n: 1 } };
     await ctrl.push(dto, { clientApp } as never);
     expect(audit.recordFromApp).toHaveBeenCalledWith(clientApp, dto);

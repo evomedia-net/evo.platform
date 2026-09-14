@@ -17,7 +17,7 @@ way the call travels: the tail is always the initiator.
 
 ## 1 · User sign-up, end to end
 
-Self-service signup arrives through an app (SWAG, EvoCivilCode, …), never at
+Self-service signup arrives through an app (ProvenSheet, EvoCivilCode, …), never at
 the platform directly. One request creates the workspace, its founding admin,
 and trial access to exactly the app the person arrived through — and nobody
 can sign in until the mailbox is proven.

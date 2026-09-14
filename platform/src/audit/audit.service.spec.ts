@@ -53,7 +53,7 @@ describe('AuditService.list', () => {
 // row was caller-supplied. Any app holding any valid client secret could write
 // `auth.login` against a workspace it was never enabled for (#154).
 describe('AuditService.recordFromApp', () => {
-  const app = { id: 'app-row-1', clientId: 'app_swag', name: 'swag' };
+  const app = { id: 'app-row-1', clientId: 'app_provensheet', name: 'provensheet' };
 
   it('records an app event against a tenant the app is enabled for', async () => {
     const prisma = makePrisma();
@@ -68,10 +68,10 @@ describe('AuditService.recordFromApp', () => {
     });
     expect(prisma.auditEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        action: 'swag.estimate.created',
+        action: 'provensheet.estimate.created',
         tenantId: 't1',
         userId: 'u1',
-        appClientId: 'app_swag',
+        appClientId: 'app_provensheet',
       }),
     });
   });
@@ -108,7 +108,7 @@ describe('AuditService.recordFromApp', () => {
       await makeSvc(prisma).recordFromApp(app, { action, tenantId: 't1' });
     }
     const stored = prisma.auditEvent.create.mock.calls.map((c) => c[0].data.action);
-    expect(stored).toEqual(['swag.auth.login', 'swag.auth.signup', 'swag.billing.paid']);
+    expect(stored).toEqual(['provensheet.auth.login', 'provensheet.auth.signup', 'provensheet.billing.paid']);
   });
 
   it('bounds the detail payload', async () => {
@@ -124,7 +124,7 @@ describe('AuditService.recordFromApp', () => {
     await makeSvc(prisma).recordFromApp(app, { action: 'sync.completed' });
     expect(prisma.appTenant.findUnique).not.toHaveBeenCalled();
     expect(prisma.auditEvent.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ action: 'swag.sync.completed', appClientId: 'app_swag' }),
+      data: expect.objectContaining({ action: 'provensheet.sync.completed', appClientId: 'app_provensheet' }),
     });
   });
 });

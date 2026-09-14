@@ -20,7 +20,7 @@ import {
  * rules we deliberately do not have stay absent.
  *
  * Kept in step with evo.ehs tests/test_password_policy.py and
- * SWAG-Estimates src/lib/auth/password-policy.test.ts.
+ * ProvenSheet src/lib/auth/password-policy.test.ts.
  */
 describe('password policy', () => {
   it('uses the OWASP 12-character floor', () => {

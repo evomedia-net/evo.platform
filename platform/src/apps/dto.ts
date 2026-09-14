@@ -8,7 +8,7 @@ export class CreateAppDto {
   @IsString()
   name!: string;
 
-  /** Customer-facing product name ("SWAG Estimates"); defaults from the slug. */
+  /** Customer-facing product name ("ProvenSheet"); defaults from the slug. */
   @IsOptional()
   @IsString()
   displayName?: string;

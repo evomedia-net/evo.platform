@@ -35,7 +35,7 @@ export interface BrandRecord {
   legal?: { company?: string; copyright_since?: number };
 }
 
-/** Title-case a registry slug: "swag-estimates" -> "Swag Estimates". */
+/** Title-case a registry slug: "acme-widgets" -> "Acme Widgets". */
 function titleize(slug: string): string {
   return slug
     .split(/[-_\s]+/)

@@ -183,14 +183,14 @@ export class EmailTemplateService {
   /** Sample values so a preview shows a realistic message, not empty gaps. */
   sampleVars(code: string): Record<string, string> {
     return {
-      productName: 'SWAG Estimates',
+      productName: 'ProvenSheet',
       email: 'someone@example.com',
       expiryMinutes: '30',
       expiryHours: '24',
       inviter: 'Kelly Michels',
       workspace: 'Acme Industrial',
       workspaces: '  acme  (Acme Industrial)\n  acme-eu  (Acme Europe)',
-      signInUrl: 'https://swag.evomedia.net/login',
+      signInUrl: 'https://provensheet.com/login',
       ...(code === 'workspace_list' ? {} : {}),
     };
   }

@@ -72,10 +72,10 @@ describe('AppsService prices', () => {
   });
 
   it("refuses a price already registered to another app — one app cannot sell another's product", async () => {
-    const prisma = makePrisma({ appId: 'other', tier: 'pro', app: { name: 'swag-estimates' } });
+    const prisma = makePrisma({ appId: 'other', tier: 'pro', app: { name: 'provensheet' } });
     await expect(
       makeSvc(prisma).addPrice('a1', { stripePriceId: 'price_taken', tier: 'pro' }),
-    ).rejects.toThrow(/already belongs to "swag-estimates"/);
+    ).rejects.toThrow(/already belongs to "provensheet"/);
     expect(prisma.appPrice.create).not.toHaveBeenCalled();
   });
 
@@ -143,7 +143,7 @@ describe('AppsService.removeRole', () => {
 // app is already soft-deleted, so one mistaken click can never destroy client
 // credentials and every tenant grant that depends on them.
 
-const LIVE = { id: "a1", clientId: "app_x", name: "swag", deletedAt: null };
+const LIVE = { id: "a1", clientId: "app_x", name: "provensheet", deletedAt: null };
 const DELETED = { ...LIVE, deletedAt: new Date("2026-08-01") };
 
 function makeLifecyclePrisma(current: Record<string, unknown>) {

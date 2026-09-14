@@ -7,7 +7,7 @@ import { IsBoolean, IsEmail, IsInt, IsOptional, IsString } from 'class-validator
 export class SendEmailDto {
   /**
    * Display name on the From header. A bare address reads as machine noise;
-   * "SWAG Estimates <noreply@…>" tells a recipient which product is writing
+   * "ProvenSheet <noreply@…>" tells a recipient which product is writing
    * before they open anything (#103). The address itself is never caller-set -
    * it comes from the resolved SMTP config.
    */

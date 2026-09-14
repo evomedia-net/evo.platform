@@ -17,7 +17,7 @@
  * table with inline attributes is the layout that survives all of them.
  *
  * Platform-level only. Products are named by a variable, never themed
- * separately — one template that says "SWAG Estimates" beats a per-product
+ * separately — one template that says "ProvenSheet" beats a per-product
  * template set that drifts apart, and there is no per-tenant theming at all.
  */
 
@@ -39,7 +39,7 @@ export function esc(value: string): string {
 }
 
 export interface EmailBody {
-  /** Product this message is about, e.g. "SWAG Estimates". */
+  /** Product this message is about, e.g. "ProvenSheet". */
   product: string;
   /** Lead line under the heading. */
   heading: string;

@@ -26,17 +26,17 @@ describe('BrandService.compose', () => {
   // The whole point of serving this centrally: an app with no record still
   // gets a usable brand from the registry naming it already has.
   it('falls back to displayName when no record is stored', () => {
-    expect(svc().compose(null, 'swag-estimates', 'ProvenSheet')?.product.name).toBe('ProvenSheet');
+    expect(svc().compose(null, 'provensheet', 'ProvenSheet')?.product.name).toBe('ProvenSheet');
   });
 
   it('prefers the record over displayName, so the two cannot drift', () => {
-    const out = svc().compose({ product: { name: 'Renamed' } }, 'swag-estimates', 'ProvenSheet');
+    const out = svc().compose({ product: { name: 'Renamed' } }, 'provensheet', 'ProvenSheet');
     expect(out?.product.name).toBe('Renamed');
   });
 
   it('titleizes the slug rather than serving it raw', () => {
-    const out = svc().compose({ product: {} }, 'swag-estimates', null);
-    expect(out?.product.name).toBe('Swag Estimates');
+    const out = svc().compose({ product: {} }, 'acme-widgets', null);
+    expect(out?.product.name).toBe('Acme Widgets');
   });
 
   // Null tells the SDK to stay on the local file. Answering a bare titleized
@@ -143,7 +143,7 @@ describe('resolveProduct agrees with the brand record', () => {
 
 describe('BrandService against the registry', () => {
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
-  const appRow = { name: 'swag-estimates', displayName: 'ProvenSheet', brand: null };
+  const appRow = { name: 'provensheet', displayName: 'ProvenSheet', brand: null };
   const makePrisma = (row: unknown = appRow) => ({
     app: {
       findFirst: jest.fn().mockResolvedValue(row),

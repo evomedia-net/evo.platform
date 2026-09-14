@@ -24,15 +24,15 @@ const svc = (saved: Record<string, unknown> | null, failing = false) =>
     audit as any,
   );
 
-const VARS = { productName: 'SWAG Estimates', email: 'kelly@evomedia.net', expiryMinutes: '30' };
+const VARS = { productName: 'ProvenSheet', email: 'kelly@evomedia.net', expiryMinutes: '30' };
 
 beforeEach(() => jest.clearAllMocks());
 
 describe('rendering', () => {
   it('uses the built-in copy when nothing has been customised', async () => {
     const msg = await svc(null).render('password_reset', VARS, 'https://p.test/r');
-    expect(msg.subject).toBe('Reset your SWAG Estimates password');
-    expect(msg.html).toContain('SWAG Estimates');
+    expect(msg.subject).toBe('Reset your ProvenSheet password');
+    expect(msg.html).toContain('ProvenSheet');
     expect(msg.html).toContain('https://p.test/r');
   });
 
@@ -45,7 +45,7 @@ describe('rendering', () => {
       actionLabel: 'Go',
       outro: 'Bye.',
     }).render('password_reset', VARS, 'https://p.test/r');
-    expect(msg.subject).toBe('Custom: SWAG Estimates');
+    expect(msg.subject).toBe('Custom: ProvenSheet');
     expect(msg.html).toContain('Custom heading');
   });
 
@@ -59,13 +59,13 @@ describe('rendering', () => {
       intro: '',
       outro: '',
     }).render('password_reset', VARS, 'https://p.test/r');
-    expect(msg.subject).toBe('Reset your SWAG Estimates password');
+    expect(msg.subject).toBe('Reset your ProvenSheet password');
     expect(msg.html).toContain('Reset my password');
   });
 
   it('still sends when the template table cannot be read at all', async () => {
     const msg = await svc(null, true).render('password_reset', VARS, 'https://p.test/r');
-    expect(msg.subject).toBe('Reset your SWAG Estimates password');
+    expect(msg.subject).toBe('Reset your ProvenSheet password');
   });
 
   it('escapes values, so a workspace name cannot inject markup', async () => {

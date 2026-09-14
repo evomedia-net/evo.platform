@@ -13,13 +13,13 @@ describe('resolveProduct', () => {
   it('prefers the display name a customer should read over the registry slug', async () => {
     const p = await resolveProduct(
       prismaWith({
-        name: 'swag-estimates',
-        displayName: 'SWAG Estimates',
-        callbackUrls: ['https://swag.evomedia.net'],
+        name: 'provensheet',
+        displayName: 'ProvenSheet',
+        callbackUrls: ['https://provensheet.com'],
       }),
       'app_1',
     );
-    expect(p).toEqual({ name: 'SWAG Estimates', signInUrl: 'https://swag.evomedia.net' });
+    expect(p).toEqual({ name: 'ProvenSheet', signInUrl: 'https://provensheet.com' });
   });
 
   it('title-cases the slug when no display name is set, never showing the raw slug', async () => {
@@ -30,7 +30,7 @@ describe('resolveProduct', () => {
     expect(p.name).toBe('Docket Mail');
   });
 
-  // The whole point of #103: a SWAG user must not be returned to the operator
+  // The whole point of #103: a ProvenSheet user must not be returned to the operator
   // console. The destination comes from the registry, so it cannot be steered.
   it('returns the app to its own registered URL', async () => {
     const p = await resolveProduct(
@@ -56,8 +56,8 @@ describe('resolveProduct', () => {
 
 describe('renderEmail', () => {
   const body = {
-    product: 'SWAG Estimates',
-    heading: 'Reset your SWAG Estimates password',
+    product: 'ProvenSheet',
+    heading: 'Reset your ProvenSheet password',
     intro: '<p>Someone asked to reset the password.</p>',
     action: { label: 'Reset my password', url: 'https://platform.test/auth/reset-page?token=abc' },
     outro: '<p>The link is valid for 30 minutes and can be used once.</p>',
@@ -65,9 +65,9 @@ describe('renderEmail', () => {
 
   it('names the product and identifies the sender — the report was that it read as phishing', () => {
     const { html, text } = renderEmail(body);
-    expect(html).toContain('SWAG Estimates');
+    expect(html).toContain('ProvenSheet');
     expect(html).toMatch(/Evomedia\.net LLC/);
-    expect(text).toContain('SWAG Estimates');
+    expect(text).toContain('ProvenSheet');
     expect(text).toMatch(/Evomedia\.net LLC/);
   });
 

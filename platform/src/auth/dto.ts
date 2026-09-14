@@ -72,7 +72,7 @@ export class EmailFlowDto {
   /**
    * The app asking on the user's behalf. Without it the platform cannot name
    * the product in the email or send the user back where they started, which
-   * is how a SWAG reset used to end at the operator console (#103).
+   * is how a ProvenSheet reset used to end at the operator console (#103).
    *
    * Only the id is accepted — never a product name or return URL. Both are
    * looked up in the app registry, so nothing a caller supplies can put an

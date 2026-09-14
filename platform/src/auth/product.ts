@@ -46,7 +46,7 @@ function brandName(brand: unknown): string {
   return typeof name === 'string' ? name.trim() : '';
 }
 
-/** Title-case a registry slug: "swag-estimates" -> "Swag Estimates". */
+/** Title-case a registry slug: "acme-widgets" -> "Acme Widgets". */
 function titleize(slug: string): string {
   return slug
     .split(/[-_\s]+/)
@@ -71,8 +71,8 @@ export async function resolveProduct(
   // displayName both name the product — so the name is resolved in one place
   // or an email subject drifts from what the app's own header renders.
   //
-  // displayName is what a customer should read ("SWAG Estimates"); name is the
-  // registry slug. Falling back to a titleized slug beats showing "swag-estimates"
+  // displayName is what a customer should read ("ProvenSheet"); name is the
+  // registry slug. Falling back to a titleized slug beats showing "provensheet"
   // to someone deciding whether this email is genuine.
   const name = brandName(app.brand) || app.displayName?.trim() || titleize(app.name);
   const url = app.callbackUrls.find((u) => /^https?:\/\//i.test(u));
