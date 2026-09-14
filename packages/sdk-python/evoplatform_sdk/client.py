@@ -9,7 +9,7 @@ here are Python snake_case and this module does the renaming at the boundary.
 Anything sdk-node sends, this sends byte-for-byte the same — the two SDKs are
 one contract in two languages, and the platform test suite is the referee.
 
-Synchronous by design. The first consumer is SmartPlant EHS, whose service
+Synchronous by design. The first consumer is evo.ehs, whose service
 code runs sync (NiceGUI hands blocking work to run.io_bound); an async client
 can wrap this later without changing the wire.
 """

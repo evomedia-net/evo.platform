@@ -1,9 +1,9 @@
 # Renaming a product
 
-Three products have been renamed in two weeks — SmartPlant EHS → evo.ehs,
-then SWAG Estimates → ProvenSheet, plus the prefix drop on DocketMail and
-CivilCode. Each was forced or shaped by something learned during the previous
-one. This is what to do, in order, and the traps that actually bit.
+Three products have been renamed in two weeks — evo.ehs and ProvenSheet each
+took a new name, plus the prefix drop on DocketMail and CivilCode. Each was
+forced or shaped by something learned during the previous one. This is what to
+do, in order, and the traps that actually bit.
 
 Written for the fleet. The evo.ehs-specific inventory lives in that repo at
 `md/rebrand_inventory.md`; this covers the parts every product shares.

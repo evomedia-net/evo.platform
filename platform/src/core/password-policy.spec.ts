@@ -19,7 +19,7 @@ import {
  * halves — that strong passphrases are accepted, and that the composition
  * rules we deliberately do not have stay absent.
  *
- * Kept in step with SmartPlantEHS tests/test_password_policy.py and
+ * Kept in step with evo.ehs tests/test_password_policy.py and
  * SWAG-Estimates src/lib/auth/password-policy.test.ts.
  */
 describe('password policy', () => {
