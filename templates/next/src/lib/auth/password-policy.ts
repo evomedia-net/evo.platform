@@ -15,8 +15,8 @@ import { z } from "zod";
 // tries, while rejecting strong passphrases like "correct horse battery
 // staple".
 //
-// Keep in step with the same policy in SmartPlantEHS
-// (smartplantpermits/services/auth.py) and EvoPlatform.
+// Keep in step with the same policy in evo.ehs
+// (ehs/services/auth.py) and EvoPlatform.
 
 export const PASSWORD_MIN_LENGTH = 12;
 

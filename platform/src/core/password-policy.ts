@@ -27,7 +27,7 @@ import {
  * Mirror this in any client that validates before submitting (see the admin
  * console's PW_POLICY in admin-ui/static/admin-ui.js).
  *
- * Kept in step with SmartPlantEHS smartplantpermits/services/auth.py and
+ * Kept in step with evo.ehs ehs/services/auth.py and
  * SWAG-Estimates src/lib/auth/password-policy.ts.
  */
 
