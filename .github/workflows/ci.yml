@@ -6,6 +6,14 @@ name: CI
 permissions:
   contents: read
 
+# The Node version, in one place. It was written out at four separate
+# setup-node steps before, which is exactly how it came to sit a major behind
+# platform/Dockerfile with nothing complaining (#276). scripts/
+# test_node_version.py fails if this and the Dockerfile and .nvmrc and the
+# engines floors stop agreeing.
+env:
+  NODE_VERSION: "22"
+
 on:
   push:
     branches: [main]
@@ -31,7 +39,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: ${{ matrix.dir }}/package-lock.json
 
@@ -106,7 +114,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: |
             packages/sdk-node/package-lock.json
@@ -202,7 +210,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: |
             platform/package-lock.json
@@ -279,7 +287,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: |
             packages/sdk-node/package-lock.json
