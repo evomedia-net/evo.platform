@@ -40,6 +40,30 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # TypeScript majors are held until ts-jest can accept one.
+    #
+    # ts-jest 29.4.12 - the latest stable - declares `typescript ">=4.3 <7"`,
+    # so a bump to 7.x fails at resolution before a single test runs:
+    #
+    #     npm error Could not resolve dependency:
+    #     npm error peer typescript@">=4.3 <7" from ts-jest@29.4.12
+    #
+    # Three directories use ts-jest (platform, cli, packages/sdk-node) and all
+    # three were permanently blocked pull requests. templates/next runs vitest
+    # and is unaffected. There is no ts-jest release that takes TypeScript 7,
+    # not even on `next` - that tag is 29.0.0-next.1, an older prerelease.
+    #
+    # REMOVE THIS as soon as ts-jest ships a TypeScript 7 peer range; check
+    # with `npm view ts-jest peerDependencies.typescript`. Note that 6.x IS
+    # inside the current range, so moving to TypeScript 6 first is a real
+    # option and would need this entry narrowed rather than deleted.
+    #
+    # Only version updates are ignored. A security advisory in TypeScript
+    # would still arrive, which is the point of leaving the security group
+    # untouched above.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       npm-version-updates:
         applies-to: version-updates
