@@ -334,3 +334,99 @@ describe('PasskeysService user verification', () => {
     });
   });
 });
+
+// @simplewebauthn/server v14 narrowed its transport union to the five the spec
+// now names, dropping 'cable' (the old name for 'hybrid') and 'smart-card'
+// (CTAP 2.2, which some authenticators do report). Rows written under v13 can
+// hold either, and the service used to cast stored text to that union - so
+// taking the rename at face value would have narrowed the declared type under
+// data the database already contains.
+//
+// The library wants string[] on every one of these calls, so these assert the
+// value is carried through untouched rather than filtered or re-typed.
+describe('PasskeysService transports survive the round trip', () => {
+  const keys = new KeysService();
+  const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  let prisma: ReturnType<typeof makePrisma>;
+  let svc: PasskeysService;
+
+  beforeAll(() => keys.loadOrGenerate(mkdtempSync(join(tmpdir(), 'evokeys-'))));
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma = makePrisma();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    svc = new PasskeysService(prisma as any, keys, audit as any);
+    (generateRegistrationOptions as jest.Mock).mockResolvedValue({ challenge: 'chal-reg' });
+    (generateAuthenticationOptions as jest.Mock).mockResolvedValue({ challenge: 'chal-auth' });
+  });
+
+  it('offers a stored credential with every transport it was registered with', async () => {
+    prisma.passkeyCredential.findMany.mockResolvedValue([
+      { credentialId: 'cred-abc', transports: 'smart-card,cable,usb' },
+    ]);
+    await svc.loginOptions(undefined, 'owner@acme.example', rp);
+    expect((generateAuthenticationOptions as jest.Mock).mock.calls[0][0].allowCredentials).toEqual([
+      { id: 'cred-abc', transports: ['smart-card', 'cable', 'usb'] },
+    ]);
+  });
+
+  it('verifies against the transports the credential was stored with', async () => {
+    prisma.passkeyCredential.findMany.mockResolvedValue([
+      { credentialId: 'cred-abc', transports: 'smart-card' },
+    ]);
+    const { challengeToken } = (await svc.loginOptions(undefined, 'owner@acme.example', rp)) as {
+      challengeToken: string;
+    };
+    prisma.passkeyCredential.findFirst.mockResolvedValue({
+      id: 'row1',
+      userId: 'u1',
+      credentialId: 'cred-abc',
+      publicKey: Buffer.from([1, 2, 3]),
+      signCount: 0,
+      transports: 'smart-card',
+    });
+    (verifyAuthenticationResponse as jest.Mock).mockResolvedValue({
+      verified: true,
+      authenticationInfo: { newCounter: 1 },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await svc.verifyLogin({ id: 'cred-abc' } as any, challengeToken);
+    expect((verifyAuthenticationResponse as jest.Mock).mock.calls[0][0].credential).toMatchObject({
+      transports: ['smart-card'],
+    });
+  });
+
+  it('excludes an already-registered credential with its transports', async () => {
+    prisma.passkeyCredential.findMany.mockResolvedValue([
+      { credentialId: 'cred-abc', transports: 'cable' },
+    ]);
+    await svc.registrationOptions('u1', rp);
+    expect((generateRegistrationOptions as jest.Mock).mock.calls[0][0].excludeCredentials).toEqual([
+      { id: 'cred-abc', transports: ['cable'] },
+    ]);
+  });
+
+  it('sends no transports at all when the column is empty', async () => {
+    prisma.passkeyCredential.findMany.mockResolvedValue([
+      { credentialId: 'cred-abc', transports: null },
+    ]);
+    await svc.loginOptions(undefined, 'owner@acme.example', rp);
+    expect((generateAuthenticationOptions as jest.Mock).mock.calls[0][0].allowCredentials).toEqual([
+      { id: 'cred-abc', transports: undefined },
+    ]);
+  });
+
+  it('sends no transports when the column holds only separators', async () => {
+    // undefined, not [] - an empty list tells the browser the credential is
+    // reachable by no transport at all, which is a different claim from "we
+    // were not told". A null column takes an early return, so this is the
+    // only input that reaches the empty-after-split branch.
+    prisma.passkeyCredential.findMany.mockResolvedValue([
+      { credentialId: 'cred-abc', transports: ', ,' },
+    ]);
+    await svc.loginOptions(undefined, 'owner@acme.example', rp);
+    expect((generateAuthenticationOptions as jest.Mock).mock.calls[0][0].allowCredentials).toEqual([
+      { id: 'cred-abc', transports: undefined },
+    ]);
+  });
+});
