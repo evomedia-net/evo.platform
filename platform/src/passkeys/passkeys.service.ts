@@ -9,7 +9,6 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
   type AuthenticationResponseJSON,
-  type AuthenticatorTransportFuture,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
 import { PasskeyCredential, User } from '@prisma/client';
@@ -324,10 +323,27 @@ function transportsToStr(transports?: string[]): string | null {
   return transports?.length ? transports.join(',') : null;
 }
 
-function strToTransports(raw: string | null): AuthenticatorTransportFuture[] | undefined {
+/**
+ * The transports a stored credential reported at registration, as a plain
+ * list of strings.
+ *
+ * `string[]` is what @simplewebauthn/server asks for on every call that takes
+ * them (v14: `WebAuthnCredential.transports`, `allowCredentials[].transports`,
+ * `excludeCredentials[].transports`), and it is also the honest type for this
+ * value. The old signature cast arbitrary database text to a closed union,
+ * which asserted something nobody had checked.
+ *
+ * v14 also narrowed its own `AuthenticatorTransport` to the five the spec now
+ * names, dropping `'cable'` (renamed `'hybrid'`) and `'smart-card'` (CTAP 2.2,
+ * which some authenticators do report). Rows written under v13 can hold
+ * either. Narrowing here would not remove those values from the database — it
+ * would only stop the code admitting they are there, and the strings are
+ * passed through to the browser either way.
+ */
+function strToTransports(raw: string | null): string[] | undefined {
   if (!raw) return undefined;
   const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  return parts.length ? (parts as AuthenticatorTransportFuture[]) : undefined;
+  return parts.length ? parts : undefined;
 }
 
 /**
@@ -348,7 +364,7 @@ function strToTransports(raw: string | null): AuthenticatorTransportFuture[] | u
 function decoyCredentials(
   tenantSlug: string | undefined,
   email: string,
-): { id: string; transports?: AuthenticatorTransportFuture[] }[] {
+): { id: string; transports?: string[] }[] {
   const seed = createHmac('sha256', config.secretKey)
     .update(`webauthn_decoy:${tenantSlug ?? ''}:${email.trim().toLowerCase()}`)
     .digest();
