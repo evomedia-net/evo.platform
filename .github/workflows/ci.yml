@@ -24,6 +24,9 @@ jobs:
   build-test:
     name: build + test (${{ matrix.dir }})
     runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -71,6 +74,9 @@ jobs:
   build-test-python:
     name: build + test (packages/sdk-python, py${{ matrix.python }})
     runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +115,9 @@ jobs:
   build-test-template:
     name: build + test (templates/next)
     runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -154,6 +163,9 @@ jobs:
   twins:
     name: .txt twins in sync
     runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -168,6 +180,9 @@ jobs:
   scripts:
     name: release version arithmetic
     runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -184,6 +199,9 @@ jobs:
   integration:
     name: integration (sdk-node against a live platform)
     runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 5
     services:
       postgres:
         image: postgres:17-alpine
@@ -263,6 +281,9 @@ jobs:
   e2e:
     name: e2e (templates/next auth screens)
     runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:17-alpine
