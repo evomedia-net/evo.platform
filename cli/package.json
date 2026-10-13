@@ -37,5 +37,10 @@
     "url": "git+https://github.com/evomedia-net/evo.platform.git",
     "directory": "cli"
   },
-  "homepage": "https://evomedia.net"
+  "homepage": "https://evomedia.net",
+  "overrides": {
+    "js-yaml": {
+      "argparse": "^2.0.1"
+    }
+  }
 }
