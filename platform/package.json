@@ -67,7 +67,10 @@
   "overrides": {
     "multer": "^2.4.0",
     "mysql2": "^3.23.1",
-    "deepmerge-ts": "^8.0.0"
+    "deepmerge-ts": "^8.0.0",
+    "js-yaml": {
+      "argparse": "^2.0.1"
+    }
   },
   "author": "Kelly Michels <dev@evomedia.net>",
   "license": "MIT",
