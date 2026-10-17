@@ -20,6 +20,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
+import { decryptSecret } from '../core/crypto.util';
 import { KeysService } from '../core/keys.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PasskeysService } from './passkeys.service';
@@ -86,16 +87,24 @@ describe('PasskeysService', () => {
   });
 
   it('issues registration options with a purpose-scoped challenge token', async () => {
-    const out = await svc.registrationOptions('u1', rp);
+    // A long, distinctive id: the uid claim is random ciphertext, and random
+    // text contains a 2-character id like 'u1' about one run in a hundred -
+    // which failed CI on main for nothing (#308). 30 characters cannot turn
+    // up by chance.
+    const id = 'user-7c41e9-must-not-be-read';
+    prisma.user.findFirst.mockResolvedValue({ ...user, id });
+    const out = await svc.registrationOptions(id, rp);
     expect(out.options).toEqual({ challenge: 'chal-reg' });
     const claims = keys.verify<Record<string, string>>(out.challengeToken);
     expect(claims.purpose).toBe('webauthn_reg');
     expect(claims.challenge).toBe('chal-reg');
     expect(claims.rp_id).toBe('localhost');
     // The token goes to an unauthenticated caller and a JWT is signed, not
-    // secret, so the user id must not be readable in it.
-    expect(claims.uid).not.toBe('u1');
-    expect(claims.uid).not.toContain('u1');
+    // secret, so the user id must not be readable in it - and the claim is
+    // the id, encrypted, so the server can still read it back.
+    expect(claims.uid).not.toContain(id);
+    expect(claims.uid).not.toContain(Buffer.from(id).toString('base64url'));
+    expect(decryptSecret(claims.uid)).toBe(id);
   });
 
   it('challenge tokens never pass the access-token guard', async () => {
