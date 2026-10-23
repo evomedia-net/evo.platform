@@ -8,6 +8,8 @@ and the release moves them under its version.
 
 ## Unreleased
 
+## v0.0.1.0.23 - 2026-10-23
+
 ### Maintenance
 
 - **deps:** bump the npm-version-updates group across 4 directories with 22 updates ([#311](https://github.com/evomedia-net/evo.platform/pull/311))
