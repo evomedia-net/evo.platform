@@ -33,7 +33,7 @@ CI runs these suites, so run them before opening a pull request:
 npx tsc --noEmit should also be clean in each TypeScript package.
 
 The Next.js template
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 templates/next links the Node SDK as a file: dependency, so build the SDK
 first — the template's install deliberately does not build it:

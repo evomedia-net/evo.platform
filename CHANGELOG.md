@@ -8,13 +8,17 @@ and the release moves them under its version.
 
 ## Unreleased
 
-## v0.0.1.0.23 - 2026-10-23
+### Documentation
+
+- **changelog:** the fleet format, evo.polaris's with no date on version headings; the .txt twins underline a third-level heading with ~ ([#315](https://github.com/evomedia-net/evo.platform/pull/315))
+
+## v0.0.1.0.23
 
 ### Maintenance
 
 - **deps:** bump the npm-version-updates group across 4 directories with 22 updates ([#311](https://github.com/evomedia-net/evo.platform/pull/311))
 
-## v0.0.1.0.22 - 2026-10-17
+## v0.0.1.0.22
 
 ### Fixed
 
@@ -33,7 +37,7 @@ and the release moves them under its version.
 - **ci:** re-run a test run once when a job in it times out ([#299](https://github.com/evomedia-net/evo.platform/pull/299))
 - **ci:** stop a hung test run after 5-10 minutes instead of GitHub's 6 hours ([#298](https://github.com/evomedia-net/evo.platform/pull/298))
 
-## v0.0.1.0.21 - 2026-10-01
+## v0.0.1.0.21
 
 ### Maintenance
 
@@ -46,7 +50,7 @@ and the release moves them under its version.
 - **deps-dev:** bump @nestjs/cli from 11.0.24 to 12.0.3 in /platform ([#283](https://github.com/evomedia-net/evo.platform/pull/283))
 - **deps:** bump dotenv from 17.4.2 to 18.0.1 in /templates/next ([#285](https://github.com/evomedia-net/evo.platform/pull/285))
 
-## v0.0.1.0.20 - 2026-09-22
+## v0.0.1.0.20
 
 ### Fixed
 
@@ -69,7 +73,7 @@ and the release moves them under its version.
 - point the SWAG-Estimates cross-references at ProvenSheet ([#265](https://github.com/evomedia-net/evo.platform/pull/265))
 - retire the SmartPlant EHS name from public cross-references (and fix two dead paths) ([#263](https://github.com/evomedia-net/evo.platform/pull/263))
 
-## v0.0.1.0.19 - 2026-09-12
+## v0.0.1.0.19
 
 ### Added
 
@@ -80,7 +84,7 @@ and the release moves them under its version.
 - **release:** stop at the branch — the org forbids Actions opening pull requests ([#256](https://github.com/evomedia-net/evo.platform/pull/256))
 - **release:** cut the release through a pull request, not a push to main ([#255](https://github.com/evomedia-net/evo.platform/pull/255))
 
-## v0.0.1.0.18 - 2026-09-12
+## v0.0.1.0.18
 
 ### Documentation
 
@@ -90,7 +94,7 @@ and the release moves them under its version.
 
 - attribution headers, package metadata and a README byline before the flip ([#251](https://github.com/evomedia-net/evo.platform/pull/251))
 
-## v0.0.1.0.17 - 2026-09-11
+## v0.0.1.0.17
 
 ### Fixed
 
@@ -101,7 +105,7 @@ and the release moves them under its version.
 - **test:** migrate templates/next to vitest 5, and close the two gaps its stricter counting exposed ([#249](https://github.com/evomedia-net/evo.platform/pull/249))
 - **deps:** bump the npm-version-updates group across 2 directories with 3 updates ([#248](https://github.com/evomedia-net/evo.platform/pull/248))
 
-## v0.0.1.0.16 - 2026-09-11
+## v0.0.1.0.16
 
 ### Maintenance
 
@@ -113,20 +117,20 @@ and the release moves them under its version.
 - **deps:** patch the service's shipping dependencies (nodemailer, qs, multer) ([#238](https://github.com/evomedia-net/evo.platform/pull/238))
 - **deps:** bump next, nodemailer and vitest together, and group Dependabot so lockfiles regenerate whole ([#234](https://github.com/evomedia-net/evo.platform/pull/234))
 
-## v0.0.1.0.15 - 2026-09-11
+## v0.0.1.0.15
 
 ### Maintenance
 
 - **repo:** add issue forms and a pull-request template ([#226](https://github.com/evomedia-net/evo.platform/pull/226))
 
-## v0.0.1.0.14 - 2026-09-10
+## v0.0.1.0.14
 
 ### Maintenance
 
 - **template:** templates/next reaches 100% statements — pages, components and hooks (#204 step 3), plus three UI bugs found on the way ([#223](https://github.com/evomedia-net/evo.platform/pull/223))
 - **email:** prove all three SMTP resolution branches, as #51 asked ([#220](https://github.com/evomedia-net/evo.platform/pull/220))
 
-## v0.0.1.0.13 - 2026-09-10
+## v0.0.1.0.13
 
 ### Added
 
@@ -137,7 +141,7 @@ and the release moves them under its version.
 - **template:** cover every API route handler at the branch level ([#215](https://github.com/evomedia-net/evo.platform/pull/215))
 - **template:** cover lib, auth, and sync at the branch level; fix whitespace-only passwords (#204 step 1) ([#214](https://github.com/evomedia-net/evo.platform/pull/214))
 
-## v0.0.1.0.12 - 2026-09-09
+## v0.0.1.0.12
 
 ### Maintenance
 
@@ -147,7 +151,7 @@ and the release moves them under its version.
 - **sdk-node:** cover every function - 37.5% of functions to 100% on every metric ([#203](https://github.com/evomedia-net/evo.platform/pull/203))
 - **cli:** cover evo new and evo register end to end - 34% to 100% ([#202](https://github.com/evomedia-net/evo.platform/pull/202))
 
-## v0.0.1.0.11 - 2026-09-09
+## v0.0.1.0.11
 
 ### Documentation
 
@@ -158,7 +162,7 @@ and the release moves them under its version.
 
 - **repo:** open-source readiness — .txt twins generated and CI-gated, code of conduct, NiceGUI placeholder removed ([#193](https://github.com/evomedia-net/evo.platform/pull/193))
 
-## v0.0.1.0.10 - 2026-09-03
+## v0.0.1.0.10
 
 ### Added
 
@@ -187,19 +191,19 @@ and the release moves them under its version.
 
 - **ci:** read-only token and SHA-pinned actions ([#185](https://github.com/evomedia-net/evo.platform/pull/185))
 
-## v0.0.1.0.9 - 2026-09-01
+## v0.0.1.0.9
 
 ### Fixed
 
 - **ci:** add templates/next to CI, and stop building the SDK inside a consumer install ([#151](https://github.com/evomedia-net/evo.platform/pull/151))
 
-## v0.0.1.0.8 - 2026-09-01
+## v0.0.1.0.8
 
 ### Fixed
 
 - **ci:** build and test packages/sdk-python, whose 40 tests never ran ([#149](https://github.com/evomedia-net/evo.platform/pull/149))
 
-## v0.0.1.0.7 - 2026-08-31
+## v0.0.1.0.7
 
 ### Added
 
@@ -210,7 +214,7 @@ and the release moves them under its version.
 - **sdk:** release 0.4.1 — AskAi userId support ([#146](https://github.com/evomedia-net/evo.platform/pull/146))
 - cover the admin surface and auth/passkey controllers — 83.4% → 90.1% ([#144](https://github.com/evomedia-net/evo.platform/pull/144))
 
-## v0.0.1.0.6 - 2026-08-27
+## v0.0.1.0.6
 
 ### Added
 
@@ -220,7 +224,7 @@ and the release moves them under its version.
 
 - **security:** close the passkey enumeration oracle and the template's frozen session role (#140) ([#142](https://github.com/evomedia-net/evo.platform/pull/142))
 
-## v0.0.1.0.4 - 2026-08-21
+## v0.0.1.0.4
 
 ### Added
 

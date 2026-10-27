@@ -68,12 +68,12 @@ Part A: Run it locally
 ----------------------
 
 A1. Get the code
-----------------
+~~~~~~~~~~~~~~~~
     git clone https://github.com/evomedia-net/evo.platform.git
     cd EvoPlatform/platform
 
 A2. Create your configuration file
-----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     cp .env.example .env
 
 Now generate a secret and put it in that file. This value encrypts stored SMTP
@@ -94,7 +94,7 @@ test-mail containers you are about to start.
 > commit it or paste its contents into a chat, ticket, or email.
 
 A3. Start the database
-----------------------
+~~~~~~~~~~~~~~~~~~~~~~
     docker compose up -d
 
 This starts two containers: PostgreSQL on port 5433, and Mailpit — a fake mail
@@ -108,7 +108,7 @@ Both containers should say running. If a port is already taken, see
 Troubleshooting (#troubleshooting).
 
 A4. Install and set up
-----------------------
+~~~~~~~~~~~~~~~~~~~~~~
     npm install
     npx prisma migrate deploy
 
@@ -118,7 +118,7 @@ applied.
     npx prisma generate
 
 A5. Create the first accounts
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     npm run seed
 
 This creates a platform administrator (admin@example.com), a sample
@@ -132,7 +132,7 @@ If you would rather choose the passwords yourself, set SEED_ADMIN_PASSWORD
 and SEED_OWNER_PASSWORD in .env before running the seed.
 
 A6. Start the service
----------------------
+~~~~~~~~~~~~~~~~~~~~~
     npm run start:dev
 
 Leave this running. Open http://localhost:8200 in a browser — you should
@@ -152,7 +152,7 @@ On first boot the service creates an RSA keypair in platform/keys/. That
 folder matters — see Backups (#backups-what-actually-matters).
 
 A7. Look around the admin console
----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Everything below can be done in the browser at http://localhost:8200:
 
@@ -183,7 +183,7 @@ URL, a DNS record, and a TLS certificate — real, outward-facing changes. Do
 that part deliberately.
 
 B1. Choose the hostname first
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Pick a subdomain now, before installing anything:
     platform.yourcompany.com
@@ -195,7 +195,7 @@ passkey that has been registered — every user has to sign in again and
 re-register their passkey. Choose once.
 
 B2. Get the code onto the server
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 SSH to the server, then:
     git clone https://github.com/evomedia-net/evo.platform.git ~/stack/evoplatform
@@ -216,7 +216,7 @@ Leave the Stripe settings blank unless you are billing customers today; you can
 add them later without downtime.
 
 B3. Build and start
--------------------
+~~~~~~~~~~~~~~~~~~~
     docker compose -f docker-compose.prod.yml up -d --build
     docker compose -f docker-compose.prod.yml logs -f app
 
@@ -236,7 +236,7 @@ Check it worked:
     curl http://127.0.0.1:8200/.well-known/jwks.json
 
 B4. Put nginx in front of it
-----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The platform speaks plain HTTP. nginx handles HTTPS and forwards requests to
 it. Create a server block:
@@ -259,7 +259,7 @@ Then get a certificate:
     sudo certbot --nginx -d platform.yourcompany.com
 
 B5. Go live
------------
+~~~~~~~~~~~
 
 Add a DNS A record pointing platform at your server's IP address, in
 whatever service manages your domain's DNS.
@@ -273,7 +273,7 @@ After it is running
 -------------------
 
 Backups: what actually matters
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Two things, and one of them is easy to overlook.
 
@@ -300,13 +300,13 @@ and treats a missing keys directory as a failure rather than a warning — but
 --check and one manual run are what actually tell you it works.
 
 Updating
---------
+~~~~~~~~
     git pull && docker compose -f docker-compose.prod.yml up -d --build
 
 Database migrations run automatically when the service starts.
 
 Stopping and rolling back
--------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~
     docker compose -f docker-compose.prod.yml down
 
 Stops the service. Your data survives.
@@ -316,7 +316,7 @@ Stops the service. Your data survives.
 > confirmation prompt.
 
 Adding billing later
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to .env, point a Stripe
 webhook at https://platform.yourcompany.com/billing/webhook with the events

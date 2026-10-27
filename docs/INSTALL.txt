@@ -80,7 +80,7 @@ Set SEED_ADMIN_PASSWORD / SEED_OWNER_PASSWORD in .env first if you want
 fixed values.
 
 Password policy (NIST/OWASP Standard)
--------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Any password you set — seed passwords, BOOTSTRAP_ADMIN_PASSWORD, and every
 user password created through the API or admin console — must meet the
@@ -106,7 +106,7 @@ admin bootstrap refused: BOOTSTRAP_ADMIN_PASSWORD does not meet the password
 policy.
 
 Where a user meets the policy
------------------------------
+.............................
 
 Three screens in the Next.js template set a password, and all three state the
 rule rather than waiting for a rejection: signup, the reset-password
@@ -252,7 +252,7 @@ src/lib/platform.ts and the auth.ts pattern from there.
 --------------------------
 
 Platform service (platform/.env)
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -275,7 +275,7 @@ SMTP resolution order per send: tenant config (PUT /admin/smtp with
 tenantId) → platform default (PUT /admin/smtp without) → env fallback.
 
 Generated app (.env)
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 | Variable | Purpose |
 |---|---|
