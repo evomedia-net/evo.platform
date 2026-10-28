@@ -17,7 +17,7 @@ is now stripped (the original worked line by line and left the markers),
 and horizontal rules are dropped (they are markup, not content).
 
 Rendering rules, matching the fleet convention:
-  headings underlined with = (h1) or - (h2 and below); links as text (url);
+  headings underlined with = (h1), - (h2), ~ (h3) and . below, as evo.polaris's twins; links as text (url);
   code blocks indented, fences removed; bold, italic and inline-code markers
   stripped; tables and em dashes kept - they are content, not markup.
 """
@@ -62,7 +62,9 @@ def _prose(segment: str) -> list[str]:
         if heading:
             text = heading.group(2).strip()
             out.append(text)
-            out.append(("=" if len(heading.group(1)) == 1 else "-") * len(text))
+            # h1 =, h2 -, h3 ~, deeper . - evo.polaris's md-txt.mjs, whose
+            # CHANGELOG.txt is the fleet's changelog format (Kelly, 2026-10-27).
+            out.append("=-~..."[len(heading.group(1)) - 1] * len(text))
             continue
         if _HR.match(line):
             continue

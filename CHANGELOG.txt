@@ -10,25 +10,30 @@ and the release moves them under its version.
 Unreleased
 ----------
 
-v0.0.1.0.23 - 2026-10-23
-------------------------
+Documentation
+~~~~~~~~~~~~~
+
+- changelog: the fleet format, evo.polaris's with no date on version headings; the .txt twins underline a third-level heading with ~ (#315 (https://github.com/evomedia-net/evo.platform/pull/315))
+
+v0.0.1.0.23
+-----------
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - deps: bump the npm-version-updates group across 4 directories with 22 updates (#311 (https://github.com/evomedia-net/evo.platform/pull/311))
 
-v0.0.1.0.22 - 2026-10-17
-------------------------
+v0.0.1.0.22
+-----------
 
 Fixed
------
+~~~~~
 
 - tests: the passkey challenge-token test cannot fail by chance (#309 (https://github.com/evomedia-net/evo.platform/pull/309))
 - deps: drop sprintf-js by giving js-yaml 3 argparse 2 (no patched sprintf-js exists) (#306 (https://github.com/evomedia-net/evo.platform/pull/306))
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - deps: bump the npm-version-updates group across 4 directories with 14 updates (#307 (https://github.com/evomedia-net/evo.platform/pull/307))
 - deps: bump the npm-security-updates group across 4 directories with 4 updates (#305 (https://github.com/evomedia-net/evo.platform/pull/305))
@@ -40,11 +45,11 @@ Maintenance
 - ci: re-run a test run once when a job in it times out (#299 (https://github.com/evomedia-net/evo.platform/pull/299))
 - ci: stop a hung test run after 5-10 minutes instead of GitHub's 6 hours (#298 (https://github.com/evomedia-net/evo.platform/pull/298))
 
-v0.0.1.0.21 - 2026-10-01
-------------------------
+v0.0.1.0.21
+-----------
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - deps: @nestjs/schematics 11 -> 12, which means TypeScript 6 (#291 (https://github.com/evomedia-net/evo.platform/pull/291))
 - deps: @simplewebauthn/server 13 -> 14, and read stored transports as the strings they are (#290 (https://github.com/evomedia-net/evo.platform/pull/290))
@@ -55,11 +60,11 @@ Maintenance
 - deps-dev: bump @nestjs/cli from 11.0.24 to 12.0.3 in /platform (#283 (https://github.com/evomedia-net/evo.platform/pull/283))
 - deps: bump dotenv from 17.4.2 to 18.0.1 in /templates/next (#285 (https://github.com/evomedia-net/evo.platform/pull/285))
 
-v0.0.1.0.20 - 2026-09-22
-------------------------
+v0.0.1.0.20
+-----------
 
 Fixed
------
+~~~~~
 
 - ci: test on the Node version production runs, and keep every declaration of it in step (#277 (https://github.com/evomedia-net/evo.platform/pull/277))
 - backup: the header check rejected good dumps under pipefail (#262 (https://github.com/evomedia-net/evo.platform/pull/262))
@@ -69,7 +74,7 @@ Fixed
 - backup: stop producing empty backups, and keep the schedule in the repo (#258 (https://github.com/evomedia-net/evo.platform/pull/258))
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - deps: hold TypeScript majors until ts-jest can accept one (#278 (https://github.com/evomedia-net/evo.platform/pull/278))
 - deps-dev: bump @types/node from 22.20.2 to 26.6.0 in /cli (#270 (https://github.com/evomedia-net/evo.platform/pull/270))
@@ -81,52 +86,52 @@ Maintenance
 - point the SWAG-Estimates cross-references at ProvenSheet (#265 (https://github.com/evomedia-net/evo.platform/pull/265))
 - retire the SmartPlant EHS name from public cross-references (and fix two dead paths) (#263 (https://github.com/evomedia-net/evo.platform/pull/263))
 
-v0.0.1.0.19 - 2026-09-12
-------------------------
+v0.0.1.0.19
+-----------
 
 Added
------
+~~~~~
 
 - release: cut a release from the Actions tab instead of by hand (#254 (https://github.com/evomedia-net/evo.platform/pull/254))
 
 Fixed
------
+~~~~~
 
 - release: stop at the branch — the org forbids Actions opening pull requests (#256 (https://github.com/evomedia-net/evo.platform/pull/256))
 - release: cut the release through a pull request, not a push to main (#255 (https://github.com/evomedia-net/evo.platform/pull/255))
 
-v0.0.1.0.18 - 2026-09-12
-------------------------
+v0.0.1.0.18
+-----------
 
 Documentation
--------------
+~~~~~~~~~~~~~
 
 - install: say where a user actually meets the password policy (#252 (https://github.com/evomedia-net/evo.platform/pull/252))
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - attribution headers, package metadata and a README byline before the flip (#251 (https://github.com/evomedia-net/evo.platform/pull/251))
 
-v0.0.1.0.17 - 2026-09-11
-------------------------
+v0.0.1.0.17
+-----------
 
 Fixed
------
+~~~~~
 
 - deps: keep majors out of the grouped version updates (#247 (https://github.com/evomedia-net/evo.platform/pull/247))
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - test: migrate templates/next to vitest 5, and close the two gaps its stricter counting exposed (#249 (https://github.com/evomedia-net/evo.platform/pull/249))
 - deps: bump the npm-version-updates group across 2 directories with 3 updates (#248 (https://github.com/evomedia-net/evo.platform/pull/248))
 
-v0.0.1.0.16 - 2026-09-11
-------------------------
+v0.0.1.0.16
+-----------
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - deps: bump the actions-version-updates group with 4 updates (#235 (https://github.com/evomedia-net/evo.platform/pull/235))
 - deps: patch the service's Prisma-supplied transitives too (#244 (https://github.com/evomedia-net/evo.platform/pull/244))
@@ -136,42 +141,42 @@ Maintenance
 - deps: patch the service's shipping dependencies (nodemailer, qs, multer) (#238 (https://github.com/evomedia-net/evo.platform/pull/238))
 - deps: bump next, nodemailer and vitest together, and group Dependabot so lockfiles regenerate whole (#234 (https://github.com/evomedia-net/evo.platform/pull/234))
 
-v0.0.1.0.15 - 2026-09-11
-------------------------
+v0.0.1.0.15
+-----------
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - repo: add issue forms and a pull-request template (#226 (https://github.com/evomedia-net/evo.platform/pull/226))
 
-v0.0.1.0.14 - 2026-09-10
-------------------------
+v0.0.1.0.14
+-----------
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - template: templates/next reaches 100% statements — pages, components and hooks (#204 step 3), plus three UI bugs found on the way (#223 (https://github.com/evomedia-net/evo.platform/pull/223))
 - email: prove all three SMTP resolution branches, as #51 asked (#220 (https://github.com/evomedia-net/evo.platform/pull/220))
 
-v0.0.1.0.13 - 2026-09-10
-------------------------
+v0.0.1.0.13
+-----------
 
 Added
------
+~~~~~
 
 - version: report the build version at GET /api/build-version (#217 (https://github.com/evomedia-net/evo.platform/pull/217))
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - template: cover every API route handler at the branch level (#215 (https://github.com/evomedia-net/evo.platform/pull/215))
 - template: cover lib, auth, and sync at the branch level; fix whitespace-only passwords (#204 step 1) (#214 (https://github.com/evomedia-net/evo.platform/pull/214))
 
-v0.0.1.0.12 - 2026-09-09
-------------------------
+v0.0.1.0.12
+-----------
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - template: browser tests for the auth screens in CI — and the two fleet-rule violations they found (#208, #209) (#210 (https://github.com/evomedia-net/evo.platform/pull/210))
 - run sdk-node's integration script against a live platform on every PR (#206 (https://github.com/evomedia-net/evo.platform/pull/206))
@@ -179,25 +184,25 @@ Maintenance
 - sdk-node: cover every function - 37.5% of functions to 100% on every metric (#203 (https://github.com/evomedia-net/evo.platform/pull/203))
 - cli: cover evo new and evo register end to end - 34% to 100% (#202 (https://github.com/evomedia-net/evo.platform/pull/202))
 
-v0.0.1.0.11 - 2026-09-09
-------------------------
+v0.0.1.0.11
+-----------
 
 Documentation
--------------
+~~~~~~~~~~~~~
 
 - drop the MVP roadmap section from the platform README (#195 (https://github.com/evomedia-net/evo.platform/pull/195))
 - move mvp.md out of the repo before it goes public (#194 (https://github.com/evomedia-net/evo.platform/pull/194))
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - repo: open-source readiness — .txt twins generated and CI-gated, code of conduct, NiceGUI placeholder removed (#193 (https://github.com/evomedia-net/evo.platform/pull/193))
 
-v0.0.1.0.10 - 2026-09-03
-------------------------
+v0.0.1.0.10
+-----------
 
 Added
------
+~~~~~
 
 - template: signing out deletes the tenant's browser database (#190 (https://github.com/evomedia-net/evo.platform/pull/190))
 - template: the standalone reset link carries its token in the fragment (#189 (https://github.com/evomedia-net/evo.platform/pull/189))
@@ -208,7 +213,7 @@ Added
 - email: per-app send quota on POST /email/send, 429 and audited on breach (#181 (https://github.com/evomedia-net/evo.platform/pull/181))
 
 Fixed
------
+~~~~~
 
 - cli: evo new runs npm without a shell, and --password warns (#191 (https://github.com/evomedia-net/evo.platform/pull/191))
 - invites: the invite email names the platform by its configured brand (#184 (https://github.com/evomedia-net/evo.platform/pull/184))
@@ -218,63 +223,63 @@ Fixed
 - hygiene: dockerignore, loopback dev ports, prod env example names, env-based screenshot credentials (#177 (https://github.com/evomedia-net/evo.platform/pull/177))
 
 Documentation
--------------
+~~~~~~~~~~~~~
 
 - security: state what client credentials can and cannot do (#186 (https://github.com/evomedia-net/evo.platform/pull/186))
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - ci: read-only token and SHA-pinned actions (#185 (https://github.com/evomedia-net/evo.platform/pull/185))
 
-v0.0.1.0.9 - 2026-09-01
------------------------
+v0.0.1.0.9
+----------
 
 Fixed
------
+~~~~~
 
 - ci: add templates/next to CI, and stop building the SDK inside a consumer install (#151 (https://github.com/evomedia-net/evo.platform/pull/151))
 
-v0.0.1.0.8 - 2026-09-01
------------------------
+v0.0.1.0.8
+----------
 
 Fixed
------
+~~~~~
 
 - ci: build and test packages/sdk-python, whose 40 tests never ran (#149 (https://github.com/evomedia-net/evo.platform/pull/149))
 
-v0.0.1.0.7 - 2026-08-31
------------------------
+v0.0.1.0.7
+----------
 
 Added
------
+~~~~~
 
 - sdk: let AskAi assert the asking user, so evo-ai memory is per person (#145 (https://github.com/evomedia-net/evo.platform/pull/145))
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - sdk: release 0.4.1 — AskAi userId support (#146 (https://github.com/evomedia-net/evo.platform/pull/146))
 - cover the admin surface and auth/passkey controllers — 83.4% → 90.1% (#144 (https://github.com/evomedia-net/evo.platform/pull/144))
 
-v0.0.1.0.6 - 2026-08-27
------------------------
+v0.0.1.0.6
+----------
 
 Added
------
+~~~~~
 
 - billing: Stripe mode awareness, a go-live readiness report, and per-tenant revenue (#143 (https://github.com/evomedia-net/evo.platform/pull/143))
 
 Fixed
------
+~~~~~
 
 - security: close the passkey enumeration oracle and the template's frozen session role (#140) (#142 (https://github.com/evomedia-net/evo.platform/pull/142))
 
-v0.0.1.0.4 - 2026-08-21
------------------------
+v0.0.1.0.4
+----------
 
 Added
------
+~~~~~
 
 - brand: serve brand identity to apps, so a fleet rename is one edit (#111 (https://github.com/evomedia-net/evo.platform/pull/111))
 - template: account recovery for the Next.js starter (#110 (https://github.com/evomedia-net/evo.platform/pull/110))
@@ -321,13 +326,13 @@ Added
 - platform: platform service v1 - tenants, users, auth/JWKS, apps, audit, email
 
 Changed
--------
+~~~~~~~
 
 - Reapply "chore(deps): Prisma 6 -> 7 across platform and the next template - co…" (#68) (#69 (https://github.com/evomedia-net/evo.platform/pull/69))
 - Revert "chore(deps): Prisma 6 -> 7 across platform and the next template - co…" (#68 (https://github.com/evomedia-net/evo.platform/pull/68))
 
 Fixed
------
+~~~~~
 
 - security: require an app-tenant relationship before /email/send uses a tenant relay (#134 (https://github.com/evomedia-net/evo.platform/pull/134))
 - security: both SDKs reject single-purpose tokens and require a bound audience (#135 (https://github.com/evomedia-net/evo.platform/pull/135))
@@ -369,7 +374,7 @@ Fixed
 - admin-ui: badges never wrap - fixes the SMTP status pill turning into a blob
 
 Documentation
--------------
+~~~~~~~~~~~~~
 
 - name the platform's real consumers - ProvenSheet, CivilCode, DocketMail (#121 (https://github.com/evomedia-net/evo.platform/pull/121))
 - console: a screenshot tour of all seven sections, and the script that makes it (#115 (https://github.com/evomedia-net/evo.platform/pull/115))
@@ -388,7 +393,7 @@ Documentation
 - install guide, pitch copy, README status to working v1
 
 Maintenance
------------
+~~~~~~~~~~~
 
 - deploy: track the production compose file, ignore coverage and local notes (#141 (https://github.com/evomedia-net/evo.platform/pull/141))
 - sdk: make both SDKs registry-publishable, at 0.4.0 (#120 (https://github.com/evomedia-net/evo.platform/pull/120))
