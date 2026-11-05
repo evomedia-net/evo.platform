@@ -470,6 +470,66 @@ describe('checkout', () => {
   });
 });
 
+// ── describePrice: the catalogue's only source of truth (#322) ──────────────
+//
+// It used to answer with a placeholder when Stripe was unconfigured — $0.00,
+// usd, monthly, no product — so an operator could record an id ahead of the
+// keys. AppsService persisted that as fact, nothing marked it, and nothing
+// ever re-read it: three apps shipped a pricing table reading "$0.00 per
+// month" for a $10 plan. Refusing is the whole fix.
+
+describe('describePrice', () => {
+  it('refuses rather than inventing facts when Stripe is unconfigured', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const svc = new BillingService(makePrisma() as any, audit as any);
+    await expect(svc.describePrice('price_x')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(svc.describePrice('price_x')).rejects.toThrow(/STRIPE_SECRET_KEY is unset/);
+  });
+
+  it('reports the amount, cadence and mode Stripe holds, product name included', async () => {
+    const stripe = {
+      prices: {
+        retrieve: jest.fn().mockResolvedValue({
+          id: 'price_x',
+          active: true,
+          unit_amount: 500,
+          currency: 'usd',
+          livemode: true,
+          recurring: { interval: 'month', interval_count: 1 },
+          product: { id: 'prod_x', name: 'EvoCivilCode' },
+        }),
+      },
+    };
+    const out = await makeSvc(makePrisma(), stripe).describePrice('price_x');
+    expect(out).toEqual({
+      stripeProductId: 'prod_x',
+      productName: 'EvoCivilCode',
+      unitAmount: 500,
+      currency: 'usd',
+      interval: 'month',
+      intervalCount: 1,
+      livemode: true,
+    });
+    expect(stripe.prices.retrieve).toHaveBeenCalledWith('price_x', { expand: ['product'] });
+  });
+
+  it('refuses an archived price, which would only fail at checkout', async () => {
+    const stripe = {
+      prices: { retrieve: jest.fn().mockResolvedValue({ id: 'price_x', active: false }) },
+    };
+    await expect(
+      makeSvc(makePrisma(), stripe).describePrice('price_x'),
+    ).rejects.toThrow(/archived/);
+  });
+
+  it('refuses an id Stripe does not know', async () => {
+    const stripe = { prices: { retrieve: jest.fn().mockRejectedValue(new Error('no such price')) } };
+    await expect(makeSvc(makePrisma(), stripe).describePrice('price_typo')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+});
+
 describe('portal', () => {
   const fakeStripe = () => ({
     customers: { create: jest.fn().mockResolvedValue({ id: 'cus_new' }) },

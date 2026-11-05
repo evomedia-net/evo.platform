@@ -13,7 +13,7 @@ cloning a starter template — tenancy, auth, RBAC, audit logging, and deploymen
 > production under three apps: ProvenSheet, CivilCode, and DocketMail. Setup: docs/INSTALL.md (docs/INSTALL.md) · deploy:
 > docs/DEPLOY.md (docs/DEPLOY.md) · design:
 > docs/ARCHITECTURE.md (docs/ARCHITECTURE.md), docs/TEMPLATE_CONTRACT.md (docs/TEMPLATE_CONTRACT.md) · flows:
-> docs/FLOWS.md (docs/FLOWS.md).
+> docs/FLOWS.md (docs/FLOWS.md) · billing: docs/BILLING.md (docs/BILLING.md).
 
 The idea
 --------

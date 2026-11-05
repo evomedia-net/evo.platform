@@ -241,6 +241,62 @@ export class AppsService {
     return price;
   }
 
+  /**
+   * Re-read a registered price from Stripe and correct the cached copy.
+   *
+   * The cache is normally safe — Stripe Prices are immutable in amount,
+   * currency and cadence — but "normally" has two holes. A row registered
+   * before `STRIPE_SECRET_KEY` arrived was saved from a placeholder and is
+   * simply wrong (#322), and a price archived in Stripe afterwards still reads
+   * as sellable here until a customer discovers otherwise at checkout.
+   *
+   * So this is a repair tool, not a sync job: nothing calls it on a schedule,
+   * because a healthy row has nothing to learn.
+   */
+  async refreshPrice(appId: string, priceId: string) {
+    const app = await this.get(appId);
+    const price = await this.prisma.appPrice.findUnique({ where: { id: priceId } });
+    if (!price || price.appId !== appId) throw new NotFoundException('Price not found');
+
+    // Throws if the price is gone or archived in Stripe, which is the answer
+    // the operator needs rather than a silent no-op.
+    const facts = await this.billing.describePrice(price.stripePriceId);
+
+    const changed = (Object.keys(facts) as (keyof typeof facts)[])
+      .filter((k) => price[k] !== facts[k])
+      .map((k) => `${k}: ${String(price[k])} → ${String(facts[k])}`);
+
+    // The (tier, interval, intervalCount) key can collide once the real
+    // cadence is known: an unverified row defaults to monthly, and the app may
+    // already sell this tier monthly for real. Report it rather than letting
+    // Prisma's P2002 surface as a 500.
+    if (facts.interval !== price.interval || facts.intervalCount !== price.intervalCount) {
+      const clash = await this.prisma.appPrice.findUnique({
+        where: {
+          appId_tier_interval_intervalCount: {
+            appId,
+            tier: price.tier,
+            interval: facts.interval,
+            intervalCount: facts.intervalCount,
+          },
+        },
+      });
+      if (clash && clash.id !== price.id) {
+        throw new ConflictException(
+          `Stripe bills "${price.stripePriceId}" every ${facts.intervalCount} ${facts.interval}, ` +
+            `which this app already sells "${price.tier}" at. Remove one of the two.`,
+        );
+      }
+    }
+
+    const updated = await this.prisma.appPrice.update({ where: { id: priceId }, data: facts });
+    await this.audit.record('app.price_refreshed', {
+      appClientId: app.clientId,
+      detail: { tier: price.tier, stripePriceId: price.stripePriceId, changed },
+    });
+    return { ...updated, changed };
+  }
+
   /** Stops the tier being sold. Existing subscriptions are untouched — they
    *  live in Stripe, and cancelling them is a deliberate act there, not a
    *  side effect of tidying a pricing table. */
