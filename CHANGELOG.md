@@ -8,6 +8,8 @@ and the release moves them under its version.
 
 ## Unreleased
 
+## v0.0.1.0.26
+
 ### Added
 
 - **billing:** stripe_catalogue.py builds an account's products and prices from a catalogue file, idempotently, and refuses a live run that was not spelled out ([#323](https://github.com/evomedia-net/evo.platform/pull/323))
