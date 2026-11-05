@@ -13,6 +13,9 @@ export interface AppReadiness {
   sellableHere: number;
   /** Registered, but minted by the OTHER mode — invisible to customers. */
   strandedOtherMode: number;
+  /** Rows whose cached facts never came from Stripe, so the amount shown to
+   *  customers is a placeholder rather than what they would be charged. */
+  unverified: number;
   tiers: string[];
 }
 
@@ -68,7 +71,17 @@ export class BillingReadinessService {
       select: {
         clientId: true,
         name: true,
-        prices: { select: { tier: true, livemode: true, sellable: true } },
+        prices: {
+          select: {
+            tier: true,
+            livemode: true,
+            sellable: true,
+            // Empty only for a row saved from the old unconfigured-Stripe
+            // placeholder: a real Stripe price always belongs to a product.
+            // The amount cannot be used for this - $0 is a legitimate price.
+            stripeProductId: true,
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -82,11 +95,21 @@ export class BillingReadinessService {
         name: app.name,
         sellableHere: here.filter((p) => p.sellable).length,
         strandedOtherMode: stranded.length,
+        unverified: app.prices.filter((p) => p.stripeProductId === '').length,
         tiers: [...new Set(here.filter((p) => p.sellable).map((p) => p.tier))].sort(),
       };
     });
 
     for (const app of rows) {
+      // Worth saying before anything about modes: a row like this is already
+      // being shown to customers as the price, and it is not the price.
+      if (app.unverified > 0) {
+        problems.push(
+          `${app.name} has ${app.unverified} price(s) whose amount was never read from ` +
+            'Stripe, so its pricing table shows a placeholder rather than what a customer ' +
+            'would be charged. Refresh each one (console: Prices → Refresh).',
+        );
+      }
       // An app with no prices at all may simply not be sold — that is a
       // decision, not a fault, so it is only worth saying when the app has
       // prices that this mode cannot see.

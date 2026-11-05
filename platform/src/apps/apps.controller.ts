@@ -87,6 +87,14 @@ export class AppsController {
     return this.apps.addPrice(id, dto);
   }
 
+  /** Re-read this price from Stripe and correct the cached amount, cadence and
+   *  mode. Repairs a row saved before the keys arrived, and surfaces a price
+   *  that has since been archived. */
+  @Post(':id/prices/:priceId/refresh')
+  refreshPrice(@Param('id') id: string, @Param('priceId') priceId: string) {
+    return this.apps.refreshPrice(id, priceId);
+  }
+
   @Delete(':id/prices/:priceId')
   removePrice(@Param('id') id: string, @Param('priceId') priceId: string) {
     return this.apps.removePrice(id, priceId);

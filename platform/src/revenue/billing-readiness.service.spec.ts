@@ -15,8 +15,8 @@ const APPS = [
     clientId: 'c_shop',
     name: 'Shop',
     prices: [
-      { tier: 'pro', livemode: false, sellable: true },
-      { tier: 'basic', livemode: false, sellable: true },
+      { tier: 'pro', livemode: false, sellable: true, stripeProductId: 'prod_pro' },
+      { tier: 'basic', livemode: false, sellable: true, stripeProductId: 'prod_basic' },
     ],
   },
 ];
@@ -67,8 +67,8 @@ describe('BillingReadinessService', () => {
         clientId: 'c_shop',
         name: 'Shop',
         prices: [
-          { tier: 'pro', livemode: true, sellable: true },
-          { tier: 'pro', livemode: false, sellable: true },
+          { tier: 'pro', livemode: true, sellable: true, stripeProductId: 'prod_pro' },
+          { tier: 'pro', livemode: false, sellable: true, stripeProductId: 'prod_pro_t' },
         ],
       },
     ]);
@@ -100,6 +100,39 @@ describe('BillingReadinessService', () => {
     setEnv('test');
     const { svc } = makeSvc([{ clientId: 'c_free', name: 'Free', prices: [] }]);
     const out = await svc.check();
+    expect(out.problems).toEqual([]);
+  });
+
+  // The production failure this missed entirely (#322): keys and mode both
+  // correct, every price registered — and the amounts a placeholder, because
+  // the rows predate the key. "No problems" was the wrong answer.
+  it('reports a price whose amount was never read from Stripe', async () => {
+    setEnv('test');
+    const { svc } = makeSvc([
+      {
+        clientId: 'c_dm',
+        name: 'docketmail',
+        prices: [{ tier: 'standard', livemode: false, sellable: true, stripeProductId: '' }],
+      },
+    ]);
+    const out = await svc.check();
+    expect(out.apps[0].unverified).toBe(1);
+    expect(out.problems.join(' ')).toMatch(/docketmail.*never read from Stripe.*Refresh/s);
+  });
+
+  // $0.00 is a legitimate price, so the amount can never be the test — only
+  // the missing product id separates "free tier" from "never verified".
+  it('does not flag a genuine free tier as unverified', async () => {
+    setEnv('test');
+    const { svc } = makeSvc([
+      {
+        clientId: 'c_free',
+        name: 'Free',
+        prices: [{ tier: 'free', livemode: false, sellable: true, stripeProductId: 'prod_free' }],
+      },
+    ]);
+    const out = await svc.check();
+    expect(out.apps[0].unverified).toBe(0);
     expect(out.problems).toEqual([]);
   });
 });

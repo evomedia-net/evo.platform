@@ -1,0 +1,209 @@
+# Billing
+
+How EvoPlatform charges for an app, what a customer sees at each stage, and
+what an operator does when something goes wrong.
+
+Billing is optional. A deployment with no Stripe key runs normally — every
+billing route answers `503`, and access is governed by the console alone.
+
+---
+
+## The shape of it
+
+Stripe owns the money. EvoPlatform owns **who may sign in to what**, and keeps
+those two in step through webhooks.
+
+- One **Stripe customer** per tenant (`Tenant.stripeCustomerId`).
+- One **subscription per (tenant, app)** pair. A workspace that pays for two
+  apps has two subscriptions, and one lapsing never touches the other.
+- One **`AppTenant` row** per pair, carrying `status`, `plan`, `trialEndsAt`
+  and `graceUntil`. **No row means the app is not enabled**, and logins scoped
+  to it are refused.
+- A **price catalogue per app** (`AppPrice` rows). An app asks for a *tier*
+  — `"pro"`, `"standard"` — and never holds a Stripe id in its own code, so
+  repricing is a console edit rather than a redeploy.
+
+### Statuses
+
+| Status | What it means | Can sign in? |
+| --- | --- | --- |
+| `TRIAL` | Paying nothing yet, deadline in `trialEndsAt` | Until that moment |
+| `ACTIVE` | Subscription in good standing | Yes |
+| `PAST_DUE` | A renewal failed; `graceUntil` is the cutoff | Until that moment |
+| `SUSPENDED` | Cancelled, unpaid past grace, or suspended by an admin | No |
+
+Stripe's own states map in one direction only — **cancel a subscription in
+Stripe, never by editing a row here**, or the next webhook puts it back.
+
+`invoice.paid` lifts `PAST_DUE` back to `ACTIVE`. It deliberately does **not**
+revive a row an admin suspended by hand: a late payment should not undo a
+deliberate decision.
+
+A completed checkout *is* enablement — paying for an app that was never enabled
+creates the row.
+
+---
+
+## What a customer sees
+
+Apps read `GET /billing/entitlement`, a plain database read with no Stripe
+round-trip, so it is cheap enough to call on every page load. It answers
+`{enabled, status, plan, trialEndsAt, graceUntil, daysLeft}`.
+
+From that, each app renders:
+
+- a **banner**, and only when there is something worth interrupting for — a
+  trial ending, a payment that failed. A banner that is always on is furniture
+  and stops being read by the time it matters. `ACTIVE` with no deadline says
+  nothing at all.
+- a **billing card** in settings: the current plan, the tiers on offer from
+  `GET /billing/prices`, an **Upgrade** button (checkout) and a **Manage
+  billing** button (Stripe's portal — payment method, invoices, cancel).
+
+Both endpoints sit behind `ClientGuard`, and both are scoped to the calling
+app's own tenants: an app can only transact for a workspace it already has a
+relationship with, and redirect URLs must share an origin with one of its
+registered callback URLs.
+
+---
+
+## Setting up an app to sell
+
+1. **In Stripe, create a Product and a recurring Price.** One product per
+   app; one price per (tier, billing period). Prices are immutable in amount
+   and cadence — changing what something costs means archiving the price and
+   creating a new one.
+2. **In the console, open the app and add the price** under *Prices*: paste
+   the `price_…` id and name the tier.
+
+Step 1 is worth keeping in a file rather than in dashboard clicks, because you
+will do it twice — once in test mode, once in live — and the second time is the
+one that charges people:
+
+```
+export STRIPE_SECRET_KEY=...                            # not on the command line
+python3 platform/scripts/stripe_catalogue.py mine.json          # dry run
+python3 platform/scripts/stripe_catalogue.py mine.json --apply
+```
+
+See `platform/scripts/catalogue.example.json` for the format. The script is
+idempotent — it matches an existing active product by name and an existing
+active price by amount, currency and cadence — so running it twice creates
+nothing and reprints the ids. With a live key, `--apply` additionally requires
+`--live`, spelled out: everything else about a live run looks identical to a
+test run.
+
+The amount, currency, cadence, product and Stripe mode are **read from
+Stripe**, never typed. An operator retyping `$49/mo` for something Stripe
+bills at `$499` is a support incident, and the console would display the lie
+convincingly.
+
+For the same reason a price **cannot be registered while
+`STRIPE_SECRET_KEY` is unset** — there would be nothing to read the facts
+from, and a row saved from a placeholder advertises a figure nobody checked.
+
+### Refresh, and the `unverified` badge
+
+Cached facts are normally safe, because Stripe prices are immutable in exactly
+those fields. Two things break that:
+
+- A row registered **before the key arrived**, saved from a placeholder. These
+  show `—` for ProdID and an **unverified** badge, and
+  `GET /revenue/billing-readiness` names them.
+- A price **archived in Stripe** afterwards, which still reads as sellable
+  here until a customer finds out at checkout.
+
+**Refresh** on the price row re-reads it from Stripe, reports which fields
+moved, and refuses with a clear reason if the price is gone or archived. It is
+a repair tool, not a sync job — a healthy row has nothing to learn.
+
+### Trials
+
+A trial can come from either end, and you want exactly one:
+
+- `SIGNUP_TRIAL_DAYS` gives every self-service signup a trial on the app it
+  arrived through. This is the usual choice.
+- `AppPrice.trialDays` adds `trial_period_days` to the Stripe subscription at
+  checkout.
+
+Setting both means a customer trials twice.
+
+---
+
+## Going live
+
+Going live is a **sequence, not a switch**. Test and live mode are separate
+worlds in Stripe: different keys, different objects, different ids, and a
+separate webhook endpoint with its own signing secret. A test price offered
+under live keys fails at checkout; a live price offered under test keys would
+be a real charge from a sandbox.
+
+`GET /revenue/billing-readiness` (platform admin) is the check for every step
+below. It answers "could this deployment take a real payment right now, and if
+not, what is missing" — including prices stranded in the mode you just left.
+
+1. **Rehearse in test mode, at the real prices.** Test prices set to `$0`
+   prove nothing about money. Use a Stripe **test clock**: checkout →
+   `ACTIVE`; fail a renewal → `PAST_DUE` with a grace window; pay → `ACTIVE`;
+   cancel → `SUSPENDED` and the login refused.
+2. **Create the live Products and Prices** in Stripe. New objects, new ids —
+   nothing copies across from test mode. Run `stripe_catalogue.py` against the
+   same catalogue file you rehearsed with, so the live amounts cannot differ
+   from the ones you tested.
+3. **Register the live webhook endpoint** at
+   `https://<your-platform-host>/billing/webhook`, subscribed to exactly:
+   `customer.subscription.created`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `invoice.paid`,
+   `invoice.payment_failed`. Copy its signing secret — it is **per endpoint**,
+   so going live is a two-key change, not one.
+4. **Put the live key and the live webhook secret in the server environment**
+   and recreate the container. Never paste a key into a repository, an issue,
+   or a chat window.
+5. **Register the live prices** on each app in the console, and remove the
+   test rows once checkout is proven. Until they are removed, readiness
+   reports them as stranded — harmless, because the catalogue only ever offers
+   prices from the running mode.
+6. **Exempt any demo or internal workspace.** A demo should never meet a
+   checkout prompt or expire mid-demonstration: leave it `ACTIVE` with no
+   `trialEndsAt` and no subscription.
+
+Settings that matter alongside the keys:
+
+| Variable | Effect |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | `sk_test_…` / `sk_live_…`. Unset = billing off, every route `503` |
+| `STRIPE_WEBHOOK_SECRET` | Per endpoint. Wrong value = events rejected, so a subscription is paid for and never grants access |
+| `BILLING_GRACE_DAYS` | How long a `PAST_DUE` workspace keeps working. Default 7 |
+| `SIGNUP_TRIAL_DAYS` | Trial granted on self-service signup |
+
+---
+
+## When a payment fails
+
+1. Stripe emails the customer and retries on its own schedule. The webhook
+   sets `PAST_DUE` and stamps `graceUntil` — access continues until then, so
+   nobody is locked out over an expired card.
+2. If they fix the card, `invoice.paid` returns them to `ACTIVE` with no
+   intervention.
+3. If grace runs out, the login is refused with a message that says why, and
+   their data is untouched and waiting.
+
+To give someone longer, extend `graceUntil` in the console. To write off a
+subscription, cancel it **in Stripe** and let the webhook suspend the row.
+
+`GET /revenue/health` reports whether Stripe is reachable and classifies an
+outage, so "the customer's card failed" and "Stripe is down" are not the same
+alert.
+
+---
+
+## When something looks wrong
+
+| Symptom | Likely cause |
+| --- | --- |
+| Every billing route answers `503` | No `STRIPE_SECRET_KEY` |
+| A pricing table shows the wrong amount, or `$0.00` | Row registered before the key arrived — **Refresh** it |
+| A pricing table is empty | No prices registered **in the running mode** |
+| Checkout succeeds, access never granted | Webhook secret wrong, or the endpoint not subscribed to the subscription events |
+| A workspace was suspended unexpectedly | Read the audit trail; `invoice.payment_failed` past grace, or an admin action |
+| A price vanished from the catalogue | Archived in Stripe. **Refresh** reports it; existing subscriptions keep billing |

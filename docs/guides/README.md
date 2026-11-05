@@ -26,3 +26,5 @@ deployment, but neither one requires the other.
 - **[Architecture](../ARCHITECTURE.md)** — how the pieces fit together
 - **[Template contract](../TEMPLATE_CONTRACT.md)** — what a conforming app
   template must provide
+- **[Billing](../BILLING.md)** — charging for an app with Stripe: statuses,
+  the price catalogue, and the test-to-live sequence

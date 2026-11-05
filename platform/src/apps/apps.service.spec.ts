@@ -394,6 +394,105 @@ describe('AppsService listTenants / prices / roles', () => {
     expect(audit.record).toHaveBeenCalledWith('app.price_removed', expect.anything());
   });
 
+  // ── Refreshing a cached price (#322) ─────────────────────────────────────
+  //
+  // The cache is normally safe, because Stripe Prices are immutable in amount
+  // and cadence. The exception that bit production: rows saved before
+  // STRIPE_SECRET_KEY arrived held a $0.00 placeholder, nothing marked them,
+  // and nothing ever re-read them — three apps advertised a $10 plan as free.
+
+  const STALE = {
+    id: 'p1',
+    appId: 'a1',
+    tier: 'standard',
+    stripePriceId: 'price_x',
+    stripeProductId: '',
+    productName: '',
+    unitAmount: 0,
+    currency: 'usd',
+    interval: 'month',
+    intervalCount: 1,
+    livemode: false,
+  };
+  const REAL = {
+    stripeProductId: 'prod_x',
+    productName: 'DocketMail',
+    unitAmount: 1000,
+    currency: 'usd',
+    interval: 'month',
+    intervalCount: 1,
+    livemode: false,
+  };
+  const makeRefreshPrisma = () => ({
+    ...makePrisma(),
+    appPrice: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue(STALE),
+      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...STALE, ...data })),
+      delete: jest.fn().mockResolvedValue({}),
+    },
+  });
+
+  it('refreshPrice replaces the placeholder with what Stripe actually charges', async () => {
+    const prisma = makeRefreshPrisma();
+    billing.describePrice.mockResolvedValueOnce(REAL);
+    const out = await makeSvc(prisma).refreshPrice('a1', 'p1');
+    expect(billing.describePrice).toHaveBeenCalledWith('price_x');
+    expect(prisma.appPrice.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1' }, data: REAL }),
+    );
+    expect(out.unitAmount).toBe(1000);
+  });
+
+  // What moved is the operator's evidence that the catalogue was wrong. A
+  // refresh reporting nothing is a different answer from one reporting a price.
+  it('refreshPrice reports which fields moved, and reports none when they match', async () => {
+    billing.describePrice.mockResolvedValueOnce(REAL);
+    const changed = await makeSvc(makeRefreshPrisma()).refreshPrice('a1', 'p1');
+    expect(changed.changed).toEqual(
+      expect.arrayContaining([
+        'stripeProductId:  → prod_x',
+        'productName:  → DocketMail',
+        'unitAmount: 0 → 1000',
+      ]),
+    );
+
+    const prisma = makeRefreshPrisma();
+    prisma.appPrice.findUnique.mockResolvedValue({ ...STALE, ...REAL });
+    billing.describePrice.mockResolvedValueOnce(REAL);
+    const same = await makeSvc(prisma).refreshPrice('a1', 'p1');
+    expect(same.changed).toEqual([]);
+  });
+
+  // An archived or deleted price throws out of describePrice. Letting that
+  // through is the point: "this tier can no longer be sold" is the answer.
+  it('refreshPrice surfaces a price Stripe has archived instead of writing anything', async () => {
+    const prisma = makeRefreshPrisma();
+    billing.describePrice.mockRejectedValueOnce(new Error('archived, so checkout would fail'));
+    await expect(makeSvc(prisma).refreshPrice('a1', 'p1')).rejects.toThrow(/archived/);
+    expect(prisma.appPrice.update).not.toHaveBeenCalled();
+  });
+
+  it('refreshPrice 404s for a price belonging to a different app', async () => {
+    const prisma = makeRefreshPrisma();
+    prisma.appPrice.findUnique.mockResolvedValue({ ...STALE, appId: 'OTHER' });
+    await expect(makeSvc(prisma).refreshPrice('a1', 'p1')).rejects.toThrow(NotFoundException);
+    expect(prisma.appPrice.update).not.toHaveBeenCalled();
+  });
+
+  // The unverified row defaulted to monthly; Stripe says yearly; and the app
+  // already sells "standard" yearly for real. Prisma would raise P2002 and the
+  // console would show a 500 — say which two rows collide instead.
+  it('refreshPrice refuses when the real cadence collides with another row of the same tier', async () => {
+    const prisma = makeRefreshPrisma();
+    prisma.appPrice.findUnique = jest.fn()
+      .mockResolvedValueOnce(STALE)
+      .mockResolvedValueOnce({ id: 'p2', appId: 'a1', tier: 'standard' });
+    billing.describePrice.mockResolvedValueOnce({ ...REAL, interval: 'year' });
+    await expect(makeSvc(prisma).refreshPrice('a1', 'p1')).rejects.toThrow(ConflictException);
+    expect(prisma.appPrice.update).not.toHaveBeenCalled();
+  });
+
   it('addRole refuses a duplicate name within the app', async () => {
     const prisma = makePrisma();
     prisma.role.findUnique.mockResolvedValue(roleRow);

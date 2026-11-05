@@ -86,23 +86,22 @@ export class BillingService {
    * costs means archiving the price and creating a new one, so a stored copy
    * cannot drift from Stripe.
    *
-   * Deliberately tolerant when Stripe is unconfigured: a deployment without
-   * keys can still record the id it intends to sell on, and checkout already
-   * refuses separately when billing isn't set up.
+   * Refuses outright when Stripe is unconfigured, rather than returning a
+   * placeholder. This used to be tolerant, so that a deployment without keys
+   * could record the id it intended to sell on — and the placeholder it
+   * returned ($0.00, usd, monthly) was then persisted as fact with nothing to
+   * mark it unverified and no path that ever re-read it. Three products
+   * shipped a pricing table reading "$0.00 per month" for a $10 plan (#322).
+   * Recording an id you cannot verify is worth much less than a catalogue that
+   * is true.
    */
   async describePrice(priceId: string): Promise<PriceFacts> {
     if (!this.stripe) {
-      return {
-        stripeProductId: '',
-        productName: '',
-        unitAmount: 0,
-        currency: 'usd',
-        interval: 'month',
-        intervalCount: 1,
-        // No key means no way to know, and false is the safe default: a price
-        // recorded as test is refused in live mode rather than charged.
-        livemode: false,
-      };
+      throw new ServiceUnavailableException(
+        'Cannot read a price while STRIPE_SECRET_KEY is unset. A price’s amount and ' +
+          'cadence are read from Stripe, never typed in, so saving one now would publish ' +
+          'a figure nobody checked. Set the key, then register the price.',
+      );
     }
     let price: Stripe.Price;
     try {

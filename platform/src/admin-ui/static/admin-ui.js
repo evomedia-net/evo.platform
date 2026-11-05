@@ -1027,10 +1027,10 @@ async function viewApps() {
               <td><code>${esc(p.stripeProductId || "—")}</code></td>
               <td><code>${esc(p.stripePriceId)}</code></td>
               <td>${esc(p.productName || "—")}</td>
-              <td><code>${esc(p.tier)}</code>${p.trialDays > 0 ? ` <span class="badge" data-tip="New subscriptions on this tier start with a free trial.">${p.trialDays}d trial</span>` : ""}${p.sellable ? "" : ' <span class="badge warn" data-tip="Not offered to new customers. Existing subscriptions on this tier keep working.">archived</span>'}</td>
+              <td><code>${esc(p.tier)}</code>${p.trialDays > 0 ? ` <span class="badge" data-tip="New subscriptions on this tier start with a free trial.">${p.trialDays}d trial</span>` : ""}${p.sellable ? "" : ' <span class="badge warn" data-tip="Not offered to new customers. Existing subscriptions on this tier keep working.">archived</span>'}${p.stripeProductId ? "" : ' <span class="badge warn" data-tip="This row was saved before Stripe was configured, so its amount and cadence are placeholders, not what a customer would be charged. Refresh it.">unverified</span>'}</td>
               <td>${esc(money(p.unitAmount, p.currency))}</td>
               <td>${esc(cadence(p.interval, p.intervalCount))}</td>
-              <td class="col-actions"><button class="btn sm danger" data-price-act="remove" data-app-id="${a.id}" data-price-id="${p.id}" data-price-tier="${esc(p.tier)}" data-tip="Stop selling this tier. Existing subscriptions are untouched — they live in Stripe, and cancelling them is a deliberate act there.">Remove</button></td>
+              <td class="col-actions"><button class="btn sm" data-price-act="refresh" data-app-id="${a.id}" data-price-id="${p.id}" data-price-tier="${esc(p.tier)}" data-tip="Re-read this price from Stripe and correct the amount, cadence and mode stored here. Also how you find out a price has been archived in Stripe.">Refresh</button> <button class="btn sm danger" data-price-act="remove" data-app-id="${a.id}" data-price-id="${p.id}" data-price-tier="${esc(p.tier)}" data-tip="Stop selling this tier. Existing subscriptions are untouched — they live in Stripe, and cancelling them is a deliberate act there.">Remove</button></td>
             </tr>`).join("")}
       </table>
       <form class="inline" data-app-price="${a.id}" style="margin-top:10px">
@@ -1110,11 +1110,19 @@ async function viewApps() {
 
     const priceBtn = e.target.closest("button[data-price-act]");
     if (priceBtn) {
-      const { appId, priceId, priceTier } = priceBtn.dataset;
+      const { priceAct, appId, priceId, priceTier } = priceBtn.dataset;
       try {
-        if (!(await confirmDialog(`Stop selling "${priceTier}"? Existing subscriptions on it keep billing — cancel those in Stripe if that is what you mean.`))) return;
-        await api("DELETE", `/admin/apps/${appId}/prices/${priceId}`);
-        toast("Price removed");
+        if (priceAct === "refresh") {
+          const res = await api("POST", `/admin/apps/${appId}/prices/${priceId}/refresh`);
+          // Saying what moved is the point: a refresh that reports nothing
+          // confirms the cached copy, and one that reports an amount change is
+          // the operator's evidence the catalogue was wrong.
+          toast(res.changed?.length ? `Updated from Stripe — ${res.changed.join(", ")}` : "Already matches Stripe");
+        } else {
+          if (!(await confirmDialog(`Stop selling "${priceTier}"? Existing subscriptions on it keep billing — cancel those in Stripe if that is what you mean.`))) return;
+          await api("DELETE", `/admin/apps/${appId}/prices/${priceId}`);
+          toast("Price removed");
+        }
         route();
       } catch (err) { toast(err.message, true); }
       return;
