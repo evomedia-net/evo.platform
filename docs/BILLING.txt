@@ -75,6 +75,20 @@ Setting up an app to sell
 2. In the console, open the app and add the price under Prices: paste
    the price_… id and name the tier.
 
+Step 1 is worth keeping in a file rather than in dashboard clicks, because you
+will do it twice — once in test mode, once in live — and the second time is the
+one that charges people:
+    export STRIPE_SECRET_KEY=...                            # not on the command line
+    python3 platform/scripts/stripe_catalogue.py mine.json          # dry run
+    python3 platform/scripts/stripe_catalogue.py mine.json --apply
+
+See platform/scripts/catalogue.example.json for the format. The script is
+idempotent — it matches an existing active product by name and an existing
+active price by amount, currency and cadence — so running it twice creates
+nothing and reprints the ids. With a live key, --apply additionally requires
+--live, spelled out: everything else about a live run looks identical to a
+test run.
+
 The amount, currency, cadence, product and Stripe mode are read from
 Stripe, never typed. An operator retyping $49/mo for something Stripe
 bills at $499 is a support incident, and the console would display the lie
@@ -130,7 +144,9 @@ not, what is missing" — including prices stranded in the mode you just left.
    ACTIVE; fail a renewal → PAST_DUE with a grace window; pay → ACTIVE;
    cancel → SUSPENDED and the login refused.
 2. Create the live Products and Prices in Stripe. New objects, new ids —
-   nothing copies across from test mode.
+   nothing copies across from test mode. Run stripe_catalogue.py against the
+   same catalogue file you rehearsed with, so the live amounts cannot differ
+   from the ones you tested.
 3. Register the live webhook endpoint at
    https://<your-platform-host>/billing/webhook, subscribed to exactly:
    customer.subscription.created, customer.subscription.updated,

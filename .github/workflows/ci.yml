@@ -191,6 +191,25 @@ jobs:
       - run: python -m pip install --upgrade pip pytest
       - run: python -m pytest scripts -q
 
+  # The Stripe catalogue builder. It is the one script here that writes to a
+  # payment account, and the mistake it exists to prevent - a live run that
+  # was meant to be a rehearsal, or a duplicate price created because a
+  # listing was read one page deep - costs money rather than a re-run. Not a
+  # required check: it gates nothing that ships.
+  catalogue:
+    name: stripe catalogue script
+    runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip pytest
+      - run: python -m pytest platform/scripts -q
+
   # The one test that talks to a real platform - sdk-node's integration
   # script - had no schedule: every suite mocks fetch, and nothing else ran
   # it. This job boots the platform against a throwaway Postgres, seeds the
