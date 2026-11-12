@@ -8,6 +8,10 @@ and the release moves them under its version.
 
 ## Unreleased
 
+### Fixed
+
+- **containers:** the database starts as the postgres user with every capability dropped instead of starting as root, and both containers get a memory and a process ceiling and cannot gain privileges they did not start with ([#329](https://github.com/evomedia-net/evo.platform/pull/329))
+
 ## v0.0.1.0.26
 
 ### Added
