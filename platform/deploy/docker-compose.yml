@@ -10,6 +10,19 @@ services:
   db:
     image: postgres:17-alpine
     restart: unless-stopped
+    # Container baseline (evo.hostops#30). The image's entrypoint starts as
+    # root only to fix the ownership of a new data directory, then drops to
+    # postgres (uid 70). The data is already owned by 70, so start as 70 and
+    # hold no capability at all. Proven on this image against existing data
+    # and against a new volume. The limits are ceilings, not sizes: this
+    # container peaked at 69 MiB and 15 processes.
+    user: "70:70"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 400
+    mem_limit: 512m
     env_file:
       - ../../evo-platform-secrets/.env.db
     volumes:
@@ -25,6 +38,13 @@ services:
       context: ..
       dockerfile: Dockerfile
     restart: unless-stopped
+    # Same baseline. The app starts as root, so its capabilities are left as
+    # they are until the image runs unprivileged. Peaked at 239 MiB and 38
+    # processes.
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 400
+    mem_limit: 768m
     env_file:
       - ../.env
     environment:
