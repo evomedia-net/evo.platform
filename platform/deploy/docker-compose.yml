@@ -38,9 +38,21 @@ services:
       context: ..
       dockerfile: Dockerfile
     restart: unless-stopped
-    # Same baseline. The app starts as root, so its capabilities are left as
-    # they are until the image runs unprivileged. Peaked at 239 MiB and 38
-    # processes.
+    # Same baseline. Peaked at 239 MiB and 38 processes.
+    #
+    # It runs as uid 1000, the image's own `node` user, and holds no
+    # capability. The one thing it used root for was the signing key: the
+    # keys directory belongs to uid 1000 on the server and the private key
+    # is readable by its owner alone, so root could read it only by
+    # overriding file permissions. As uid 1000 it reads it as the owner.
+    # Rehearsed on an image built from main, with keys laid out that way:
+    # as root with no capabilities it does not start (it cannot open the
+    # key); as uid 1000 with none it runs the migrations, publishes the
+    # key and signs a token with it. If the keys ever belong to another
+    # user it stops at start, with "permission denied" on the private key.
+    user: "1000:1000"
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     pids_limit: 400
