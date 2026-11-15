@@ -10,6 +10,11 @@ and the release moves them under its version.
 Unreleased
 ----------
 
+Fixed
+~~~~~
+
+- containers: the app runs as uid 1000, the image's own node user, and holds no capability, where it ran as root with Docker's default fourteen. Its one use of root was reading the signing key: the keys belong to uid 1000 on the server and the private key is readable by its owner alone. Rehearsed on an image built from main with keys laid out that way: as uid 1000 with no capabilities it runs the migrations, publishes the key and signs a token with it (#335 (https://github.com/evomedia-net/evo.platform/pull/335))
+
 v0.0.1.0.29
 -----------
 
