@@ -34,4 +34,9 @@ COPY package*.json ./
 # error" on two admin pages, not as a deploy that failed.
 #
 # `migrate deploy` is idempotent: applies what is pending, no-ops otherwise.
+#
+# The shell hands over to node for the last command, so node is the process
+# a stop signal reaches, and the app ends on it by itself
+# (src/core/shutdown.ts). A test holds this line as it is: change it and
+# measure a stop again.
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]

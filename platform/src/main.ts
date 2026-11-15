@@ -10,10 +10,15 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { config } from './config';
 import { securityHeaders } from './core/security-headers';
+import { stopOnSignal } from './core/shutdown';
 
 async function bootstrap() {
   // rawBody is required for Stripe webhook signature verification
   const app = await NestFactory.create(AppModule, { rawBody: true });
+  // A stop has to end the app: without this a container's first process
+  // ignores the stop signal and is killed at the timeout. Before listen(),
+  // so it is never serving and unstoppable. See core/shutdown.ts.
+  stopOnSignal(app);
   // Every response, the console included: CSP, HSTS in production, no
   // framing, no sniffing. See core/security-headers.ts for the reasoning.
   app.use(helmet(securityHeaders()));

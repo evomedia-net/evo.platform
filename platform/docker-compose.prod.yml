@@ -35,6 +35,10 @@ services:
     image: evoplatform:latest
     container_name: evoplatform_app
     restart: always
+    # Docker's own init is the first process and passes a stop signal on.
+    # The app ends on one by itself (src/core/shutdown.ts); this covers the
+    # start, while the migrations run and the app is not up yet.
+    init: true
     depends_on:
       db:
         condition: service_healthy
