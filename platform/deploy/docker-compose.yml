@@ -38,6 +38,16 @@ services:
       context: ..
       dockerfile: Dockerfile
     restart: unless-stopped
+    # Docker's own small init is the first process, and the app runs under
+    # it. The app ends on a stop signal by itself (src/core/shutdown.ts);
+    # the init is for the seconds before the app is up. While the
+    # migrations run and the app is still starting, nothing in the
+    # container has a handler for the signal; the init passes it on, so a
+    # stop then ends the start instead of waiting out the timeout.
+    # Rehearsed: a stop one second after a start took 1 second with it and
+    # 11, ending in a kill, without. It runs as uid 1000 like the app and
+    # needs no capability.
+    init: true
     # Same baseline. Peaked at 239 MiB and 38 processes.
     #
     # It runs as uid 1000, the image's own `node` user, and holds no

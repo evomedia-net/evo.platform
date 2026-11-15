@@ -327,6 +327,13 @@ SMTP resolution order per send: tenant config (`PUT /admin/smtp` with
   `npx prisma migrate deploy` on release; mount a persistent volume at
   `KEYS_DIR` (losing the keypair invalidates every outstanding token) and
   back up the Postgres volume.
+- **Stopping**: the platform ends on `SIGTERM` or `SIGINT` by itself: it stops
+  taking requests, disconnects from the database and exits with code 0, so a
+  `docker stop` or a deploy does not wait out its timeout and kill it. The two
+  production compose files also set `init: true`, which passes a stop on
+  during the seconds at start, before the app is up. If you start the
+  image some other way and put a process in front of `node`, make sure it
+  passes the signal on.
 - **Secrets**: set real `SECRET_KEY`, seed passwords, and Stripe keys via your
   deploy environment — never commit them. `.env` files are gitignored.
 - **Stripe**: point a dashboard webhook at `POST /billing/webhook` with events
