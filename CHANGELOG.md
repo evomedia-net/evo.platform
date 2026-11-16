@@ -8,6 +8,8 @@ and the release moves them under its version.
 
 ## Unreleased
 
+## v0.0.1.0.31
+
 ### Fixed
 
 - **app:** a stop ends the app. As the first process in its container it had no handler for the stop signal, so every stop and every deploy waited out Docker's timeout and then killed it. On `SIGTERM` or `SIGINT` it now stops taking requests, disconnects from the database and exits with code 0, and the two production compose files start it under Docker's init process, which passes a stop on during the seconds at start before the app is up. Rehearsed on local Docker with ten seconds allowed: a stop took 1 second and ended with code 0, where it took 11 and ended in a kill; a stop one second after a start took 1 second with the init process and 11 without ([#336](https://github.com/evomedia-net/evo.platform/pull/336))
