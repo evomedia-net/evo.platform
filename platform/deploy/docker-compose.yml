@@ -67,6 +67,19 @@ services:
       - no-new-privileges:true
     pids_limit: 400
     mem_limit: 768m
+    # Unhealthy after three failures in a row, and evo.hostops' selfheal.py
+    # restarts a container that stays unhealthy (evo.hostops#47), so this asks
+    # only what a restart can fix: is the process answering?
+    #
+    # The JWKS document is built from the signing key already in memory, so it
+    # needs no database, and every app that signs anyone in reads it. The start
+    # period covers `prisma migrate deploy`, which runs before the server.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8200/.well-known/jwks.json', {signal: AbortSignal.timeout(5000)}).then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
     env_file:
       - ../.env
     environment:

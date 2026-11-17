@@ -8,6 +8,10 @@ and the release moves them under its version.
 
 ## Unreleased
 
+### Added
+
+- **containers:** the app has a health check, so the box's self-heal watcher can restart it when it stops answering (evo.hostops#47). Docker asks every 30 seconds, on the container's own loopback, and three failures in a row mark it unhealthy. It asks for the JWKS document, which is built from the signing key already in memory: no database, and every app that signs anyone in reads it. Failures do not count for the first five minutes, while `prisma migrate deploy` runs. The check runs on node, which the image is built on. Rehearsed in the running production container: the check as written passes, and the same check pointed at a closed port fails ([#341](https://github.com/evomedia-net/evo.platform/pull/341))
+
 ## v0.0.1.0.31
 
 ### Fixed
