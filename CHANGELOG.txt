@@ -10,6 +10,11 @@ and the release moves them under its version.
 Unreleased
 ----------
 
+Changed
+~~~~~~~
+
+- deps: each of the four packages lists the install scripts npm 12 may run. npm 12, which the workstation now runs, runs a dependency's install script only if allowScripts in package.json lists it, so a local install had been skipping them: Prisma's two in platform/ and templates/next/, which fetch the engines that migrations need, esbuild's binary check, and the native-binding checks of @parcel/watcher and unrs-resolver. Each is approved, pinned to its version where npm can pin it; templates/next/ gets name-only entries for the three that also arrive through its linked packages/sdk-node. The Docker images and CI install with Node 22's own npm, which ignores the field, so they are unchanged (#347 (https://github.com/evomedia-net/evo.platform/pull/347))
+
 v0.0.1.0.33
 -----------
 

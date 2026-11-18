@@ -55,5 +55,9 @@
       "glob": "^14.0.6",
       "minimatch": "^11.0.9"
     }
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "unrs-resolver@1.12.2": true
   }
 }
