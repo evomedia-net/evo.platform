@@ -41,6 +41,19 @@
   "overrides": {
     "js-yaml": {
       "argparse": "^2.0.1"
+    },
+    "@jest/reporters": {
+      "glob": "^14.0.6"
+    },
+    "jest-config": {
+      "glob": "^14.0.6"
+    },
+    "jest-runtime": {
+      "glob": "^14.0.6"
+    },
+    "test-exclude": {
+      "glob": "^14.0.6",
+      "minimatch": "^11.0.9"
     }
   }
 }
