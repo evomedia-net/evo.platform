@@ -8,6 +8,10 @@ and the release moves them under its version.
 
 ## Unreleased
 
+### Fixed
+
+- **deps:** the test tooling in `platform/`, `cli/` and `packages/sdk-node/` is past two moderate advisories in glob and minimatch. No Jest release has the fix yet (30.5.2 still asks for glob 13), so `overrides` entries scoped to the four packages that pull them in (`@jest/reporters`, `jest-config`, `jest-runtime`, `test-exclude`) move them to glob 14.0.6 and minimatch 11.0.9. Development only; each package runs the same test files with the same coverage, file for file ([#345](https://github.com/evomedia-net/evo.platform/pull/345))
+
 ## v0.0.1.0.32
 
 ### Added
