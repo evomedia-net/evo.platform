@@ -60,5 +60,12 @@
     "tsx": "^4.19.0",
     "typescript": "^5",
     "vitest": "^5.0.0"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.10.1": true,
+    "prisma@7.10.1": true,
+    "esbuild": true,
+    "unrs-resolver": true,
+    "@parcel/watcher": true
   }
 }
